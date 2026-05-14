@@ -16,8 +16,8 @@ PASSENGERS_ADULTS = 1
 TRIP_TYPE = "one-way"
 
 # --- Pacing ---
-DAILY_WINDOW_START_HOUR = 6   # Local server time, 06:00
-DAILY_WINDOW_END_HOUR = 22    # Local server time, 22:00
+DAILY_WINDOW_START_HOUR = 6  # Local server time, 06:00
+DAILY_WINDOW_END_HOUR = 22  # Local server time, 22:00
 
 # --- Storage ---
 DATABASE_PATH = "data/flights.db"

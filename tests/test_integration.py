@@ -1,4 +1,5 @@
 """End-to-end integration test: mocked fast_flights, real DB, real heartbeat file."""
+
 import json
 import os
 import sys

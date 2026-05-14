@@ -37,6 +37,7 @@ def _highest_priority(problems: list) -> str:
 def _daily_job(heartbeat_path: Optional[str] = None) -> None:
     """Run one full collection cycle. Called by the scheduler at window start."""
     from datetime import date
+
     logger.info("Scheduler: starting daily collection")
     dates = generate_target_dates(date.today())
     jobs = expand_jobs(config.ROUTES, dates)

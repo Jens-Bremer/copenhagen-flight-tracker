@@ -10,6 +10,7 @@ WINDOW_SECONDS = (WINDOW_END - WINDOW_START) * 3600  # 57600
 
 # --- compute_sleep_intervals ---
 
+
 def test_one_request_returns_empty_list():
     assert compute_sleep_intervals(1, WINDOW_START, WINDOW_END) == []
 
@@ -24,7 +25,9 @@ def test_base_interval_is_window_divided_by_gaps():
     base = WINDOW_SECONDS / 9  # ~6400s for 10 requests over 16 hours
     intervals = compute_sleep_intervals(10, WINDOW_START, WINDOW_END)
     for interval in intervals:
-        assert base * 0.9 <= interval <= base * 1.1, f"{interval} outside ±10% of {base}"
+        assert base * 0.9 <= interval <= base * 1.1, (
+            f"{interval} outside ±10% of {base}"
+        )
 
 
 def test_jitter_stays_within_ten_percent():
@@ -48,6 +51,7 @@ def test_two_requests_returns_one_interval():
 
 
 # --- seconds_until_window_start ---
+
 
 def test_returns_zero_when_inside_window():
     # Mock now() to 10:00 — well within 06:00–22:00.

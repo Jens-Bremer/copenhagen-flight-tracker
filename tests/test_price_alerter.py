@@ -3,16 +3,26 @@ from datetime import date
 import pytest
 
 from src.database import initialize_database, insert_observations
-from src.price_alerter import find_cheap_flights, format_alert_message, check_and_alert_cheap_flights
+from src.price_alerter import (
+    find_cheap_flights,
+    format_alert_message,
+    check_and_alert_cheap_flights,
+)
 
 
 TODAY = date.today().isoformat()
 THRESHOLD = 5000  # €50
 
 
-def _obs(price_amount=4500, origin="CPH", destination="AMS",
-         departure_date="2025-09-19", departure_time="08:00",
-         airline="SAS", retrieved_date=None):
+def _obs(
+    price_amount=4500,
+    origin="CPH",
+    destination="AMS",
+    departure_date="2025-09-19",
+    departure_time="08:00",
+    airline="SAS",
+    retrieved_date=None,
+):
     ts = f"{retrieved_date or TODAY}T06:00:00+00:00"
     return {
         "retrieved_at": ts,
@@ -40,6 +50,7 @@ def db_path(tmp_path):
 
 
 # --- find_cheap_flights ---
+
 
 def test_returns_flights_below_threshold(db_path):
     insert_observations(db_path, [_obs(price_amount=4500)])
@@ -73,15 +84,19 @@ def test_excludes_flights_with_null_price(db_path):
 
 
 def test_returns_multiple_cheap_flights(db_path):
-    insert_observations(db_path, [
-        _obs(price_amount=3000, origin="CPH"),
-        _obs(price_amount=4500, origin="AMS", destination="CPH"),
-    ])
+    insert_observations(
+        db_path,
+        [
+            _obs(price_amount=3000, origin="CPH"),
+            _obs(price_amount=4500, origin="AMS", destination="CPH"),
+        ],
+    )
     results = find_cheap_flights(db_path, THRESHOLD, TODAY)
     assert len(results) == 2
 
 
 # --- format_alert_message ---
+
 
 def test_message_contains_route(db_path):
     insert_observations(db_path, [_obs(price_amount=4500)])
@@ -106,10 +121,13 @@ def test_message_contains_departure_date(db_path):
 
 
 def test_message_contains_flight_count(db_path):
-    insert_observations(db_path, [
-        _obs(price_amount=3000),
-        _obs(price_amount=4000, origin="AMS", destination="CPH"),
-    ])
+    insert_observations(
+        db_path,
+        [
+            _obs(price_amount=3000),
+            _obs(price_amount=4000, origin="AMS", destination="CPH"),
+        ],
+    )
     flights = find_cheap_flights(db_path, THRESHOLD, TODAY)
     msg = format_alert_message(flights, THRESHOLD)
     assert "2" in msg
@@ -117,8 +135,10 @@ def test_message_contains_flight_count(db_path):
 
 # --- check_and_alert_cheap_flights ---
 
+
 def test_returns_false_and_no_alert_when_no_cheap_flights(db_path):
     from unittest.mock import patch
+
     insert_observations(db_path, [_obs(price_amount=9000)])
     with patch("src.price_alerter.send_alert") as mock_alert:
         result = check_and_alert_cheap_flights(db_path, THRESHOLD, TODAY)
@@ -128,17 +148,27 @@ def test_returns_false_and_no_alert_when_no_cheap_flights(db_path):
 
 def test_returns_true_and_sends_alert_when_cheap_flights_found(db_path):
     from unittest.mock import patch
+
     insert_observations(db_path, [_obs(price_amount=4500)])
     with patch("src.price_alerter.send_alert", return_value=True) as mock_alert:
         result = check_and_alert_cheap_flights(db_path, THRESHOLD, TODAY)
     assert result is True
     mock_alert.assert_called_once()
     _, kwargs = mock_alert.call_args
-    assert kwargs.get("priority", mock_alert.call_args[0][2] if len(mock_alert.call_args[0]) > 2 else "default") == "default"
+    assert (
+        kwargs.get(
+            "priority",
+            mock_alert.call_args[0][2]
+            if len(mock_alert.call_args[0]) > 2
+            else "default",
+        )
+        == "default"
+    )
 
 
 def test_alert_uses_default_priority(db_path):
     from unittest.mock import patch
+
     insert_observations(db_path, [_obs(price_amount=4500)])
     with patch("src.price_alerter.send_alert", return_value=True) as mock_alert:
         check_and_alert_cheap_flights(db_path, THRESHOLD, TODAY)

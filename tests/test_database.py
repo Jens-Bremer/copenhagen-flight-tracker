@@ -32,6 +32,7 @@ def db_path(tmp_path):
 
 # --- initialize_database ---
 
+
 def test_creates_database_file(tmp_path):
     path = str(tmp_path / "flights.db")
     initialize_database(path)
@@ -55,9 +56,21 @@ def test_table_has_expected_columns(db_path):
     cols = {row[1] for row in conn.execute("PRAGMA table_info(flight_observations)")}
     conn.close()
     expected = {
-        "id", "retrieved_at", "departure_date", "origin", "destination",
-        "airline", "departure_time", "arrival_time", "duration", "stops",
-        "price", "price_amount", "price_currency", "is_best", "current_price_trend",
+        "id",
+        "retrieved_at",
+        "departure_date",
+        "origin",
+        "destination",
+        "airline",
+        "departure_time",
+        "arrival_time",
+        "duration",
+        "stops",
+        "price",
+        "price_amount",
+        "price_currency",
+        "is_best",
+        "current_price_trend",
     }
     assert expected.issubset(cols)
 
@@ -70,6 +83,7 @@ def test_index_exists(db_path):
 
 
 # --- insert_observations ---
+
 
 def test_insert_returns_count(db_path):
     count = insert_observations(db_path, [SAMPLE, SAMPLE])
@@ -101,6 +115,7 @@ def test_insert_rolls_back_on_failure(db_path):
 
 
 # --- Task 18: data integrity / nullability ---
+
 
 def test_nullable_price_fields_accept_none(db_path):
     # price, price_amount, price_currency may all be absent when fast-flights
@@ -134,18 +149,31 @@ def test_required_field_airline_rejects_none(db_path):
 def test_schema_nullable_columns(db_path):
     conn = sqlite3.connect(db_path)
     # PRAGMA table_info columns: (cid, name, type, notnull, dflt_value, pk)
-    info = {row[1]: row[3] for row in conn.execute("PRAGMA table_info(flight_observations)")}
+    info = {
+        row[1]: row[3] for row in conn.execute("PRAGMA table_info(flight_observations)")
+    }
     conn.close()
     # These must allow NULL
     for col in ("price", "price_amount", "price_currency", "current_price_trend"):
         assert info[col] == 0, f"{col} should be nullable"
     # These must be NOT NULL
-    for col in ("retrieved_at", "departure_date", "origin", "destination",
-                "airline", "departure_time", "arrival_time", "duration", "stops", "is_best"):
+    for col in (
+        "retrieved_at",
+        "departure_date",
+        "origin",
+        "destination",
+        "airline",
+        "departure_time",
+        "arrival_time",
+        "duration",
+        "stops",
+        "is_best",
+    ):
         assert info[col] == 1, f"{col} should be NOT NULL"
 
 
 # --- query_price_history ---
+
 
 def test_query_returns_rows_for_date(db_path):
     insert_observations(db_path, [SAMPLE])

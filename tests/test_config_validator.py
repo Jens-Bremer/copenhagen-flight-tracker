@@ -24,6 +24,7 @@ def test_valid_config_passes():
 
 # --- ROUTES ---
 
+
 def test_empty_routes_raises():
     with pytest.raises(ValueError, match="ROUTES"):
         validate_config(_cfg(ROUTES=[]))
@@ -51,6 +52,7 @@ def test_duplicate_routes_raises():
 
 # --- DEPARTURE_WEEKDAYS ---
 
+
 def test_empty_departure_weekdays_raises():
     with pytest.raises(ValueError, match="DEPARTURE_WEEKDAYS"):
         validate_config(_cfg(DEPARTURE_WEEKDAYS=[]))
@@ -67,6 +69,7 @@ def test_negative_weekday_raises():
 
 
 # --- MAX_MONTHS_AHEAD ---
+
 
 def test_max_months_zero_raises():
     with pytest.raises(ValueError, match="MAX_MONTHS_AHEAD"):
@@ -85,6 +88,7 @@ def test_max_months_non_int_raises():
 
 # --- Window hours ---
 
+
 def test_start_hour_equal_to_end_hour_raises():
     with pytest.raises(ValueError, match="DAILY_WINDOW"):
         validate_config(_cfg(DAILY_WINDOW_START_HOUR=6, DAILY_WINDOW_END_HOUR=6))
@@ -102,6 +106,7 @@ def test_window_hour_out_of_range_raises():
 
 # --- DATABASE_PATH ---
 
+
 def test_empty_database_path_raises():
     with pytest.raises(ValueError, match="DATABASE_PATH"):
         validate_config(_cfg(DATABASE_PATH=""))
@@ -113,6 +118,7 @@ def test_none_database_path_raises():
 
 
 # --- PRICE_ALERT_THRESHOLD ---
+
 
 def test_price_alert_threshold_zero_raises():
     with pytest.raises(ValueError, match="PRICE_ALERT_THRESHOLD"):

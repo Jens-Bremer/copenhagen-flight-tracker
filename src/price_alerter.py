@@ -8,7 +8,9 @@ from src.notifier import send_alert
 logger = logging.getLogger(__name__)
 
 
-def find_cheap_flights(db_path: str, threshold: int, run_date: Optional[str] = None) -> list:
+def find_cheap_flights(
+    db_path: str, threshold: int, run_date: Optional[str] = None
+) -> list:
     """Return today's observed flights where price_amount <= threshold, ordered by price."""
     if run_date is None:
         run_date = date.today().isoformat()

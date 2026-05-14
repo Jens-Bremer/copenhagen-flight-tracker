@@ -2,9 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project
+## Project Philosophy & Current State
 
-Self-hosted Python service that tracks one-way CPH↔AMS flight prices by scraping Google Flights via `fast-flights` (Protobuf-based, no browser). Prices are stored in SQLite with one row per flight per observation. A cron job triggers `scripts/run_daily.py` once per day; the script paces its own requests evenly across a 06:00–22:00 window.
+A self-hosted, extremely fault-tolerant Python service that tracks flight prices by scraping Google Flights via `fast-flights`. The core philosophy is **reliable passive data collection without IP bans** to eventually answer the question: *"When should I buy my ticket?"*
+
+Currently, the project operates as a robust MVP:
+- **Scheduler-driven:** A single Python daemon (`run_scheduler.py`) manages its own daily pacing and health checks. No OS-level cron is required.
+- **Fault-tolerant:** Transient network errors or single-flight failures do not crash the daily scrape.
+- **Strictly configured:** All settings are strictly validated on startup. Local overrides live in `config_local.py`.
 
 ## Commands
 
@@ -12,62 +17,54 @@ Self-hosted Python service that tracks one-way CPH↔AMS flight prices by scrapi
 # Install dependencies
 pip install -r requirements.txt
 
-# Initialize the database (idempotent)
+# Initialize the database (safe to run multiple times)
 python scripts/setup_db.py
 
-# Run the daily collection (takes many hours due to pacing)
-python scripts/run_daily.py
+# Run the continuous daemon (orchestrates daily scrape + nightly health check)
+python scripts/run_scheduler.py
 
-# Run the health check (run after 22:00)
-python scripts/run_health_check.py
-
-# Query stored data
-python scripts/query_prices.py --date YYYY-MM-DD
-python scripts/query_prices.py --cheapest
+# Query stored data via CLI
 python scripts/query_prices.py --stats
+python scripts/query_prices.py --cheapest
+python scripts/query_prices.py --date YYYY-MM-DD
 
-# Run tests
+# Run the complete test suite (121+ tests)
 pytest tests/
-
-# Run a single test file
-pytest tests/test_date_generator.py
 ```
 
-## Architecture
+## Architecture & Workflow
 
-All tuneable values live exclusively in `config.py` — no other file may hardcode routes, weekday filters, pacing windows, database path, or ntfy settings.
+### Orchestration
+`scripts/run_scheduler.py` is the continuous daemon. It schedules two main jobs:
+1. `_daily_job` (via `scripts/run_daily.py`): Expands routes/dates, paces requests, fetches, parses, and inserts.
+2. `_health_check_job` (via `src/health_checker.py`): Validates database integrity nightly and alerts via `ntfy` if anomalies occur.
 
-### Data flow
-
+### Data Flow
 ```
 date_generator → route_expander → flight_fetcher → response_parser → database
                                        ↑                   ↑
                                    request_pacer        notifier/health_checker
 ```
 
-`scripts/run_daily.py` is the only orchestrator; `scripts/run_health_check.py` runs separately via its own cron entry at 23:30.
+### Module Contract
+Each `src/` module imports only from `config` and stdlib/installed packages — **no cross-imports between `src/` modules**. Every public function has type hints and a docstring. Pure functions stay in `src/`, while side effects (DB writes, HTTP calls, sleeps) are orchestrated in `scripts/`.
 
-### Module contract
+## Key Design Rules
 
-Each `src/` module imports only from `config` and stdlib/installed packages — no cross-imports between `src/` modules. Every public function has type hints and a docstring.
+1. **No hardcoded values:** All constants reference `config.X`.
+2. **Local Overrides:** `config_local.py` is gitignored. Use it for local deployments to set `NTFY_TOPIC` or override pacing windows without creating Git conflicts.
+3. **Pacing & Jitter:** `request_pacer.py` adds ±10% jitter to evenly space requests across a daily window to look organic. `route_expander.py` shuffles jobs to avoid sequential identical routes.
+4. **Logging everywhere:** The `logging` module is configured via `src/log_config.py`. Exception: `query_prices.py` uses plain `print` for CLI readability.
 
-### Key design rules
+## Database & Migrations
 
-- **No hardcoded values** — all constants reference `config.X`.
-- **Logging everywhere** (`logging` module), except `scripts/query_prices.py` which uses plain `print`.
-- **Fail gracefully in the loop** — a single failed fetch should be caught and counted, not crash the daily run. Failed jobs are reported at the end and written to `data/last_run.json`.
-- **Pure functions in `src/`** — side effects (DB writes, HTTP calls, sleeps) stay in `scripts/`.
-- **`request_pacer.py` adds ±10% jitter** to each sleep interval to avoid predictable request patterns.
-- **`route_expander.py` shuffles** the job list with a daily seed so CPH→AMS and AMS→CPH requests for the same date are not back-to-back.
+SQLite at `data/flights.db`. 
+- **Schema:** `flight_observations` table with an auto-increment `id` and a multi-column lookup index.
+- **Rule for Updates:** **Never break historical data.** If adding features (e.g., Layovers, Round Trips), add new columns as `NULLABLE` so historical rows seamlessly parse, or create new tables entirely. Avoid renaming or deleting columns.
 
-### Database
+## Tests
 
-SQLite at `data/flights.db`. Schema: `flight_observations` table with an auto-increment `id` and an index on `(origin, destination, departure_date, airline, departure_time)`. Every function in `database.py` opens and closes its own connection.
-
-### Notifications
-
-`notifier.py` posts to ntfy.sh using only `urllib.request` (stdlib). If `NTFY_TOPIC` is empty/None, notifications are silently skipped.
-
-### Tests
-
-Tests live in `tests/` and use `pytest`. No real HTTP requests — mock `fast-flights` responses. Three test files cover: `date_generator`, `response_parser`, and `request_pacer`.
+The test suite relies heavily on `pytest` and `unittest.mock`. 
+- **No real HTTP requests:** Always mock `fast-flights` API calls.
+- **No real DB state:** Use `tmp_path` fixtures in pytest for isolated `flights.db` instances.
+- **Coverage:** Includes unit tests for pure logic, integration tests for the orchestrator, and config validation checks.

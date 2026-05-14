@@ -15,7 +15,9 @@ def fetch_flights_for_date(
     departure_date: date,
 ) -> Optional[fast_flights.Result]:
     """Fetch one-way flights for a single route and date. Returns None on failure."""
-    logger.info("Querying %s→%s on %s", origin, destination, departure_date.strftime("%Y-%m-%d"))
+    logger.info(
+        "Querying %s→%s on %s", origin, destination, departure_date.strftime("%Y-%m-%d")
+    )
     try:
         return fast_flights.get_flights(
             flight_data=[
@@ -31,5 +33,7 @@ def fetch_flights_for_date(
             fetch_mode="fallback",
         )
     except Exception as exc:
-        logger.error("Failed to fetch %s→%s on %s: %s", origin, destination, departure_date, exc)
+        logger.error(
+            "Failed to fetch %s→%s on %s: %s", origin, destination, departure_date, exc
+        )
         return None

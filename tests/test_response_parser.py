@@ -34,6 +34,7 @@ RETRIEVED = datetime(2025, 9, 5, 6, 0, 0, tzinfo=timezone.utc)
 
 # --- parse_flights ---
 
+
 def test_none_result_returns_empty_list():
     assert parse_flights(None, ORIGIN, DEST, DEP_DATE, RETRIEVED) == []
 
@@ -47,10 +48,20 @@ def test_returns_one_row_per_flight():
 def test_row_contains_all_required_keys():
     rows = parse_flights(_make_result(), ORIGIN, DEST, DEP_DATE, RETRIEVED)
     expected_keys = {
-        "retrieved_at", "departure_date", "origin", "destination",
-        "airline", "departure_time", "arrival_time", "duration",
-        "stops", "price", "price_amount", "price_currency",
-        "is_best", "current_price_trend",
+        "retrieved_at",
+        "departure_date",
+        "origin",
+        "destination",
+        "airline",
+        "departure_time",
+        "arrival_time",
+        "duration",
+        "stops",
+        "price",
+        "price_amount",
+        "price_currency",
+        "is_best",
+        "current_price_trend",
     }
     assert set(rows[0].keys()) == expected_keys
 
@@ -86,6 +97,7 @@ def test_missing_price_yields_none_amount_and_currency():
 
 
 # --- extract_price_parts ---
+
 
 def test_euro_price():
     assert extract_price_parts("€89") == (8900, "EUR")

@@ -42,20 +42,22 @@ def parse_flights(
     rows = []
     for flight in result.flights:
         price_amount, price_currency = extract_price_parts(flight.price)
-        rows.append({
-            "retrieved_at": retrieved_at.isoformat(),
-            "departure_date": departure_date.strftime("%Y-%m-%d"),
-            "origin": origin,
-            "destination": destination,
-            "airline": flight.name,
-            "departure_time": flight.departure,
-            "arrival_time": flight.arrival,
-            "duration": flight.duration,
-            "stops": flight.stops,
-            "price": flight.price,
-            "price_amount": price_amount,
-            "price_currency": price_currency,
-            "is_best": flight.is_best,
-            "current_price_trend": result.current_price,
-        })
+        rows.append(
+            {
+                "retrieved_at": retrieved_at.isoformat(),
+                "departure_date": departure_date.strftime("%Y-%m-%d"),
+                "origin": origin,
+                "destination": destination,
+                "airline": flight.name,
+                "departure_time": flight.departure,
+                "arrival_time": flight.arrival,
+                "duration": flight.duration,
+                "stops": flight.stops,
+                "price": flight.price,
+                "price_amount": price_amount,
+                "price_currency": price_currency,
+                "is_best": flight.is_best,
+                "current_price_trend": result.current_price,
+            }
+        )
     return rows
