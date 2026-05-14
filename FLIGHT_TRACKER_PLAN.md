@@ -334,6 +334,89 @@ This is the **orchestrator**. It ties everything together. It is the only script
 
 ---
 
+---
+
+## Added Later
+
+---
+
+### Task 16 — Expand README with Operations & Windows Support
+
+- [ ] Update README.md with cross-platform (Windows & Mac/Linux) install steps.
+  - Include `.venv\Scripts\activate` for Windows alongside Mac/Linux `source`.
+  - Replace `mkdir -p` with OS-agnostic python commands or explain simple folder creation.
+- [ ] Document the new unified single-command scheduler (no more cron setup needed).
+- [ ] Add manual test run guidance (single‑day run or limited window).
+- [ ] Detail how to configure and subscribe to ntfy.sh.
+- [ ] Keep instructions concise and copy‑paste ready for non-technical users.
+
+**Acceptance:** A new user (e.g., on Windows) can follow the README end‑to‑end and start the tracker continuously with a single command without guessing or configuring OS-level schedulers.
+
+---
+
+### Task 17 — Add integration test for end‑to‑end flow (mocked)
+
+- [ ] Create a test that mocks `fast_flights.get_flights` to return a fixed Result.
+- [ ] Run the same flow as `run_daily.py` but with a tiny job list and a temp DB.
+- [ ] Assert:
+  - Observations are inserted
+  - Heartbeat JSON is written
+  - Failure count is correct when mock returns empty
+
+**Acceptance:** `pytest` runs the integration test without network calls and validates data persistence + heartbeat output.
+
+---
+
+### Task 18 — Add data integrity checks (schema + nullability)
+
+- [ ] Review `flight_observations` schema vs parser output.
+- [ ] Ensure fields that can be missing (`price`, `price_amount`, `price_currency`) allow NULL.
+- [ ] Add a test to insert rows with missing price and confirm it succeeds.
+- [ ] Add a test that invalid required fields fail with a clear error.
+
+**Acceptance:** DB accepts missing price data and rejects invalid required fields with rollback.
+
+---
+
+### Task 19 — Add config validation on startup
+
+- [ ] Create a `validate_config()` helper (module or script).
+- [ ] Validate:
+  - `ROUTES` format and uniqueness
+  - `DEPARTURE_WEEKDAYS` subset of 0–6
+  - `MAX_MONTHS_AHEAD` positive int
+  - `DAILY_WINDOW_START_HOUR` < `DAILY_WINDOW_END_HOUR`
+  - `DATABASE_PATH` non‑empty
+- [ ] Call from `run_daily.py` and `run_health_check.py` at startup.
+
+**Acceptance:** Invalid config raises a clear, actionable error before any work begins.
+
+---
+
+### Task 20 — Logging + error reporting consistency
+
+- [ ] Standardize log format and levels across scripts.
+- [ ] Ensure:
+  - Each job logs route/date and progress index
+  - Failures include exception detail and context
+  - Final summary includes total observations + failed count
+- [ ] Add a test or smoke check for log output format (where feasible).
+
+**Acceptance:** Logs are consistent, structured, and provide enough context to diagnose failures quickly.
+
+---
+
+### Task 21 — Create continuous daemon scheduler (The "1-Command" Fix)
+
+- [ ] Add `schedule` library to `requirements.txt`.
+- [ ] Create `scripts/run_scheduler.py` that imports the logic from `run_daily.py` and `run_health_check.py`.
+- [ ] Configure it to automatically run the daily scraper at the window start hour and the health check at 23:30.
+- [ ] Add a `while True:` loop that sleeps and runs pending jobs.
+
+**Acceptance:** Running `python scripts/run_scheduler.py` keeps the application open and automatically manages both cron tasks internally, making it trivial to run on any OS.
+
+---
+
 ## Design Rules (enforce throughout)
 
 1. **One function, one job.** If a function does two things, split it.
