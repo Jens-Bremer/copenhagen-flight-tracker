@@ -1,0 +1,10 @@
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import config
+from src.database import initialize_database
+
+initialize_database(config.DATABASE_PATH)
+print(f"Database ready at {config.DATABASE_PATH}")
