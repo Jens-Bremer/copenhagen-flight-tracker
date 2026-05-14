@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS flight_observations (
     arrival_time        TEXT    NOT NULL,
     duration            TEXT    NOT NULL,
     stops               INTEGER NOT NULL,
-    price               TEXT    NOT NULL,
+    price               TEXT,
     price_amount        INTEGER,
     price_currency      TEXT,
     is_best             INTEGER NOT NULL,

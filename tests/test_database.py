@@ -100,6 +100,51 @@ def test_insert_rolls_back_on_failure(db_path):
     assert count == 0
 
 
+# --- Task 18: data integrity / nullability ---
+
+def test_nullable_price_fields_accept_none(db_path):
+    # price, price_amount, price_currency may all be absent when fast-flights
+    # returns an unrecognised currency or an empty price string.
+    no_price = {**SAMPLE, "price": None, "price_amount": None, "price_currency": None}
+    count = insert_observations(db_path, [no_price])
+    assert count == 1
+
+
+def test_nullable_price_round_trips_as_none(db_path):
+    no_price = {**SAMPLE, "price": None, "price_amount": None, "price_currency": None}
+    insert_observations(db_path, [no_price])
+    rows = query_price_history(db_path, SAMPLE["departure_date"])
+    assert rows[0]["price"] is None
+    assert rows[0]["price_amount"] is None
+    assert rows[0]["price_currency"] is None
+
+
+def test_required_field_retrieved_at_rejects_none(db_path):
+    invalid = {**SAMPLE, "retrieved_at": None}
+    with pytest.raises(sqlite3.IntegrityError):
+        insert_observations(db_path, [invalid])
+
+
+def test_required_field_airline_rejects_none(db_path):
+    invalid = {**SAMPLE, "airline": None}
+    with pytest.raises(sqlite3.IntegrityError):
+        insert_observations(db_path, [invalid])
+
+
+def test_schema_nullable_columns(db_path):
+    conn = sqlite3.connect(db_path)
+    # PRAGMA table_info columns: (cid, name, type, notnull, dflt_value, pk)
+    info = {row[1]: row[3] for row in conn.execute("PRAGMA table_info(flight_observations)")}
+    conn.close()
+    # These must allow NULL
+    for col in ("price", "price_amount", "price_currency", "current_price_trend"):
+        assert info[col] == 0, f"{col} should be nullable"
+    # These must be NOT NULL
+    for col in ("retrieved_at", "departure_date", "origin", "destination",
+                "airline", "departure_time", "arrival_time", "duration", "stops", "is_best"):
+        assert info[col] == 1, f"{col} should be NOT NULL"
+
+
 # --- query_price_history ---
 
 def test_query_returns_rows_for_date(db_path):
