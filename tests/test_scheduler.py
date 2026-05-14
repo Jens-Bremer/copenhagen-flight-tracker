@@ -9,7 +9,7 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
-from scripts.run_scheduler import setup_schedule, _daily_job, _health_check_job
+from scripts.run_scheduler import setup_schedule, _daily_job, _health_check_job, _csv_export_job
 
 
 @pytest.fixture(autouse=True)
@@ -22,9 +22,9 @@ def clear_schedule():
 
 # --- Job registration ---
 
-def test_setup_schedule_registers_two_jobs():
+def test_setup_schedule_registers_three_jobs():
     setup_schedule()
-    assert len(schedule.jobs) == 2
+    assert len(schedule.jobs) == 3
 
 
 def test_daily_job_scheduled_at_window_start():
@@ -88,3 +88,18 @@ def test_health_check_job_silent_when_no_problems():
          patch("scripts.run_scheduler.config"):
         _health_check_job()
     mock_alert.assert_not_called()
+
+
+def test_csv_export_scheduled_at_2345():
+    setup_schedule()
+    times = [str(job.next_run.strftime("%H:%M")) for job in schedule.jobs]
+    assert "23:45" in times
+
+
+def test_csv_export_job_calls_export_to_csv(tmp_path):
+    db_path = str(tmp_path / "flights.db")
+    with patch("scripts.run_scheduler.export_to_csv", return_value=0) as mock_export, \
+         patch("scripts.run_scheduler.config") as mock_cfg:
+        mock_cfg.DATABASE_PATH = db_path
+        _csv_export_job()
+    mock_export.assert_called_once()

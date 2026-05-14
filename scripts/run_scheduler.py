@@ -16,6 +16,7 @@ from src.log_config import setup_logging
 from src.notifier import send_alert
 from src.request_pacer import compute_sleep_intervals
 from src.route_expander import expand_jobs
+from scripts.export_csv import export_to_csv
 from scripts.run_daily import run_collection
 
 setup_logging()
@@ -52,6 +53,16 @@ def _daily_job(heartbeat_path: Optional[str] = None) -> None:
     logger.info("Scheduler: daily collection finished")
 
 
+def _csv_export_job() -> None:
+    """Export the full observations table to CSV. Called by the scheduler at 23:45."""
+    logger.info("Scheduler: exporting CSV")
+    output_path = os.path.join(
+        os.path.dirname(os.path.abspath(config.DATABASE_PATH)), "flights_export.csv"
+    )
+    count = export_to_csv(config.DATABASE_PATH, output_path)
+    logger.info("Scheduler: exported %d rows to %s", count, output_path)
+
+
 def _health_check_job() -> None:
     """Run the health check and alert if problems found. Called by the scheduler at 23:30."""
     logger.info("Scheduler: running health check")
@@ -74,7 +85,11 @@ def setup_schedule() -> None:
     daily_time = f"{config.DAILY_WINDOW_START_HOUR:02d}:00"
     schedule.every().day.at(daily_time).do(_daily_job)
     schedule.every().day.at("23:30").do(_health_check_job)
-    logger.info("Scheduler: daily collection at %s, health check at 23:30", daily_time)
+    schedule.every().day.at("23:45").do(_csv_export_job)
+    logger.info(
+        "Scheduler: daily collection at %s, health check at 23:30, CSV export at 23:45",
+        daily_time,
+    )
 
 
 def main() -> None:

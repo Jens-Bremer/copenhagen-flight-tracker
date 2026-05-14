@@ -57,9 +57,10 @@ Run a single command and leave it running. It handles all timing automatically �
 python scripts/run_scheduler.py
 ```
 
-This registers two jobs:
+This registers three jobs:
 - **Daily collection** — fires at 06:00 every day, spaces ~156 requests across the day until 22:00
 - **Health check** — fires at 23:30, alerts via ntfy if anything looks wrong
+- **CSV export** — fires at 23:45, writes `data/flights_export.csv` for frontend ingestion
 
 Keep the terminal open, or run it in the background with `nohup` / as a system service.
 
@@ -80,6 +81,16 @@ Add these two lines to your crontab (`crontab -e`), adjusting the paths:
 ```
 55 5 * * * cd /path/to/copenhagen-flight-tracker && /path/to/.venv/bin/python scripts/run_daily.py >> logs/daily.log 2>&1
 30 23 * * * cd /path/to/copenhagen-flight-tracker && /path/to/.venv/bin/python scripts/run_health_check.py >> logs/health.log 2>&1
+```
+
+## CSV export
+
+`data/flights_export.csv` is regenerated automatically every night at 23:45. It contains all stored observations with columns: `retrieved_at`, `departure_date`, `origin`, `destination`, `airline`, `departure_time`, `arrival_time`, `price_amount`, `price_currency`. This file is intended for frontend ingestion — for example, a static HTML/JS page can fetch and parse it directly.
+
+To generate it manually at any time:
+
+```bash
+python scripts/export_csv.py
 ```
 
 ## Inspecting data
