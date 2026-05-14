@@ -11,17 +11,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 from src.config_validator import validate_config
 from src.database import insert_observations
+from src.log_config import setup_logging
 from src.date_generator import generate_target_dates
 from src.flight_fetcher import fetch_flights_for_date
 from src.request_pacer import compute_sleep_intervals, seconds_until_window_start
 from src.response_parser import parse_flights
 from src.route_expander import expand_jobs
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
+setup_logging()
 logger = logging.getLogger(__name__)
 
 

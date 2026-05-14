@@ -7,13 +7,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 from src.config_validator import validate_config
 from src.health_checker import run_health_check
+from src.log_config import setup_logging
 from src.notifier import send_alert
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
+setup_logging()
 logger = logging.getLogger(__name__)
 
 _PRIORITY_RANK = {"urgent": 4, "high": 3, "default": 2, "low": 1, "min": 0}
