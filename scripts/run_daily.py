@@ -12,6 +12,7 @@ import config
 from src.config_validator import validate_config
 from src.database import insert_observations
 from src.log_config import setup_logging
+from src.price_alerter import check_and_alert_cheap_flights
 from src.date_generator import generate_target_dates
 from src.flight_fetcher import fetch_flights_for_date
 from src.request_pacer import compute_sleep_intervals, seconds_until_window_start
@@ -87,6 +88,7 @@ def run_collection(
             logger.warning("Failed: %s→%s %s", origin, destination, dep_date)
 
     _write_heartbeat(heartbeat_path, run_date, total_observations, len(failed_jobs), total_jobs, duration)
+    check_and_alert_cheap_flights(db_path, config.PRICE_ALERT_THRESHOLD, run_date)
     return total_observations, len(failed_jobs)
 
 

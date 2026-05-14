@@ -5,6 +5,7 @@ def validate_config(cfg: dict) -> None:
     _check_max_months_ahead(cfg.get("MAX_MONTHS_AHEAD"))
     _check_window_hours(cfg.get("DAILY_WINDOW_START_HOUR"), cfg.get("DAILY_WINDOW_END_HOUR"))
     _check_database_path(cfg.get("DATABASE_PATH"))
+    _check_price_alert_threshold(cfg.get("PRICE_ALERT_THRESHOLD"))
 
 
 def _check_routes(routes) -> None:
@@ -44,3 +45,8 @@ def _check_window_hours(start, end) -> None:
 def _check_database_path(path) -> None:
     if not path or not isinstance(path, str):
         raise ValueError("DATABASE_PATH must be a non-empty string")
+
+
+def _check_price_alert_threshold(value) -> None:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise ValueError("PRICE_ALERT_THRESHOLD must be a positive integer (price in cents)")

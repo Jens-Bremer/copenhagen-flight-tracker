@@ -12,6 +12,7 @@ def _cfg(**overrides):
         "DAILY_WINDOW_START_HOUR": 6,
         "DAILY_WINDOW_END_HOUR": 22,
         "DATABASE_PATH": "data/flights.db",
+        "PRICE_ALERT_THRESHOLD": 5000,
     }
     base.update(overrides)
     return base
@@ -109,3 +110,25 @@ def test_empty_database_path_raises():
 def test_none_database_path_raises():
     with pytest.raises(ValueError, match="DATABASE_PATH"):
         validate_config(_cfg(DATABASE_PATH=None))
+
+
+# --- PRICE_ALERT_THRESHOLD ---
+
+def test_price_alert_threshold_zero_raises():
+    with pytest.raises(ValueError, match="PRICE_ALERT_THRESHOLD"):
+        validate_config(_cfg(PRICE_ALERT_THRESHOLD=0))
+
+
+def test_price_alert_threshold_negative_raises():
+    with pytest.raises(ValueError, match="PRICE_ALERT_THRESHOLD"):
+        validate_config(_cfg(PRICE_ALERT_THRESHOLD=-100))
+
+
+def test_price_alert_threshold_bool_raises():
+    with pytest.raises(ValueError, match="PRICE_ALERT_THRESHOLD"):
+        validate_config(_cfg(PRICE_ALERT_THRESHOLD=True))
+
+
+def test_price_alert_threshold_non_int_raises():
+    with pytest.raises(ValueError, match="PRICE_ALERT_THRESHOLD"):
+        validate_config(_cfg(PRICE_ALERT_THRESHOLD=49.99))
