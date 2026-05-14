@@ -20,12 +20,12 @@ ENV/
 data/
 logs/
 
-# Local config overrides (personal settings like NTFY_TOPIC)
-config_local.py
-
 # Environment / secrets
 .env
 .env.*
+
+# Project planning doc (local only)
+FLIGHT_TRACKER_PLAN.md
 
 # macOS
 .DS_Store

@@ -30,10 +30,9 @@ python scripts\setup_db.py
 
 ### Notifications (optional)
 
-Create a `config_local.py` file in the project root (it is gitignored) and set a unique topic name:
+Open `config.py` and set your topic name:
 
 ```python
-# config_local.py
 NTFY_TOPIC = "your-unique-topic-name"
 ```
 
@@ -42,7 +41,7 @@ Then on your phone:
 2. Tap **+** and subscribe to the exact same topic name.
 3. You will receive an alert if the tracker stops working or detects anomalies.
 
-Omit `config_local.py` entirely to run without notifications.
+Set `NTFY_TOPIC = ""` to disable notifications.
 
 ### Other settings
 

@@ -4,6 +4,7 @@ import os
 import sys
 import time
 from datetime import date, datetime, timezone
+from typing import Callable, List, Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -23,9 +24,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def _write_heartbeat(run_date: str, total_observations: int, failed_jobs_count: int, total_jobs: int, duration_seconds: float) -> None:
-    os.makedirs("data", exist_ok=True)
-    with open("data/last_run.json", "w") as f:
+def _write_heartbeat(heartbeat_path: str, run_date: str, total_observations: int,
+                     failed_jobs_count: int, total_jobs: int, duration_seconds: float) -> None:
+    os.makedirs(os.path.dirname(os.path.abspath(heartbeat_path)), exist_ok=True)
+    with open(heartbeat_path, "w") as f:
         json.dump({
             "run_date": run_date,
             "total_observations": total_observations,
@@ -35,49 +37,37 @@ def _write_heartbeat(run_date: str, total_observations: int, failed_jobs_count: 
         }, f, indent=2)
 
 
-def main() -> None:
+def run_collection(
+    jobs: list,
+    db_path: str,
+    heartbeat_path: str,
+    intervals: Optional[list] = None,
+    sleep_fn: Callable = time.sleep,
+) -> Tuple[int, int]:
+    """Execute one full collection cycle. Returns (total_observations, failed_jobs_count)."""
     start_time = time.monotonic()
     run_date = date.today().isoformat()
-    logger.info("Starting daily flight price collection (%s)", run_date)
-
-    # Step 1 — target dates
-    dates = generate_target_dates(date.today())
-    logger.info("Targeting %d departure dates", len(dates))
-
-    # Step 2 — job list
-    jobs = expand_jobs(config.ROUTES, dates)
     total_jobs = len(jobs)
-    logger.info("Expanded to %d jobs (routes × dates)", total_jobs)
 
-    # Step 3 — pacing intervals
-    intervals = compute_sleep_intervals(
-        total_jobs,
-        config.DAILY_WINDOW_START_HOUR,
-        config.DAILY_WINDOW_END_HOUR,
-    )
+    if intervals is None:
+        intervals = compute_sleep_intervals(
+            total_jobs,
+            config.DAILY_WINDOW_START_HOUR,
+            config.DAILY_WINDOW_END_HOUR,
+        )
 
-    # Step 4 — wait for window to open
-    wait = seconds_until_window_start(config.DAILY_WINDOW_START_HOUR)
-    if wait > 0:
-        logger.info("Window opens in %.0f seconds — waiting", wait)
-        time.sleep(wait)
-
-    # Step 5 — main loop
     total_observations = 0
     failed_jobs = []
 
     for idx, (origin, destination, departure_date) in enumerate(jobs, start=1):
-        logger.info(
-            "Querying %s→%s %s [%d/%d]",
-            origin, destination, departure_date, idx, total_jobs,
-        )
+        logger.info("Querying %s→%s %s [%d/%d]", origin, destination, departure_date, idx, total_jobs)
         try:
             result = fetch_flights_for_date(origin, destination, departure_date)
             observations = parse_flights(
                 result, origin, destination, departure_date,
                 datetime.now(tz=timezone.utc),
             )
-            inserted = insert_observations(config.DATABASE_PATH, observations)
+            inserted = insert_observations(db_path, observations)
             total_observations += inserted
             logger.info("Stored %d flights", inserted)
             if inserted == 0:
@@ -86,10 +76,9 @@ def main() -> None:
             logger.error("Job %s→%s %s failed: %s", origin, destination, departure_date, exc)
             failed_jobs.append((origin, destination, departure_date))
 
-        if idx < total_jobs:
-            time.sleep(intervals[idx - 1])
+        if idx < total_jobs and intervals:
+            sleep_fn(intervals[idx - 1])
 
-    # Step 6 — summary
     duration = time.monotonic() - start_time
     logger.info(
         "Daily collection complete. Total observations: %d. Failed jobs: %d.",
@@ -99,7 +88,34 @@ def main() -> None:
         for origin, destination, dep_date in failed_jobs:
             logger.warning("Failed: %s→%s %s", origin, destination, dep_date)
 
-    _write_heartbeat(run_date, total_observations, len(failed_jobs), total_jobs, duration)
+    _write_heartbeat(heartbeat_path, run_date, total_observations, len(failed_jobs), total_jobs, duration)
+    return total_observations, len(failed_jobs)
+
+
+def main() -> None:
+    logger.info("Starting daily flight price collection (%s)", date.today().isoformat())
+
+    dates = generate_target_dates(date.today())
+    logger.info("Targeting %d departure dates", len(dates))
+
+    jobs = expand_jobs(config.ROUTES, dates)
+    logger.info("Expanded to %d jobs (routes × dates)", len(jobs))
+
+    intervals = compute_sleep_intervals(
+        len(jobs),
+        config.DAILY_WINDOW_START_HOUR,
+        config.DAILY_WINDOW_END_HOUR,
+    )
+
+    wait = seconds_until_window_start(config.DAILY_WINDOW_START_HOUR)
+    if wait > 0:
+        logger.info("Window opens in %.0f seconds — waiting", wait)
+        time.sleep(wait)
+
+    heartbeat_path = os.path.join(
+        os.path.dirname(os.path.abspath(config.DATABASE_PATH)), "last_run.json"
+    )
+    run_collection(jobs, config.DATABASE_PATH, heartbeat_path, intervals)
 
 
 if __name__ == "__main__":
