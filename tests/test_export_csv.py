@@ -8,14 +8,27 @@ from scripts.export_csv import export_to_csv
 
 
 COLUMNS = [
-    "retrieved_at", "departure_date", "origin", "destination",
-    "airline", "departure_time", "arrival_time", "price_amount", "price_currency",
+    "retrieved_at",
+    "departure_date",
+    "origin",
+    "destination",
+    "airline",
+    "departure_time",
+    "arrival_time",
+    "price_amount",
+    "price_currency",
 ]
 
 
-def _obs(price_amount=4500, origin="CPH", destination="AMS",
-         departure_date="2025-09-19", departure_time="08:00",
-         arrival_time="10:05", airline="SAS"):
+def _obs(
+    price_amount=4500,
+    origin="CPH",
+    destination="AMS",
+    departure_date="2025-09-19",
+    departure_time="08:00",
+    arrival_time="10:05",
+    airline="SAS",
+):
     return {
         "retrieved_at": "2025-09-14T06:00:00+00:00",
         "departure_date": departure_date,
@@ -63,7 +76,9 @@ def test_csv_has_header_row(db_path, output_path):
 
 
 def test_csv_contains_observation_data(db_path, output_path):
-    insert_observations(db_path, [_obs(origin="CPH", destination="AMS", price_amount=4500)])
+    insert_observations(
+        db_path, [_obs(origin="CPH", destination="AMS", price_amount=4500)]
+    )
     export_to_csv(db_path, output_path)
     with open(output_path) as f:
         rows = list(csv.DictReader(f))
@@ -74,10 +89,13 @@ def test_csv_contains_observation_data(db_path, output_path):
 
 
 def test_csv_contains_multiple_rows(db_path, output_path):
-    insert_observations(db_path, [
-        _obs(origin="CPH", destination="AMS"),
-        _obs(origin="AMS", destination="CPH"),
-    ])
+    insert_observations(
+        db_path,
+        [
+            _obs(origin="CPH", destination="AMS"),
+            _obs(origin="AMS", destination="CPH"),
+        ],
+    )
     export_to_csv(db_path, output_path)
     with open(output_path) as f:
         rows = list(csv.DictReader(f))

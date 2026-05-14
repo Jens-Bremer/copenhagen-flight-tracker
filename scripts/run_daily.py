@@ -4,7 +4,7 @@ import os
 import sys
 import time
 from datetime import date, datetime, timezone
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -23,17 +23,27 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 
-def _write_heartbeat(heartbeat_path: str, run_date: str, total_observations: int,
-                     failed_jobs_count: int, total_jobs: int, duration_seconds: float) -> None:
+def _write_heartbeat(
+    heartbeat_path: str,
+    run_date: str,
+    total_observations: int,
+    failed_jobs_count: int,
+    total_jobs: int,
+    duration_seconds: float,
+) -> None:
     os.makedirs(os.path.dirname(os.path.abspath(heartbeat_path)), exist_ok=True)
     with open(heartbeat_path, "w") as f:
-        json.dump({
-            "run_date": run_date,
-            "total_observations": total_observations,
-            "failed_jobs_count": failed_jobs_count,
-            "total_jobs": total_jobs,
-            "duration_seconds": round(duration_seconds, 1),
-        }, f, indent=2)
+        json.dump(
+            {
+                "run_date": run_date,
+                "total_observations": total_observations,
+                "failed_jobs_count": failed_jobs_count,
+                "total_jobs": total_jobs,
+                "duration_seconds": round(duration_seconds, 1),
+            },
+            f,
+            indent=2,
+        )
 
 
 def run_collection(
@@ -59,11 +69,21 @@ def run_collection(
     failed_jobs = []
 
     for idx, (origin, destination, departure_date) in enumerate(jobs, start=1):
-        logger.info("Querying %s→%s %s [%d/%d]", origin, destination, departure_date, idx, total_jobs)
+        logger.info(
+            "Querying %s→%s %s [%d/%d]",
+            origin,
+            destination,
+            departure_date,
+            idx,
+            total_jobs,
+        )
         try:
             result = fetch_flights_for_date(origin, destination, departure_date)
             observations = parse_flights(
-                result, origin, destination, departure_date,
+                result,
+                origin,
+                destination,
+                departure_date,
                 datetime.now(tz=timezone.utc),
             )
             inserted = insert_observations(db_path, observations)
@@ -72,7 +92,9 @@ def run_collection(
             if inserted == 0:
                 failed_jobs.append((origin, destination, departure_date))
         except Exception as exc:
-            logger.error("Job %s→%s %s failed: %s", origin, destination, departure_date, exc)
+            logger.error(
+                "Job %s→%s %s failed: %s", origin, destination, departure_date, exc
+            )
             failed_jobs.append((origin, destination, departure_date))
 
         if idx < total_jobs and intervals:
@@ -81,13 +103,21 @@ def run_collection(
     duration = time.monotonic() - start_time
     logger.info(
         "Daily collection complete. Total observations: %d. Failed jobs: %d.",
-        total_observations, len(failed_jobs),
+        total_observations,
+        len(failed_jobs),
     )
     if failed_jobs:
         for origin, destination, dep_date in failed_jobs:
             logger.warning("Failed: %s→%s %s", origin, destination, dep_date)
 
-    _write_heartbeat(heartbeat_path, run_date, total_observations, len(failed_jobs), total_jobs, duration)
+    _write_heartbeat(
+        heartbeat_path,
+        run_date,
+        total_observations,
+        len(failed_jobs),
+        total_jobs,
+        duration,
+    )
     check_and_alert_cheap_flights(db_path, config.PRICE_ALERT_THRESHOLD, run_date)
     return total_observations, len(failed_jobs)
 

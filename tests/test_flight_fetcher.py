@@ -1,6 +1,6 @@
 import logging
 from datetime import date
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import fast_flights
 
@@ -18,7 +18,7 @@ def _make_result():
 
 def test_returns_result_on_success():
     expected = _make_result()
-    with patch("fast_flights.get_flights", return_value=expected) as mock_get:
+    with patch("fast_flights.get_flights", return_value=expected):
         result = fetch_flights_for_date(ORIGIN, DESTINATION, DEPARTURE)
     assert result is expected
 
@@ -58,7 +58,9 @@ def test_passes_correct_passenger_count():
     with patch("fast_flights.get_flights", return_value=_make_result()) as mock_get:
         fetch_flights_for_date(ORIGIN, DESTINATION, DEPARTURE)
     _, kwargs = mock_get.call_args
-    assert kwargs["passengers"]._data[0] == 1  # _data is (adults, children, infants_in_seat, infants_on_lap)
+    assert (
+        kwargs["passengers"]._data[0] == 1
+    )  # _data is (adults, children, infants_in_seat, infants_on_lap)
 
 
 def test_logs_route_and_date_on_success(caplog):

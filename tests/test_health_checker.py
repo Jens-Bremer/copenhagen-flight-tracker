@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import date, datetime, timezone
+from datetime import date
 
 import pytest
 
@@ -54,6 +54,7 @@ def ctx(tmp_path):
 
 # --- Heartbeat checks ---
 
+
 def test_no_problems_when_all_healthy(ctx):
     db_path, heartbeat_path = ctx
     _make_heartbeat(heartbeat_path)
@@ -79,6 +80,7 @@ def test_problem_when_heartbeat_run_date_is_not_today(ctx):
 
 # --- Failure rate ---
 
+
 def test_problem_when_failure_rate_exceeds_25_percent(ctx):
     db_path, heartbeat_path = ctx
     _make_heartbeat(heartbeat_path, failed_jobs_count=30, total_jobs=100)
@@ -97,6 +99,7 @@ def test_no_problem_when_failure_rate_at_25_percent(ctx):
 
 # --- Zero observations today ---
 
+
 def test_problem_when_no_observations_today(ctx):
     db_path, heartbeat_path = ctx
     _make_heartbeat(heartbeat_path)
@@ -107,12 +110,14 @@ def test_problem_when_no_observations_today(ctx):
 
 # --- Observation count drop ---
 
+
 def test_problem_when_today_count_below_50_percent_of_average(ctx):
     db_path, heartbeat_path = ctx
     _make_heartbeat(heartbeat_path)
     # Insert 100 obs each day for the past 7 days
     from datetime import timedelta
-    past_days = [(date.today() - timedelta(days=i+1)).isoformat() for i in range(7)]
+
+    past_days = [(date.today() - timedelta(days=i + 1)).isoformat() for i in range(7)]
     historical = [_obs(retrieved_date=d) for d in past_days for _ in range(100)]
     insert_observations(db_path, historical)
     # Today: only 10 obs (well below 50% of 100 average)
@@ -125,7 +130,8 @@ def test_no_problem_when_today_count_above_50_percent_of_average(ctx):
     db_path, heartbeat_path = ctx
     _make_heartbeat(heartbeat_path)
     from datetime import timedelta
-    past_days = [(date.today() - timedelta(days=i+1)).isoformat() for i in range(7)]
+
+    past_days = [(date.today() - timedelta(days=i + 1)).isoformat() for i in range(7)]
     historical = [_obs(retrieved_date=d) for d in past_days for _ in range(100)]
     insert_observations(db_path, historical)
     # Today: 60 obs (above 50% of 100)
@@ -136,13 +142,17 @@ def test_no_problem_when_today_count_above_50_percent_of_average(ctx):
 
 # --- Currency inconsistency ---
 
+
 def test_problem_when_multiple_currencies_today(ctx):
     db_path, heartbeat_path = ctx
     _make_heartbeat(heartbeat_path)
-    insert_observations(db_path, [
-        _obs(currency="EUR"),
-        _obs(currency="USD"),
-    ])
+    insert_observations(
+        db_path,
+        [
+            _obs(currency="EUR"),
+            _obs(currency="USD"),
+        ],
+    )
     problems = run_health_check(db_path, heartbeat_path=heartbeat_path)
     assert any("currenc" in p.lower() for p in problems)
 
@@ -157,9 +167,12 @@ def test_no_problem_with_single_currency_today(ctx):
 
 # --- Multiple problems ---
 
+
 def test_returns_multiple_problems(ctx):
     db_path, heartbeat_path = ctx
-    _make_heartbeat(heartbeat_path, run_date="2020-01-01", failed_jobs_count=50, total_jobs=100)
+    _make_heartbeat(
+        heartbeat_path, run_date="2020-01-01", failed_jobs_count=50, total_jobs=100
+    )
     # No observations today → zero obs problem too
     problems = run_health_check(db_path, heartbeat_path=heartbeat_path)
     assert len(problems) >= 2

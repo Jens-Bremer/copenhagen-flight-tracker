@@ -32,7 +32,7 @@ def _check_high_failure_rate(heartbeat_path: str) -> Optional[str]:
         total_jobs = data.get("total_jobs", 0)
         failed = data.get("failed_jobs_count", 0)
         if total_jobs > 0 and failed / total_jobs > 0.25:
-            return f"[high] High failure rate: {failed}/{total_jobs} jobs failed ({failed/total_jobs:.0%})"
+            return f"[high] High failure rate: {failed}/{total_jobs} jobs failed ({failed / total_jobs:.0%})"
     except Exception:
         pass
     return None
@@ -80,7 +80,9 @@ def _check_observation_count_drop(db_path: str) -> Optional[str]:
         conn.close()
     avg = avg_row[0]
     if avg and today_count < avg * 0.5:
-        return f"[high] Observation count drop: today={today_count}, 7-day avg={avg:.0f}"
+        return (
+            f"[high] Observation count drop: today={today_count}, 7-day avg={avg:.0f}"
+        )
     return None
 
 

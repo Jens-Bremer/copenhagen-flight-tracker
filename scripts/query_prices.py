@@ -39,8 +39,10 @@ def cmd_date(departure_date: str) -> None:
             print(f"\n{route}  {departure_date}")
             current_route = route
         sample = obs[0]
-        print(f"  {airline:30s}  {dep_time} → {sample['arrival_time']}  "
-              f"{sample['duration']}  {sample['stops']} stop(s)")
+        print(
+            f"  {airline:30s}  {dep_time} → {sample['arrival_time']}  "
+            f"{sample['duration']}  {sample['stops']} stop(s)"
+        )
         for o in obs:
             price_str = o["price"] if o["price"] else "n/a"
             print(f"    {o['retrieved_at'][:16]}  {price_str}")
@@ -112,12 +114,19 @@ def cmd_stats() -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Inspect stored flight price data.")
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--date", metavar="YYYY-MM-DD",
-                       help="Show all observations for a departure date")
-    group.add_argument("--cheapest", action="store_true",
-                       help="Show cheapest observed price per route per upcoming date")
-    group.add_argument("--stats", action="store_true",
-                       help="Show database summary statistics")
+    group.add_argument(
+        "--date",
+        metavar="YYYY-MM-DD",
+        help="Show all observations for a departure date",
+    )
+    group.add_argument(
+        "--cheapest",
+        action="store_true",
+        help="Show cheapest observed price per route per upcoming date",
+    )
+    group.add_argument(
+        "--stats", action="store_true", help="Show database summary statistics"
+    )
     args = parser.parse_args()
 
     if args.date:

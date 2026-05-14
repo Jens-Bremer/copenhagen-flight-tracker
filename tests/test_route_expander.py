@@ -49,4 +49,4 @@ def test_not_grouped_by_route():
     routes_seq = [(o, d) for o, d, _ in jobs]
     # If every first-half item had the same route, they'd be grouped.
     first_route = routes_seq[0]
-    assert not all(r == first_route for r in routes_seq[:len(dates)])
+    assert not all(r == first_route for r in routes_seq[: len(dates)])

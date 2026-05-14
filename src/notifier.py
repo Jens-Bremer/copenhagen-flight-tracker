@@ -1,6 +1,5 @@
 import logging
 import urllib.request
-from typing import Optional
 
 import config
 

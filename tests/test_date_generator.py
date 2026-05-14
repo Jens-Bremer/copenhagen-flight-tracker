@@ -8,7 +8,9 @@ import config
 def test_returns_only_departure_weekdays():
     results = generate_target_dates(date.today())
     for d in results:
-        assert d.weekday() in config.DEPARTURE_WEEKDAYS, f"{d} is weekday {d.weekday()}, not in {config.DEPARTURE_WEEKDAYS}"
+        assert d.weekday() in config.DEPARTURE_WEEKDAYS, (
+            f"{d} is weekday {d.weekday()}, not in {config.DEPARTURE_WEEKDAYS}"
+        )
 
 
 def test_first_date_is_on_or_after_today():

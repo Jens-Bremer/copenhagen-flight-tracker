@@ -9,8 +9,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 logger = logging.getLogger(__name__)
 
 EXPORT_COLUMNS = [
-    "retrieved_at", "departure_date", "origin", "destination",
-    "airline", "departure_time", "arrival_time", "price_amount", "price_currency",
+    "retrieved_at",
+    "departure_date",
+    "origin",
+    "destination",
+    "airline",
+    "departure_time",
+    "arrival_time",
+    "price_amount",
+    "price_currency",
 ]
 
 

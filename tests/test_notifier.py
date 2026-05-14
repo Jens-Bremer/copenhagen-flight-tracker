@@ -1,7 +1,5 @@
-import urllib.request
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 import config
 from src.notifier import send_alert

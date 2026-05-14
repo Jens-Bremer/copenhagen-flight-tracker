@@ -1,4 +1,5 @@
 """Smoke tests for logging consistency across run_collection and setup_logging."""
+
 import logging
 import os
 import sys
@@ -16,6 +17,7 @@ from src.log_config import LOG_FORMAT, LOG_DATEFMT, setup_logging
 
 
 # --- setup_logging ---
+
 
 def test_setup_logging_is_callable():
     setup_logging()  # must not raise
@@ -36,6 +38,7 @@ def test_log_datefmt_is_readable():
 
 # --- run_collection log output ---
 
+
 @pytest.fixture
 def ctx(tmp_path):
     db_path = str(tmp_path / "flights.db")
@@ -50,10 +53,19 @@ JOBS = [("CPH", "AMS", date(2025, 9, 5))]
 def _make_result():
     return fast_flights.Result(
         current_price="typical",
-        flights=[fast_flights.Flight(
-            is_best=True, name="SAS", departure="08:00", arrival="10:05",
-            arrival_time_ahead="", duration="2h 5m", stops=0, delay=None, price="€89",
-        )],
+        flights=[
+            fast_flights.Flight(
+                is_best=True,
+                name="SAS",
+                departure="08:00",
+                arrival="10:05",
+                arrival_time_ahead="",
+                duration="2h 5m",
+                stops=0,
+                delay=None,
+                price="€89",
+            )
+        ],
     )
 
 

@@ -1,7 +1,8 @@
 """Tests for run_scheduler: job registration and callable job functions."""
+
 import os
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import schedule
 import pytest
@@ -9,7 +10,12 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
-from scripts.run_scheduler import setup_schedule, _daily_job, _health_check_job, _csv_export_job
+from scripts.run_scheduler import (
+    setup_schedule,
+    _daily_job,
+    _health_check_job,
+    _csv_export_job,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -21,6 +27,7 @@ def clear_schedule():
 
 
 # --- Job registration ---
+
 
 def test_setup_schedule_registers_three_jobs():
     setup_schedule()
@@ -49,14 +56,17 @@ def test_jobs_run_daily():
 
 # --- Job functions ---
 
+
 def test_daily_job_calls_run_collection(tmp_path):
     db_path = str(tmp_path / "flights.db")
     heartbeat_path = str(tmp_path / "last_run.json")
-    with patch("scripts.run_scheduler.run_collection") as mock_run, \
-         patch("scripts.run_scheduler.generate_target_dates", return_value=[]), \
-         patch("scripts.run_scheduler.expand_jobs", return_value=[]), \
-         patch("scripts.run_scheduler.compute_sleep_intervals", return_value=[]), \
-         patch("scripts.run_scheduler.config") as mock_cfg:
+    with (
+        patch("scripts.run_scheduler.run_collection") as mock_run,
+        patch("scripts.run_scheduler.generate_target_dates", return_value=[]),
+        patch("scripts.run_scheduler.expand_jobs", return_value=[]),
+        patch("scripts.run_scheduler.compute_sleep_intervals", return_value=[]),
+        patch("scripts.run_scheduler.config") as mock_cfg,
+    ):
         mock_cfg.ROUTES = config.ROUTES
         mock_cfg.DATABASE_PATH = db_path
         mock_cfg.DAILY_WINDOW_START_HOUR = config.DAILY_WINDOW_START_HOUR
@@ -67,25 +77,33 @@ def test_daily_job_calls_run_collection(tmp_path):
 
 def test_health_check_job_calls_run_health_check(tmp_path):
     db_path = str(tmp_path / "flights.db")
-    with patch("scripts.run_scheduler.run_health_check", return_value=[]) as mock_hc, \
-         patch("scripts.run_scheduler.config") as mock_cfg:
+    with (
+        patch("scripts.run_scheduler.run_health_check", return_value=[]) as mock_hc,
+        patch("scripts.run_scheduler.config") as mock_cfg,
+    ):
         mock_cfg.DATABASE_PATH = db_path
         _health_check_job()
     mock_hc.assert_called_once()
 
 
 def test_health_check_job_sends_alert_when_problems_found():
-    with patch("scripts.run_scheduler.run_health_check", return_value=["[urgent] problem"]), \
-         patch("scripts.run_scheduler.send_alert") as mock_alert, \
-         patch("scripts.run_scheduler.config"):
+    with (
+        patch(
+            "scripts.run_scheduler.run_health_check", return_value=["[urgent] problem"]
+        ),
+        patch("scripts.run_scheduler.send_alert") as mock_alert,
+        patch("scripts.run_scheduler.config"),
+    ):
         _health_check_job()
     mock_alert.assert_called_once()
 
 
 def test_health_check_job_silent_when_no_problems():
-    with patch("scripts.run_scheduler.run_health_check", return_value=[]), \
-         patch("scripts.run_scheduler.send_alert") as mock_alert, \
-         patch("scripts.run_scheduler.config"):
+    with (
+        patch("scripts.run_scheduler.run_health_check", return_value=[]),
+        patch("scripts.run_scheduler.send_alert") as mock_alert,
+        patch("scripts.run_scheduler.config"),
+    ):
         _health_check_job()
     mock_alert.assert_not_called()
 
@@ -98,8 +116,10 @@ def test_csv_export_scheduled_at_2345():
 
 def test_csv_export_job_calls_export_to_csv(tmp_path):
     db_path = str(tmp_path / "flights.db")
-    with patch("scripts.run_scheduler.export_to_csv", return_value=0) as mock_export, \
-         patch("scripts.run_scheduler.config") as mock_cfg:
+    with (
+        patch("scripts.run_scheduler.export_to_csv", return_value=0) as mock_export,
+        patch("scripts.run_scheduler.config") as mock_cfg,
+    ):
         mock_cfg.DATABASE_PATH = db_path
         _csv_export_job()
     mock_export.assert_called_once()
