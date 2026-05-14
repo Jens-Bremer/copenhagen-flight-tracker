@@ -57,7 +57,11 @@ Run a single command and leave it running. It handles all timing automatically �
 python scripts/run_scheduler.py
 ```
 
-This starts the daily price collection at 06:00 every day and runs the health check at 23:30. Keep the terminal open (or run it in the background / as a service).
+This registers two jobs:
+- **Daily collection** — fires at 06:00 every day, spaces ~156 requests across the day until 22:00
+- **Health check** — fires at 23:30, alerts via ntfy if anything looks wrong
+
+Keep the terminal open, or run it in the background with `nohup` / as a system service.
 
 ### Alternative: manual one-off run
 
