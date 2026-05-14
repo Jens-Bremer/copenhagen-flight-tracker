@@ -5,6 +5,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
+from src.config_validator import validate_config
 from src.health_checker import run_health_check
 from src.notifier import send_alert
 
@@ -29,6 +30,7 @@ def _highest_priority(problems: list) -> str:
 
 
 def main() -> None:
+    validate_config(vars(config))
     logger.info("Running health check")
     problems = run_health_check(config.DATABASE_PATH)
 

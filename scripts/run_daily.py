@@ -9,6 +9,7 @@ from typing import Callable, List, Optional, Tuple
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
+from src.config_validator import validate_config
 from src.database import insert_observations
 from src.date_generator import generate_target_dates
 from src.flight_fetcher import fetch_flights_for_date
@@ -93,6 +94,7 @@ def run_collection(
 
 
 def main() -> None:
+    validate_config(vars(config))
     logger.info("Starting daily flight price collection (%s)", date.today().isoformat())
 
     dates = generate_target_dates(date.today())
