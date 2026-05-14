@@ -23,13 +23,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def _write_heartbeat(run_date: str, total_observations: int, failed_jobs_count: int, duration_seconds: float) -> None:
+def _write_heartbeat(run_date: str, total_observations: int, failed_jobs_count: int, total_jobs: int, duration_seconds: float) -> None:
     os.makedirs("data", exist_ok=True)
     with open("data/last_run.json", "w") as f:
         json.dump({
             "run_date": run_date,
             "total_observations": total_observations,
             "failed_jobs_count": failed_jobs_count,
+            "total_jobs": total_jobs,
             "duration_seconds": round(duration_seconds, 1),
         }, f, indent=2)
 
@@ -98,7 +99,7 @@ def main() -> None:
         for origin, destination, dep_date in failed_jobs:
             logger.warning("Failed: %s→%s %s", origin, destination, dep_date)
 
-    _write_heartbeat(run_date, total_observations, len(failed_jobs), duration)
+    _write_heartbeat(run_date, total_observations, len(failed_jobs), total_jobs, duration)
 
 
 if __name__ == "__main__":
