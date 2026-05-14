@@ -23,5 +23,11 @@ DAILY_WINDOW_END_HOUR = 22    # Local server time, 22:00
 DATABASE_PATH = "data/flights.db"
 
 # --- Notifications (ntfy.sh) ---
-NTFY_TOPIC = "your-secret-topic-name-here"  # Change this to a unique random string
+NTFY_TOPIC = ""  # Set in config_local.py — leave empty to disable notifications
 NTFY_URL = "https://ntfy.sh"
+
+# Local overrides (gitignored) — create config_local.py to set NTFY_TOPIC etc.
+try:
+    from config_local import *  # noqa: F401, F403
+except ImportError:
+    pass

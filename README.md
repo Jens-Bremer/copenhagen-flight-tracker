@@ -16,13 +16,14 @@ python scripts/setup_db.py
 
 ## Configuration
 
-Open `config.py` and set your ntfy.sh topic before first use:
+Create a `config_local.py` file in the project root (it is gitignored) and set your ntfy.sh topic:
 
 ```python
-NTFY_TOPIC = "your-secret-topic-name-here"  # replace with a unique random string
+# config_local.py
+NTFY_TOPIC = "your-unique-topic-name"
 ```
 
-To receive alerts on your phone: install the [ntfy app](https://ntfy.sh), tap **+**, and subscribe to the same topic name. Leave `NTFY_TOPIC` empty to disable notifications.
+To receive alerts on your phone: install the [ntfy app](https://ntfy.sh), tap **+**, and subscribe to the same topic name. Omit `config_local.py` entirely (or leave `NTFY_TOPIC` empty) to disable notifications.
 
 All other tuneable values (routes, date range, pacing window, database path) are in `config.py`.
 

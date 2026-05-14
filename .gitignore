@@ -20,6 +20,9 @@ ENV/
 data/
 logs/
 
+# Local config overrides (personal settings like NTFY_TOPIC)
+config_local.py
+
 # Environment / secrets
 .env
 .env.*
