@@ -13,6 +13,13 @@ from src.price_alerter import (
 TODAY = date.today().isoformat()
 THRESHOLD = 5000  # €50
 
+# Dict threshold: CPH→AMS cap €50, AMS→CPH cap €60, unlisted cap €70
+DICT_THRESHOLD = {
+    ("CPH", "AMS"): 5000,
+    ("AMS", "CPH"): 6000,
+    "_default": 7000,
+}
+
 
 def _obs(
     price_amount=4500,
@@ -71,7 +78,9 @@ def test_excludes_flights_at_threshold_boundary(db_path):
 
 
 def test_excludes_historical_flights(db_path):
-    insert_observations(db_path, [_obs(price_amount=4500, retrieved_date="2025-01-01")])
+    insert_observations(
+        db_path, [_obs(price_amount=4500, retrieved_date="2025-01-01")]
+    )
     results = find_cheap_flights(db_path, THRESHOLD, TODAY)
     assert results == []
 
@@ -198,3 +207,77 @@ def test_alert_uses_default_priority(db_path):
         check_and_alert_cheap_flights(db_path, THRESHOLD, TODAY)
     call_kwargs = mock_alert.call_args[1]
     assert call_kwargs.get("priority") == "default"
+
+
+# --- per-route dict threshold ---
+
+
+def test_find_cheap_flights_dict_excludes_flight_above_route_threshold(db_path):
+    # CPH→AMS cap is €50; a €55 flight must be excluded
+    insert_observations(
+        db_path, [_obs(price_amount=5500, origin="CPH", destination="AMS")]
+    )
+    results = find_cheap_flights(db_path, DICT_THRESHOLD, TODAY)
+    assert results == []
+
+
+def test_find_cheap_flights_dict_includes_flight_below_route_threshold(db_path):
+    # AMS→CPH cap is €60; a €55 flight must be included
+    insert_observations(
+        db_path, [_obs(price_amount=5500, origin="AMS", destination="CPH")]
+    )
+    results = find_cheap_flights(db_path, DICT_THRESHOLD, TODAY)
+    assert len(results) == 1
+
+
+def test_find_cheap_flights_dict_uses_default_for_unlisted_route(db_path):
+    # _default cap is €70; a €65 flight on an unlisted route must be included
+    insert_observations(
+        db_path, [_obs(price_amount=6500, origin="CPH", destination="LHR")]
+    )
+    results = find_cheap_flights(db_path, DICT_THRESHOLD, TODAY)
+    assert len(results) == 1
+
+
+def test_find_cheap_flights_dict_default_excludes_above_default(db_path):
+    # _default cap is €70; a €75 flight on an unlisted route must be excluded
+    insert_observations(
+        db_path, [_obs(price_amount=7500, origin="CPH", destination="LHR")]
+    )
+    results = find_cheap_flights(db_path, DICT_THRESHOLD, TODAY)
+    assert results == []
+
+
+def test_format_alert_message_dict_threshold_header(db_path):
+    insert_observations(
+        db_path, [_obs(price_amount=5500, origin="AMS", destination="CPH")]
+    )
+    flights = find_cheap_flights(db_path, DICT_THRESHOLD, TODAY)
+    msg = format_alert_message(flights, DICT_THRESHOLD)
+    assert "per-route thresholds" in msg
+
+
+def test_check_and_alert_dict_threshold_sends_alert_for_cheap_route(db_path):
+    from unittest.mock import patch
+
+    # AMS→CPH cap €60; €55 flight should trigger alert
+    insert_observations(
+        db_path, [_obs(price_amount=5500, origin="AMS", destination="CPH")]
+    )
+    with patch("src.price_alerter.send_alert", return_value=True) as mock_alert:
+        result = check_and_alert_cheap_flights(db_path, DICT_THRESHOLD, TODAY)
+    assert result is True
+    mock_alert.assert_called_once()
+
+
+def test_check_and_alert_dict_threshold_no_alert_for_expensive_route(db_path):
+    from unittest.mock import patch
+
+    # CPH→AMS cap €50; €55 flight should NOT trigger alert
+    insert_observations(
+        db_path, [_obs(price_amount=5500, origin="CPH", destination="AMS")]
+    )
+    with patch("src.price_alerter.send_alert") as mock_alert:
+        result = check_and_alert_cheap_flights(db_path, DICT_THRESHOLD, TODAY)
+    assert result is False
+    mock_alert.assert_not_called()

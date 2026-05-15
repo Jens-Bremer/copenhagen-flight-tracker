@@ -157,3 +157,48 @@ def test_price_alert_threshold_bool_raises():
 def test_price_alert_threshold_non_int_raises():
     with pytest.raises(ValueError, match="PRICE_ALERT_THRESHOLD"):
         validate_config(_cfg(PRICE_ALERT_THRESHOLD=49.99))
+
+
+# --- PRICE_ALERT_THRESHOLD (dict form) ---
+
+
+def test_price_alert_threshold_dict_valid_passes():
+    validate_config(
+        _cfg(
+            PRICE_ALERT_THRESHOLD={
+                ("CPH", "AMS"): 5000,
+                ("AMS", "CPH"): 4500,
+                "_default": 6000,
+            }
+        )
+    )
+
+
+def test_price_alert_threshold_dict_only_default_passes():
+    validate_config(_cfg(PRICE_ALERT_THRESHOLD={"_default": 6000}))
+
+
+def test_price_alert_threshold_dict_missing_default_raises():
+    with pytest.raises(ValueError, match="PRICE_ALERT_THRESHOLD"):
+        validate_config(_cfg(PRICE_ALERT_THRESHOLD={("CPH", "AMS"): 5000}))
+
+
+def test_price_alert_threshold_dict_zero_value_raises():
+    with pytest.raises(ValueError, match="PRICE_ALERT_THRESHOLD"):
+        validate_config(
+            _cfg(PRICE_ALERT_THRESHOLD={("CPH", "AMS"): 0, "_default": 6000})
+        )
+
+
+def test_price_alert_threshold_dict_negative_value_raises():
+    with pytest.raises(ValueError, match="PRICE_ALERT_THRESHOLD"):
+        validate_config(
+            _cfg(PRICE_ALERT_THRESHOLD={("CPH", "AMS"): -100, "_default": 6000})
+        )
+
+
+def test_price_alert_threshold_dict_bool_value_raises():
+    with pytest.raises(ValueError, match="PRICE_ALERT_THRESHOLD"):
+        validate_config(
+            _cfg(PRICE_ALERT_THRESHOLD={("CPH", "AMS"): True, "_default": 6000})
+        )

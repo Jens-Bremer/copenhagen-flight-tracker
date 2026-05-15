@@ -71,7 +71,33 @@ def _check_database_path(path) -> None:
 
 
 def _check_price_alert_threshold(value) -> None:
-    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+    if isinstance(value, bool):
         raise ValueError(
-            "PRICE_ALERT_THRESHOLD must be a positive integer (price in cents)"
+            "PRICE_ALERT_THRESHOLD must be a positive integer or a route-keyed dict"
         )
+    if isinstance(value, int):
+        if value < 1:
+            raise ValueError(
+                "PRICE_ALERT_THRESHOLD must be a positive integer (price in cents)"
+            )
+        return
+    if isinstance(value, dict):
+        if "_default" not in value:
+            raise ValueError(
+                "PRICE_ALERT_THRESHOLD dict must include a '_default' key as a fallback threshold"
+            )
+        for key, threshold in value.items():
+            if (
+                isinstance(threshold, bool)
+                or not isinstance(threshold, int)
+                or threshold < 1
+            ):
+                raise ValueError(
+                    f"PRICE_ALERT_THRESHOLD: all values must be positive integers,"
+                    f" got {threshold!r} for key {key!r}"
+                )
+        return
+    raise ValueError(
+        "PRICE_ALERT_THRESHOLD must be a positive integer (price in cents)"
+        " or a dict mapping route tuples to thresholds"
+    )

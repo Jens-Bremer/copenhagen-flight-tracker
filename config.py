@@ -26,4 +26,8 @@ DATABASE_PATH = "data/flights.db"
 # --- Notifications (ntfy.sh) ---
 NTFY_TOPIC = "your-topic-here"  # Replace with your ntfy.sh topic name
 NTFY_URL = "https://ntfy.sh"
-PRICE_ALERT_THRESHOLD = 5000  # cents — alert when price_amount <= this (5000 = €50)
+PRICE_ALERT_THRESHOLD = {
+    ("CPH", "AMS"): 5000,  # €50
+    ("AMS", "CPH"): 4500,  # €45
+    "_default": 6000,  # €60 for any unlisted route
+}
