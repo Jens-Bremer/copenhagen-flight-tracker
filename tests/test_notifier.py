@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock, patch
 
+import socket
+
 
 import config
 from src.notifier import send_alert
@@ -23,6 +25,17 @@ def test_returns_false_on_exception():
         assert send_alert("title", "message") is False
 
 
+def test_passes_timeout_to_urlopen(monkeypatch):
+    monkeypatch.setattr(config, "NTFY_TOPIC", "my-topic")
+
+    with patch(
+        "urllib.request.urlopen", side_effect=socket.timeout("timed out")
+    ) as mock_open:
+        assert send_alert("title", "message") is False
+
+    assert mock_open.call_args.kwargs["timeout"] == 10
+
+
 def test_returns_true_silently_when_topic_is_empty(monkeypatch):
     monkeypatch.setattr(config, "NTFY_TOPIC", "")
     with patch("urllib.request.urlopen") as mock_open:
@@ -44,7 +57,7 @@ def test_posts_to_correct_url(monkeypatch):
     monkeypatch.setattr(config, "NTFY_URL", "https://ntfy.sh")
     captured = []
 
-    def fake_urlopen(req):
+    def fake_urlopen(req, *args, **kwargs):
         captured.append(req)
         resp = MagicMock()
         resp.status = 200
@@ -62,7 +75,7 @@ def test_sets_title_and_priority_headers(monkeypatch):
     monkeypatch.setattr(config, "NTFY_TOPIC", "my-topic")
     captured = []
 
-    def fake_urlopen(req):
+    def fake_urlopen(req, *args, **kwargs):
         captured.append(req)
         resp = MagicMock()
         resp.status = 200
@@ -81,7 +94,7 @@ def test_sends_message_as_bytes(monkeypatch):
     monkeypatch.setattr(config, "NTFY_TOPIC", "my-topic")
     captured = []
 
-    def fake_urlopen(req):
+    def fake_urlopen(req, *args, **kwargs):
         captured.append(req)
         resp = MagicMock()
         resp.status = 200
