@@ -100,3 +100,16 @@ def test_partial_failure_counted_correctly(ctx):
         hb = json.load(f)
     assert hb["total_observations"] == 1
     assert hb["failed_jobs_count"] == 1
+
+
+def test_retry_recovers_transient_failure(ctx):
+    """A job that fails on pass 1 but succeeds on pass 2 stores data correctly."""
+    db_path, heartbeat_path = ctx
+    with patch(
+        "fast_flights.get_flights",
+        side_effect=[Exception("timeout"), _make_result(), _make_result()],
+    ):
+        run_collection(JOBS, db_path, heartbeat_path, sleep_fn=lambda _: None)
+    rows = query_price_history(db_path, "2025-09-05")
+    assert len(rows) == 1
+    assert rows[0]["airline"] == "SAS"
