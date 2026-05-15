@@ -544,3 +544,61 @@ def test_build_large_input_completes(tmp_path):
     written, status = build(src_path, out)
     assert status == BUILD_OK
     assert written == 1000
+
+
+# --- CLI tests ---
+
+import subprocess  # noqa: E402
+import sys  # noqa: E402
+
+
+def _project_root():
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+
+
+def _run_cli(args, cwd=None):
+    return subprocess.run(
+        [sys.executable, "scripts/build_frontend_csv.py", *args],
+        cwd=cwd or _project_root(),
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_cli_missing_input_exits_2(tmp_path):
+    out = str(tmp_path / "out.csv")
+    result = _run_cli(["--input", str(tmp_path / "nope.csv"), "--output", out])
+    assert result.returncode == 2
+
+
+def test_cli_header_invalid_exits_3(tmp_path):
+    src_path = str(tmp_path / "in.csv")
+    out = str(tmp_path / "out.csv")
+    bad_columns = [c for c in REQUIRED_INPUT_COLUMNS if c != "price_amount"]
+    _write_input(src_path, [], columns=bad_columns)
+    result = _run_cli(["--input", src_path, "--output", out])
+    assert result.returncode == 3
+
+
+def test_cli_all_unparseable_exits_4(tmp_path):
+    src_path = str(tmp_path / "in.csv")
+    out = str(tmp_path / "out.csv")
+    _write_input(src_path, [_input_csv_row(arrival_time="garbage")])
+    result = _run_cli(["--input", src_path, "--output", out])
+    assert result.returncode == 4
+
+
+def test_cli_happy_path_exits_0(tmp_path):
+    src_path = str(tmp_path / "in.csv")
+    out = str(tmp_path / "out.csv")
+    _write_input(src_path, [_input_csv_row()])
+    result = _run_cli(["--input", src_path, "--output", out])
+    assert result.returncode == 0
+    assert os.path.exists(out)
+
+
+def test_cli_defaults_documented_in_help():
+    result = _run_cli(["--help"])
+    assert result.returncode == 0
+    assert "data/flights_export.csv" in result.stdout
+    assert "data/flights_frontend.csv" in result.stdout
