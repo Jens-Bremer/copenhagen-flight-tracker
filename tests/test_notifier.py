@@ -107,7 +107,7 @@ def test_supports_unicode_title_header(monkeypatch):
         send_alert(title, "body")
 
     header = captured[0].get_header("Title")
-    assert header.encode("latin-1") == title.encode("utf-8")
+    assert header == title.encode("utf-8").decode("latin-1")
 
 
 def test_sends_message_as_bytes(monkeypatch):

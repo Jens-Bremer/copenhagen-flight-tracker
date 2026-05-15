@@ -112,12 +112,9 @@ def run_collection(
     )
     if failed_jobs:
         for origin, destination, dep_date, reason in failed_jobs:
-            if reason:
-                logger.warning(
-                    "Failed: %s→%s %s (%s)", origin, destination, dep_date, reason
-                )
-            else:
-                logger.warning("Failed: %s→%s %s", origin, destination, dep_date)
+            logger.warning(
+                "Failed: %s→%s %s (%s)", origin, destination, dep_date, reason
+            )
 
     _write_heartbeat(
         heartbeat_path,
