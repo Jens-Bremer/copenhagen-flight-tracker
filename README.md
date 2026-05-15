@@ -41,7 +41,14 @@ Then on your phone:
 2. Tap **+** and subscribe to the exact same topic name.
 3. You will receive an alert if the tracker stops working or detects anomalies.
 
-Set `NTFY_TOPIC = ""` to disable notifications.
+Notes:
+- Your ntfy topic is effectively public by default. Anyone who knows the topic name can subscribe and receive your alerts. Use a long, random-looking topic name (or self-host ntfy for stronger privacy).
+- If you want to disable notifications entirely, set `NTFY_TOPIC = ""`.
+
+
+### Security / TLS note
+
+`src/flight_fetcher.py` uses `primp.Client(..., verify=False)` intentionally for browser impersonation. This can look suspicious, but is required to avoid TLS/fingerprint issues with the impersonation stack. Requests are still encrypted with TLS; certificate verification is disabled for compatibility.
 
 ### Other settings
 

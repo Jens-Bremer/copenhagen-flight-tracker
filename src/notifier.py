@@ -6,6 +6,9 @@ import config
 logger = logging.getLogger(__name__)
 
 
+_NTFY_TIMEOUT_SECONDS = 10
+
+
 def send_alert(title: str, message: str, priority: str = "default") -> bool:
     """POST an alert to ntfy.sh. Returns True on success, False on failure. Never raises."""
     if not config.NTFY_TOPIC:
@@ -19,7 +22,7 @@ def send_alert(title: str, message: str, priority: str = "default") -> bool:
     req.add_header("Title", title)
     req.add_header("Priority", priority)
     try:
-        with urllib.request.urlopen(req):
+        with urllib.request.urlopen(req, timeout=_NTFY_TIMEOUT_SECONDS):
             return True
     except Exception as exc:
         logger.error("Failed to send ntfy alert: %s", exc)

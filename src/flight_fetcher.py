@@ -11,6 +11,8 @@ import config
 
 # Patch fast_flights to avoid Google's EU cookie consent wall
 def patched_fetch(params: dict):
+    # verify=False is intentional: primp manages its own TLS/browser fingerprint stack.
+    # Python's default cert verification can conflict with that.
     client = Client(impersonate="chrome_131", verify=False)
     # The SOCS=CAI cookie signals that the user has accepted/rejected cookies,
     # preventing the consent redirect.
@@ -19,7 +21,8 @@ def patched_fetch(params: dict):
         params=params,
         headers={"Cookie": "SOCS=CAI; CONSENT=PENDING+999"},
     )
-    assert res.status_code == 200, f"{res.status_code} Result: {res.text_markdown}"
+    if res.status_code != 200:
+        raise RuntimeError(f"HTTP {res.status_code}: {res.text_markdown}")
     return res
 
 
