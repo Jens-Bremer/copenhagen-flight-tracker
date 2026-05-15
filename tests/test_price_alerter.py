@@ -78,9 +78,7 @@ def test_excludes_flights_at_threshold_boundary(db_path):
 
 
 def test_excludes_historical_flights(db_path):
-    insert_observations(
-        db_path, [_obs(price_amount=4500, retrieved_date="2025-01-01")]
-    )
+    insert_observations(db_path, [_obs(price_amount=4500, retrieved_date="2025-01-01")])
     results = find_cheap_flights(db_path, THRESHOLD, TODAY)
     assert results == []
 
@@ -123,7 +121,10 @@ def test_message_contains_price(db_path):
 
 
 def test_message_contains_departure_date(db_path):
-    insert_observations(db_path, [_obs(price_amount=4500, departure_date="2025-09-19")])
+    insert_observations(
+        db_path,
+        [_obs(price_amount=4500, departure_date="2025-09-19")],
+    )
     flights = find_cheap_flights(db_path, THRESHOLD, TODAY)
     msg = format_alert_message(flights, THRESHOLD)
     assert "2025-09-19" in msg
@@ -187,16 +188,13 @@ def test_returns_true_and_sends_alert_when_cheap_flights_found(db_path):
         result = check_and_alert_cheap_flights(db_path, THRESHOLD, TODAY)
     assert result is True
     mock_alert.assert_called_once()
-    _, kwargs = mock_alert.call_args
-    assert (
-        kwargs.get(
-            "priority",
-            mock_alert.call_args[0][2]
-            if len(mock_alert.call_args[0]) > 2
-            else "default",
-        )
-        == "default"
-    )
+    args, kwargs = mock_alert.call_args
+    priority = kwargs.get("priority")
+    if priority is None and len(args) > 2:
+        priority = args[2]
+    if priority is None:
+        priority = "default"
+    assert priority == "default"
 
 
 def test_alert_uses_default_priority(db_path):
