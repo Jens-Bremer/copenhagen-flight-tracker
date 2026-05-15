@@ -35,8 +35,12 @@ def fetch_flights_for_date(
     origin: str,
     destination: str,
     departure_date: date,
+    raise_on_failure: bool = False,
 ) -> Optional[fast_flights.Result]:
-    """Fetch one-way flights for a single route and date. Returns None on failure."""
+    """Fetch one-way flights for a single route and date.
+
+    Returns None on failure unless raise_on_failure is True.
+    """
     logger.info(
         "Querying %s→%s on %s", origin, destination, departure_date.strftime("%Y-%m-%d")
     )
@@ -56,6 +60,8 @@ def fetch_flights_for_date(
             max_stops=config.MAX_STOPS,
         )
     except Exception as exc:
+        if raise_on_failure:
+            raise
         logger.error(
             "Failed to fetch %s→%s on %s: %s", origin, destination, departure_date, exc
         )
