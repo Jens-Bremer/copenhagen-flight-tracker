@@ -40,11 +40,9 @@ def test_backup_same_day_overwrites(src_db, tmp_path):
 def test_backup_prunes_old_files(src_db, tmp_path):
     backup_dir = str(tmp_path / "backups")
     os.makedirs(backup_dir)
-    # Pre-create 9 old fake backup files with earlier dates
     for i in range(1, 10):
         old = os.path.join(backup_dir, f"flights_2026-01-{i:02d}.db")
         open(old, "w").close()
-    # backup_database creates the 10th file then prunes to 7
     backup_database(src_db, backup_dir, keep_last_n=7)
     files = [f for f in os.listdir(backup_dir) if f.endswith(".db")]
     assert len(files) == 7

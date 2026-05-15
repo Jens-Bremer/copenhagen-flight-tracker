@@ -1,6 +1,9 @@
 import os
 import sqlite3
+import sys
 from datetime import date
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def backup_database(db_path: str, backup_dir: str, keep_last_n: int = 7) -> str:
@@ -29,8 +32,8 @@ def backup_database(db_path: str, backup_dir: str, keep_last_n: int = 7) -> str:
 
 
 if __name__ == "__main__":
-    import sys
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     import config
+    from src.log_config import setup_logging
+    setup_logging()
     path = backup_database(config.DATABASE_PATH, config.BACKUP_DIR, config.BACKUP_KEEP_LAST_N)
     print(f"Backup written to {path}")
