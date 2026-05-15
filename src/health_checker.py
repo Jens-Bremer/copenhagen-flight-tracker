@@ -5,6 +5,8 @@ import sqlite3
 from datetime import date
 from typing import Optional
 
+import config
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,7 +25,7 @@ def _check_heartbeat_stale(heartbeat_path: str) -> Optional[str]:
 
 
 def _check_high_failure_rate(heartbeat_path: str) -> Optional[str]:
-    """Return a problem string if more than 25% of jobs failed."""
+    """Return a problem string if failed jobs exceed configured threshold."""
     if not os.path.exists(heartbeat_path):
         return None
     try:
@@ -31,7 +33,10 @@ def _check_high_failure_rate(heartbeat_path: str) -> Optional[str]:
             data = json.load(f)
         total_jobs = data.get("total_jobs", 0)
         failed = data.get("failed_jobs_count", 0)
-        if total_jobs > 0 and failed / total_jobs > 0.25:
+        if (
+            total_jobs > 0
+            and failed / total_jobs > config.HEALTH_FAILURE_RATE_THRESHOLD
+        ):
             return f"[high] High failure rate: {failed}/{total_jobs} jobs failed ({failed / total_jobs:.0%})"
     except Exception:
         pass
@@ -55,7 +60,7 @@ def _check_zero_observations_today(db_path: str) -> Optional[str]:
 
 
 def _check_observation_count_drop(db_path: str) -> Optional[str]:
-    """Return a problem string if today's count is less than 50% of the 7-day average."""
+    """Return a problem string if today's count is below configured 7-day threshold."""
     today = date.today().isoformat()
     conn = sqlite3.connect(db_path)
     try:
@@ -79,7 +84,7 @@ def _check_observation_count_drop(db_path: str) -> Optional[str]:
     finally:
         conn.close()
     avg = avg_row[0]
-    if avg and today_count < avg * 0.5:
+    if avg and today_count < avg * config.HEALTH_COUNT_DROP_THRESHOLD:
         return (
             f"[high] Observation count drop: today={today_count}, 7-day avg={avg:.0f}"
         )
