@@ -23,7 +23,8 @@ def backup_database(db_path: str, backup_dir: str, keep_last_n: int = 7) -> str:
         dst.close()
         src.close()
     existing = sorted(
-        f for f in os.listdir(backup_dir)
+        f
+        for f in os.listdir(backup_dir)
         if f.startswith("flights_") and f.endswith(".db")
     )
     for old in existing[:-keep_last_n]:
@@ -34,6 +35,9 @@ def backup_database(db_path: str, backup_dir: str, keep_last_n: int = 7) -> str:
 if __name__ == "__main__":
     import config
     from src.log_config import setup_logging
+
     setup_logging()
-    path = backup_database(config.DATABASE_PATH, config.BACKUP_DIR, config.BACKUP_KEEP_LAST_N)
+    path = backup_database(
+        config.DATABASE_PATH, config.BACKUP_DIR, config.BACKUP_KEEP_LAST_N
+    )
     print(f"Backup written to {path}")

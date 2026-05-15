@@ -136,7 +136,9 @@ def test_backup_job_calls_backup_database(tmp_path):
     db_path = str(tmp_path / "flights.db")
     backup_dir = str(tmp_path / "backups")
     with (
-        patch("scripts.run_scheduler.backup_database", return_value=str(tmp_path / "b.db")) as mock_bk,
+        patch(
+            "scripts.run_scheduler.backup_database", return_value=str(tmp_path / "b.db")
+        ) as mock_bk,
         patch("scripts.run_scheduler.config") as mock_cfg,
     ):
         mock_cfg.DATABASE_PATH = db_path
@@ -148,7 +150,9 @@ def test_backup_job_calls_backup_database(tmp_path):
 
 def test_backup_job_sends_alert_on_failure():
     with (
-        patch("scripts.run_scheduler.backup_database", side_effect=OSError("disk full")),
+        patch(
+            "scripts.run_scheduler.backup_database", side_effect=OSError("disk full")
+        ),
         patch("scripts.run_scheduler.send_alert") as mock_alert,
         patch("scripts.run_scheduler.config"),
     ):
@@ -162,7 +166,9 @@ def test_backup_job_sends_alert_on_failure():
 
 def test_backup_job_silent_on_success(tmp_path):
     with (
-        patch("scripts.run_scheduler.backup_database", return_value=str(tmp_path / "b.db")),
+        patch(
+            "scripts.run_scheduler.backup_database", return_value=str(tmp_path / "b.db")
+        ),
         patch("scripts.run_scheduler.send_alert") as mock_alert,
         patch("scripts.run_scheduler.config"),
     ):
