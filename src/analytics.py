@@ -54,5 +54,6 @@ def compute_price_percentile(
     upper_index = bisect.bisect_right(prices, price_amount)
     rank = lower_index
     if upper_index > lower_index:
+        # Use the midpoint between first and last tied positions.
         rank = (lower_index + upper_index - 1) / 2
     return (rank / (len(prices) - 1)) * 100.0
