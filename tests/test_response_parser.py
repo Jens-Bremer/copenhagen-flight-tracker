@@ -119,9 +119,27 @@ def test_unknown_symbol_returns_none():
     assert extract_price_parts("¥5000") == (None, None)
 
 
+def test_unknown_symbol_logs_warning(caplog):
+    with caplog.at_level("WARNING", logger="src.response_parser"):
+        assert extract_price_parts("¥5000") == (None, None)
+    assert "Unknown currency symbol" in caplog.text
+
+
 def test_none_input_returns_none():
     assert extract_price_parts(None) == (None, None)
 
 
 def test_empty_string_returns_none():
     assert extract_price_parts("") == (None, None)
+
+
+def test_kr_prefix_parses_as_sek():
+    assert extract_price_parts("kr123") == (12300, "SEK")
+
+
+def test_fr_prefix_parses_as_chf():
+    assert extract_price_parts("Fr89") == (8900, "CHF")
+
+
+def test_zloty_symbol_parses_as_pln():
+    assert extract_price_parts("zł75") == (7500, "PLN")

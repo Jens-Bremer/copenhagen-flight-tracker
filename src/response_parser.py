@@ -1,13 +1,21 @@
 import re
+import logging
 from datetime import date, datetime
 from typing import Optional
 
 import fast_flights
 
+logger = logging.getLogger(__name__)
+
 _CURRENCY_SYMBOLS = {
     "€": "EUR",
     "$": "USD",
     "£": "GBP",
+    # Common European prefixes/symbols.
+    # Note: "kr" is shared (DKK/NOK/SEK); we treat it as SEK as a rough default.
+    "kr": "SEK",
+    "Fr": "CHF",
+    "zł": "PLN",
 }
 
 
@@ -18,9 +26,15 @@ def extract_price_parts(raw_price: Optional[str]) -> tuple:
     """
     if not raw_price:
         return (None, None)
-    symbol = raw_price[0]
-    currency = _CURRENCY_SYMBOLS.get(symbol)
+
+    currency = None
+    # Some currencies are presented as multi-character prefixes (e.g. "kr", "Fr").
+    for prefix, code in _CURRENCY_SYMBOLS.items():
+        if raw_price.startswith(prefix):
+            currency = code
+            break
     if not currency:
+        logger.warning("Unknown currency symbol in price: %r", raw_price)
         return (None, None)
     match = re.search(r"[\d]+(?:\.\d+)?", raw_price)
     if not match:
