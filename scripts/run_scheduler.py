@@ -16,6 +16,7 @@ from src.log_config import setup_logging
 from src.notifier import send_alert
 from src.request_pacer import compute_sleep_intervals
 from src.route_expander import expand_jobs
+from scripts.backup_db import backup_database
 from scripts.export_csv import export_to_csv
 from scripts.run_daily import run_collection
 
@@ -54,6 +55,23 @@ def _daily_job(heartbeat_path: Optional[str] = None) -> None:
     logger.info("Scheduler: daily collection finished")
 
 
+def _backup_job() -> None:
+    """Back up the database and alert via ntfy if the backup fails."""
+    logger.info("Scheduler: starting backup")
+    try:
+        path = backup_database(
+            config.DATABASE_PATH, config.BACKUP_DIR, config.BACKUP_KEEP_LAST_N
+        )
+        logger.info("Scheduler: backup written to %s", path)
+    except Exception as exc:
+        logger.error("Backup failed: %s", exc)
+        send_alert(
+            title="Flight tracker: backup failed",
+            message=str(exc),
+            priority="high",
+        )
+
+
 def _csv_export_job() -> None:
     """Export the full observations table to CSV. Called by the scheduler at 23:45."""
     logger.info("Scheduler: exporting CSV")
@@ -85,10 +103,11 @@ def setup_schedule() -> None:
     """Register all recurring jobs."""
     daily_time = f"{config.DAILY_WINDOW_START_HOUR:02d}:00"
     schedule.every().day.at(daily_time).do(_daily_job)
+    schedule.every().day.at("01:00").do(_backup_job)
     schedule.every().day.at("23:30").do(_health_check_job)
     schedule.every().day.at("23:45").do(_csv_export_job)
     logger.info(
-        "Scheduler: daily collection at %s, health check at 23:30, CSV export at 23:45",
+        "Scheduler: daily collection at %s, backup at 01:00, health check at 23:30, CSV export at 23:45",
         daily_time,
     )
 

@@ -15,6 +15,7 @@ from scripts.run_scheduler import (
     _daily_job,
     _health_check_job,
     _csv_export_job,
+    _backup_job,
 )
 
 
@@ -29,9 +30,9 @@ def clear_schedule():
 # --- Job registration ---
 
 
-def test_setup_schedule_registers_three_jobs():
+def test_setup_schedule_registers_four_jobs():
     setup_schedule()
-    assert len(schedule.jobs) == 3
+    assert len(schedule.jobs) == 4
 
 
 def test_daily_job_scheduled_at_window_start():
@@ -123,3 +124,53 @@ def test_csv_export_job_calls_export_to_csv(tmp_path):
         mock_cfg.DATABASE_PATH = db_path
         _csv_export_job()
     mock_export.assert_called_once()
+
+
+def test_backup_scheduled_at_0100():
+    setup_schedule()
+    times = [str(job.next_run.strftime("%H:%M")) for job in schedule.jobs]
+    assert "01:00" in times
+
+
+def test_backup_job_calls_backup_database(tmp_path):
+    db_path = str(tmp_path / "flights.db")
+    backup_dir = str(tmp_path / "backups")
+    with (
+        patch(
+            "scripts.run_scheduler.backup_database", return_value=str(tmp_path / "b.db")
+        ) as mock_bk,
+        patch("scripts.run_scheduler.config") as mock_cfg,
+    ):
+        mock_cfg.DATABASE_PATH = db_path
+        mock_cfg.BACKUP_DIR = backup_dir
+        mock_cfg.BACKUP_KEEP_LAST_N = 7
+        _backup_job()
+    mock_bk.assert_called_once_with(db_path, backup_dir, 7)
+
+
+def test_backup_job_sends_alert_on_failure():
+    with (
+        patch(
+            "scripts.run_scheduler.backup_database", side_effect=OSError("disk full")
+        ),
+        patch("scripts.run_scheduler.send_alert") as mock_alert,
+        patch("scripts.run_scheduler.config"),
+    ):
+        _backup_job()
+    mock_alert.assert_called_once()
+    _, kwargs = mock_alert.call_args
+    assert kwargs["priority"] == "high"
+    assert "backup" in kwargs["title"].lower()
+    assert kwargs["message"] == "disk full"
+
+
+def test_backup_job_silent_on_success(tmp_path):
+    with (
+        patch(
+            "scripts.run_scheduler.backup_database", return_value=str(tmp_path / "b.db")
+        ),
+        patch("scripts.run_scheduler.send_alert") as mock_alert,
+        patch("scripts.run_scheduler.config"),
+    ):
+        _backup_job()
+    mock_alert.assert_not_called()
