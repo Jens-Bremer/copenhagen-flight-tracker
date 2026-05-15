@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from src.frontend_csv_builder import parse_retrieved_at
+from src.frontend_csv_builder import parse_retrieved_at, parse_time_of_day
 
 
 def test_parse_retrieved_at_floors_to_minute():
@@ -31,3 +31,33 @@ def test_parse_retrieved_at_rejects_naive_datetime():
 def test_parse_retrieved_at_rejects_empty():
     with pytest.raises(ValueError):
         parse_retrieved_at("")
+
+
+def test_parse_time_of_day_pm():
+    assert parse_time_of_day("7:30 PM on Fri, Jun 19") == (19, 30)
+
+
+def test_parse_time_of_day_am():
+    assert parse_time_of_day("9:45 AM on Sat, Jun 20") == (9, 45)
+
+
+def test_parse_time_of_day_noon():
+    assert parse_time_of_day("12:00 PM on Fri, Jun 19") == (12, 0)
+
+
+def test_parse_time_of_day_midnight():
+    assert parse_time_of_day("12:00 AM on Sat, Jun 20") == (0, 0)
+
+
+def test_parse_time_of_day_single_digit_hour():
+    assert parse_time_of_day("3:25 PM on Fri, Jun 19") == (15, 25)
+
+
+def test_parse_time_of_day_empty_raises():
+    with pytest.raises(ValueError):
+        parse_time_of_day("")
+
+
+def test_parse_time_of_day_garbage_raises():
+    with pytest.raises(ValueError):
+        parse_time_of_day("sometime Fri")

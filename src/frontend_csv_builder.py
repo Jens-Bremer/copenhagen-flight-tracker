@@ -7,7 +7,13 @@ This module imports only stdlib + config per the project module contract
 wrapper in scripts/build_frontend_csv.py.
 """
 
+import re
 from datetime import datetime, timezone
+
+_TIME_PROSE_RE = re.compile(
+    r"^\s*(?P<hour>\d{1,2}):(?P<minute>\d{2})\s*(?P<meridiem>AM|PM)\b",
+    re.IGNORECASE,
+)
 
 
 def parse_retrieved_at(raw: str) -> datetime:
@@ -23,3 +29,26 @@ def parse_retrieved_at(raw: str) -> datetime:
         raise ValueError(f"retrieved_at missing tz offset: {raw!r}")
     parsed = parsed.astimezone(timezone.utc)
     return parsed.replace(second=0, microsecond=0)
+
+
+def parse_time_of_day(prose: str) -> tuple:
+    """Extract (hour_24, minute) from prose like '7:30 PM on Fri, Jun 19'.
+
+    Locale-independent: relies only on H:MM AM/PM. Empty string and unparseable
+    inputs raise ValueError; the caller is expected to catch and drop the row.
+    """
+    if not prose:
+        raise ValueError("time prose is empty")
+    match = _TIME_PROSE_RE.match(prose)
+    if not match:
+        raise ValueError(f"unparseable time prose: {prose!r}")
+    hour = int(match.group("hour"))
+    minute = int(match.group("minute"))
+    if not (1 <= hour <= 12) or not (0 <= minute <= 59):
+        raise ValueError(f"time out of range: {prose!r}")
+    meridiem = match.group("meridiem").upper()
+    if meridiem == "AM":
+        hour_24 = 0 if hour == 12 else hour
+    else:
+        hour_24 = 12 if hour == 12 else hour + 12
+    return (hour_24, minute)
