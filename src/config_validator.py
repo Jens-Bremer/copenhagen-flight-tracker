@@ -7,7 +7,14 @@ def validate_config(cfg: dict) -> None:
     _check_window_hours(
         cfg.get("DAILY_WINDOW_START_HOUR"), cfg.get("DAILY_WINDOW_END_HOUR")
     )
+    _check_min_request_interval_seconds(cfg.get("MIN_REQUEST_INTERVAL_SECONDS"))
     _check_database_path(cfg.get("DATABASE_PATH"))
+    _check_health_threshold(
+        "HEALTH_FAILURE_RATE_THRESHOLD", cfg.get("HEALTH_FAILURE_RATE_THRESHOLD")
+    )
+    _check_health_threshold(
+        "HEALTH_COUNT_DROP_THRESHOLD", cfg.get("HEALTH_COUNT_DROP_THRESHOLD")
+    )
     _check_price_alert_threshold(cfg.get("PRICE_ALERT_THRESHOLD"))
 
 
@@ -68,6 +75,20 @@ def _check_window_hours(start, end) -> None:
 def _check_database_path(path) -> None:
     if not path or not isinstance(path, str):
         raise ValueError("DATABASE_PATH must be a non-empty string")
+
+
+def _check_min_request_interval_seconds(value) -> None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        raise ValueError("MIN_REQUEST_INTERVAL_SECONDS must be a positive number")
+
+
+def _check_health_threshold(name: str, value) -> None:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, float)
+        or not (0.0 < value < 1.0)
+    ):
+        raise ValueError(f"{name} must be a float strictly between 0.0 and 1.0")
 
 
 def _check_price_alert_threshold(value) -> None:

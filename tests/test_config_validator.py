@@ -12,7 +12,10 @@ def _cfg(**overrides):
         "MAX_STOPS": 0,
         "DAILY_WINDOW_START_HOUR": 6,
         "DAILY_WINDOW_END_HOUR": 22,
+        "MIN_REQUEST_INTERVAL_SECONDS": 120,
         "DATABASE_PATH": "data/flights.db",
+        "HEALTH_FAILURE_RATE_THRESHOLD": 0.25,
+        "HEALTH_COUNT_DROP_THRESHOLD": 0.5,
         "PRICE_ALERT_THRESHOLD": 5000,
     }
     base.update(overrides)
@@ -134,6 +137,42 @@ def test_empty_database_path_raises():
 def test_none_database_path_raises():
     with pytest.raises(ValueError, match="DATABASE_PATH"):
         validate_config(_cfg(DATABASE_PATH=None))
+
+
+# --- MIN_REQUEST_INTERVAL_SECONDS ---
+
+
+def test_min_request_interval_zero_raises():
+    with pytest.raises(ValueError, match="MIN_REQUEST_INTERVAL_SECONDS"):
+        validate_config(_cfg(MIN_REQUEST_INTERVAL_SECONDS=0))
+
+
+def test_min_request_interval_negative_raises():
+    with pytest.raises(ValueError, match="MIN_REQUEST_INTERVAL_SECONDS"):
+        validate_config(_cfg(MIN_REQUEST_INTERVAL_SECONDS=-1))
+
+
+# --- HEALTH_*_THRESHOLD ---
+
+
+def test_health_failure_rate_threshold_zero_raises():
+    with pytest.raises(ValueError, match="HEALTH_FAILURE_RATE_THRESHOLD"):
+        validate_config(_cfg(HEALTH_FAILURE_RATE_THRESHOLD=0.0))
+
+
+def test_health_count_drop_threshold_one_raises():
+    with pytest.raises(ValueError, match="HEALTH_COUNT_DROP_THRESHOLD"):
+        validate_config(_cfg(HEALTH_COUNT_DROP_THRESHOLD=1.0))
+
+
+def test_health_threshold_non_float_raises():
+    with pytest.raises(ValueError, match="HEALTH_FAILURE_RATE_THRESHOLD"):
+        validate_config(_cfg(HEALTH_FAILURE_RATE_THRESHOLD=1))
+
+
+def test_health_count_drop_threshold_non_float_raises():
+    with pytest.raises(ValueError, match="HEALTH_COUNT_DROP_THRESHOLD"):
+        validate_config(_cfg(HEALTH_COUNT_DROP_THRESHOLD=1))
 
 
 # --- PRICE_ALERT_THRESHOLD ---

@@ -19,6 +19,11 @@ MAX_STOPS = 0  # 0 = nonstop only
 # --- Pacing ---
 DAILY_WINDOW_START_HOUR = 6  # Local server time, 06:00
 DAILY_WINDOW_END_HOUR = 22  # Local server time, 22:00
+MIN_REQUEST_INTERVAL_SECONDS = 120  # Floor on any computed sleep interval
+
+# --- Health checks ---
+HEALTH_FAILURE_RATE_THRESHOLD = 0.25  # Alert if >25% of jobs fail
+HEALTH_COUNT_DROP_THRESHOLD = 0.50  # Alert if today's count < 50% of 7-day average
 
 # --- Storage ---
 DATABASE_PATH = "data/flights.db"

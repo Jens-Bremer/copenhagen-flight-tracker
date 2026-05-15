@@ -1,6 +1,8 @@
 import random
 from datetime import datetime
 
+import config
+
 
 def compute_sleep_intervals(
     num_requests: int,
@@ -11,7 +13,7 @@ def compute_sleep_intervals(
 
     Each interval has ±10% random jitter applied.
     If the current time is inside the window, computes the remaining time.
-    The minimum interval is 120 seconds.
+    The minimum interval is set by config.MIN_REQUEST_INTERVAL_SECONDS.
     """
     if num_requests <= 1:
         return []
@@ -30,7 +32,7 @@ def compute_sleep_intervals(
     base = window_seconds / (num_requests - 1)
 
     intervals = [base * random.uniform(0.9, 1.1) for _ in range(num_requests - 1)]
-    return [max(120.0, i) for i in intervals]
+    return [max(float(config.MIN_REQUEST_INTERVAL_SECONDS), i) for i in intervals]
 
 
 def seconds_until_window_start(window_start_hour: int) -> float:
