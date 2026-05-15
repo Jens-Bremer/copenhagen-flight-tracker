@@ -15,18 +15,20 @@ def compute_sleep_intervals(
     """
     if num_requests <= 1:
         return []
-        
+
     now = datetime.now()
-    window_start_dt = now.replace(hour=window_start_hour, minute=0, second=0, microsecond=0)
+    window_start_dt = now.replace(
+        hour=window_start_hour, minute=0, second=0, microsecond=0
+    )
     window_end_dt = now.replace(hour=window_end_hour, minute=0, second=0, microsecond=0)
-    
+
     if window_start_dt < now < window_end_dt:
         window_seconds = (window_end_dt - now).total_seconds()
     else:
         window_seconds = (window_end_hour - window_start_hour) * 3600
-        
+
     base = window_seconds / (num_requests - 1)
-    
+
     intervals = [base * random.uniform(0.9, 1.1) for _ in range(num_requests - 1)]
     return [max(120.0, i) for i in intervals]
 
