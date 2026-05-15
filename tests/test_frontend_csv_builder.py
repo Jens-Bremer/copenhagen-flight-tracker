@@ -10,7 +10,11 @@ from datetime import datetime, timezone
 
 import pytest
 
-from src.frontend_csv_builder import parse_retrieved_at, parse_time_of_day
+from src.frontend_csv_builder import (
+    parse_prose_datetime,
+    parse_retrieved_at,
+    parse_time_of_day,
+)
 
 
 def test_parse_retrieved_at_floors_to_minute():
@@ -61,3 +65,40 @@ def test_parse_time_of_day_empty_raises():
 def test_parse_time_of_day_garbage_raises():
     with pytest.raises(ValueError):
         parse_time_of_day("sometime Fri")
+
+
+def test_parse_prose_datetime_simple():
+    assert parse_prose_datetime("7:30 PM on Fri, Jun 19", 2026) == datetime(
+        2026, 6, 19, 19, 30
+    )
+
+
+def test_parse_prose_datetime_overnight():
+    assert parse_prose_datetime("9:45 AM on Sat, Jun 20", 2026) == datetime(
+        2026, 6, 20, 9, 45
+    )
+
+
+def test_parse_prose_datetime_all_months():
+    months = {
+        "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
+        "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12,
+    }
+    for name, num in months.items():
+        result = parse_prose_datetime(f"6:00 AM on Mon, {name} 5", 2026)
+        assert result.month == num, name
+
+
+def test_parse_prose_datetime_empty_raises():
+    with pytest.raises(ValueError):
+        parse_prose_datetime("", 2026)
+
+
+def test_parse_prose_datetime_unknown_month_raises():
+    with pytest.raises(ValueError):
+        parse_prose_datetime("9:45 AM on Sat, Foo 20", 2026)
+
+
+def test_parse_prose_datetime_missing_date_raises():
+    with pytest.raises(ValueError):
+        parse_prose_datetime("9:45 AM", 2026)
