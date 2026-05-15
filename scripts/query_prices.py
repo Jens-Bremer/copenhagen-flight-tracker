@@ -7,16 +7,8 @@ from datetime import date
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
-from src.analytics import compute_price_percentile
+from src.analytics import compute_price_percentile, format_ordinal
 from src.database import query_price_history
-
-
-def _ordinal(n: int) -> str:
-    if 10 <= n % 100 <= 20:
-        suffix = "th"
-    else:
-        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
-    return f"{n}{suffix}"
 
 
 def _connect(db_path: str) -> sqlite3.Connection:
@@ -99,7 +91,7 @@ def cmd_cheapest() -> None:
             )
             if percentile is not None:
                 rounded = round(percentile)
-                percentile_text = f" ({_ordinal(rounded)} percentile)"
+                percentile_text = f" ({format_ordinal(rounded)} percentile)"
         print(f"  {row['departure_date']}  {price_display}{percentile_text}")
 
 

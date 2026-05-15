@@ -3,6 +3,15 @@ import sqlite3
 from typing import Optional
 
 
+def format_ordinal(n: int) -> str:
+    """Return the ordinal representation for an integer."""
+    if 10 <= n % 100 <= 20:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
 def compute_price_percentile(
     db_path: str,
     origin: str,

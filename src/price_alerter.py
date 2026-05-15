@@ -3,7 +3,7 @@ import sqlite3
 from datetime import date
 from typing import Optional
 
-from src.analytics import compute_price_percentile
+from src.analytics import compute_price_percentile, format_ordinal
 from src.notifier import send_alert
 
 logger = logging.getLogger(__name__)
@@ -35,15 +35,6 @@ def find_cheap_flights(
         conn.close()
 
 
-def _ordinal(n: int) -> str:
-    """Return the ordinal representation for an integer."""
-    if 10 <= n % 100 <= 20:
-        suffix = "th"
-    else:
-        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
-    return f"{n}{suffix}"
-
-
 def format_alert_message(
     flights: list, threshold: int, db_path: Optional[str] = None
 ) -> str:
@@ -64,7 +55,7 @@ def format_alert_message(
             )
             if percentile is not None:
                 rounded = round(percentile)
-                percentile_text = f" ({_ordinal(rounded)} percentile"
+                percentile_text = f" ({format_ordinal(rounded)} percentile"
                 if rounded <= 10:
                     percentile_text += " — historically very cheap"
                 percentile_text += ")"
