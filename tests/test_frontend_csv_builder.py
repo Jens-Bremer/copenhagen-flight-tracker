@@ -16,6 +16,7 @@ from src.frontend_csv_builder import (
     parse_retrieved_at,
     parse_time_of_day,
     slim_row,
+    sort_rows,
 )
 
 
@@ -232,3 +233,80 @@ def test_slim_row_retrieved_at_uses_z_suffix_string():
     # Pin the literal format; .isoformat() on Python 3.9 produces '+00:00', not 'Z'.
     assert out["retrieved_at"] == "2026-05-15T13:45Z"
     assert "+00:00" not in out["retrieved_at"]
+
+
+def _out_row(**overrides):
+    base = {
+        "retrieved_at": "2026-05-15T13:45Z",
+        "departure_date": "2026-06-19",
+        "origin": "CPH",
+        "destination": "AMS",
+        "airline": "easyJet",
+        "departure_at": "2026-06-19T19:30:00",
+        "arrival_at": "2026-06-19T21:00:00",
+        "duration_minutes": 90,
+        "price_cents": 9200,
+        "price_currency": "EUR",
+    }
+    base.update(overrides)
+    return base
+
+
+def test_sort_rows_by_departure_date():
+    rows = [
+        _out_row(departure_date="2026-06-20"),
+        _out_row(departure_date="2026-06-19"),
+    ]
+    result = sort_rows(rows)
+    assert [r["departure_date"] for r in result] == ["2026-06-19", "2026-06-20"]
+
+
+def test_sort_rows_full_key_order():
+    rows = [
+        _out_row(
+            departure_date="2026-06-19",
+            origin="CPH",
+            destination="AMS",
+            retrieved_at="2026-05-15T13:45Z",
+            price_cents=11000,
+            airline="KLM",
+        ),
+        _out_row(
+            departure_date="2026-06-19",
+            origin="CPH",
+            destination="AMS",
+            retrieved_at="2026-05-15T13:45Z",
+            price_cents=10700,
+            airline="Norwegian",
+        ),
+        _out_row(
+            departure_date="2026-06-19",
+            origin="AMS",
+            destination="CPH",
+            retrieved_at="2026-05-15T13:45Z",
+            price_cents=9000,
+            airline="easyJet",
+        ),
+    ]
+    result = sort_rows(rows)
+    # AMS->CPH first (origin ASC).
+    assert (result[0]["origin"], result[0]["destination"]) == ("AMS", "CPH")
+    # Then CPH->AMS, ordered by price ASC.
+    assert result[1]["price_cents"] == 10700
+    assert result[2]["price_cents"] == 11000
+
+
+def test_sort_rows_airline_tiebreaker():
+    # Same key prefix through price_cents; only airline differs.
+    rows = [
+        _out_row(airline="Norwegian"),
+        _out_row(airline="KLM"),
+        _out_row(airline="easyJet"),
+    ]
+    result = sort_rows(rows)
+    assert [r["airline"] for r in result] == ["KLM", "Norwegian", "easyJet"]
+
+
+def test_sort_rows_is_stable_and_deterministic():
+    rows = [_out_row(airline="X") for _ in range(50)]
+    assert sort_rows(rows) == sort_rows(list(reversed(rows)))

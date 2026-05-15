@@ -172,3 +172,21 @@ def slim_row(raw_row: dict) -> Optional[dict]:
         "price_cents": price_cents,
         "price_currency": raw_row.get("price_currency", ""),
     }
+
+
+def sort_rows(rows: list) -> list:
+    """Stable sort by (departure_date, origin, destination, retrieved_at,
+    price_cents, airline). The trailing airline tiebreaker pins output
+    determinism when otherwise-identical observations differ only by carrier.
+    """
+    return sorted(
+        rows,
+        key=lambda r: (
+            r["departure_date"],
+            r["origin"],
+            r["destination"],
+            r["retrieved_at"],
+            r["price_cents"],
+            r["airline"],
+        ),
+    )
