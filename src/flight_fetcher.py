@@ -8,18 +8,20 @@ from primp import Client
 
 import config
 
+
 # Patch fast_flights to avoid Google's EU cookie consent wall
 def patched_fetch(params: dict):
     client = Client(impersonate="chrome_126", verify=False)
     # The SOCS=CAI cookie signals that the user has accepted/rejected cookies,
     # preventing the consent redirect.
     res = client.get(
-        "https://www.google.com/travel/flights", 
-        params=params, 
-        headers={"Cookie": "SOCS=CAI; CONSENT=PENDING+999"}
+        "https://www.google.com/travel/flights",
+        params=params,
+        headers={"Cookie": "SOCS=CAI; CONSENT=PENDING+999"},
     )
     assert res.status_code == 200, f"{res.status_code} Result: {res.text_markdown}"
     return res
+
 
 fast_flights.core.fetch = patched_fetch
 
