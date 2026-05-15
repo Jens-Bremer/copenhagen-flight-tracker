@@ -170,6 +170,11 @@ def test_health_threshold_non_float_raises():
         validate_config(_cfg(HEALTH_FAILURE_RATE_THRESHOLD=1))
 
 
+def test_health_count_drop_threshold_non_float_raises():
+    with pytest.raises(ValueError, match="HEALTH_COUNT_DROP_THRESHOLD"):
+        validate_config(_cfg(HEALTH_COUNT_DROP_THRESHOLD=1))
+
+
 # --- PRICE_ALERT_THRESHOLD ---
 
 
