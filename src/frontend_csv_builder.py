@@ -9,6 +9,7 @@ wrapper in scripts/build_frontend_csv.py.
 
 import re
 from datetime import datetime, timezone
+from typing import Optional
 
 _TIME_PROSE_RE = re.compile(
     r"^\s*(?P<hour>\d{1,2}):(?P<minute>\d{2})\s*(?P<meridiem>AM|PM)\b",
@@ -99,3 +100,75 @@ def compute_duration_minutes(dep: datetime, arr: datetime) -> int:
     zero results are passed through unchanged; the caller (slim_row) treats
     non-positive durations as parse failures and drops the row."""
     return int((arr - dep).total_seconds() // 60)
+
+
+def _format_retrieved_at(dt: datetime) -> str:
+    """Format a UTC, minute-resolution datetime as '2026-05-15T13:45Z'.
+
+    Python 3.9's datetime.isoformat() emits '+00:00' rather than 'Z'; using
+    strftime here pins the contract regardless of Python version.
+    """
+    return dt.strftime("%Y-%m-%dT%H:%MZ")
+
+
+def slim_row(raw_row: dict) -> Optional[dict]:
+    """Per-row transform. Returns the 10-column output dict, or None if the
+    row should be skipped (parse failure or intentional drop).
+
+    Returning None instead of raising lets the orchestrator own row numbering
+    and warning emission; this function stays pure and easy to unit test.
+    """
+    departure_time = raw_row.get("departure_time", "")
+    arrival_time = raw_row.get("arrival_time", "")
+    if not departure_time or not arrival_time:
+        return None
+
+    raw_price = raw_row.get("price_amount", "")
+    try:
+        price_cents = int(raw_price)
+    except (TypeError, ValueError):
+        return None
+    if price_cents <= 0:
+        return None
+
+    try:
+        retrieved_at = parse_retrieved_at(raw_row["retrieved_at"])
+        departure_date = datetime.strptime(
+            raw_row["departure_date"], "%Y-%m-%d"
+        ).date()
+        dep_h, dep_m = parse_time_of_day(departure_time)
+        departure_at = datetime(
+            departure_date.year,
+            departure_date.month,
+            departure_date.day,
+            dep_h,
+            dep_m,
+        )
+        arrival_at = parse_prose_datetime(arrival_time, departure_date.year)
+    except (KeyError, ValueError):
+        return None
+
+    # Cross-year rollover: prose omits the year, so if arrival ends up before
+    # departure (e.g. dep Dec 31, arr "Jan 1"), bump arrival by one year.
+    if arrival_at < departure_at:
+        try:
+            arrival_at = arrival_at.replace(year=arrival_at.year + 1)
+        except ValueError:
+            return None
+
+    duration = compute_duration_minutes(departure_at, arrival_at)
+    if duration <= 0:
+        return None
+
+    return {
+        "retrieved_at": _format_retrieved_at(retrieved_at),
+        "departure_date": raw_row["departure_date"],
+        "origin": raw_row["origin"],
+        "destination": raw_row["destination"],
+        "airline": raw_row.get("airline", ""),
+        "departure_at": departure_at.isoformat(timespec="seconds"),
+        "arrival_at": arrival_at.isoformat(timespec="seconds"),
+        "duration_minutes": duration,
+        "price_cents": price_cents,
+        "price_currency": raw_row.get("price_currency", ""),
+    }
