@@ -28,6 +28,10 @@ HEALTH_COUNT_DROP_THRESHOLD = 0.50  # Alert if today's count < 50% of 7-day aver
 # --- Storage ---
 DATABASE_PATH = "data/flights.db"
 
+# --- Backup ---
+BACKUP_DIR = "data/backups"
+BACKUP_KEEP_LAST_N = 7
+
 # --- Notifications (ntfy.sh) ---
 NTFY_TOPIC = "your-topic-here"  # Replace with your ntfy.sh topic name
 NTFY_URL = "https://ntfy.sh"

@@ -17,6 +17,8 @@ def _cfg(**overrides):
         "HEALTH_FAILURE_RATE_THRESHOLD": 0.25,
         "HEALTH_COUNT_DROP_THRESHOLD": 0.5,
         "PRICE_ALERT_THRESHOLD": 5000,
+        "BACKUP_DIR": "data/backups",
+        "BACKUP_KEEP_LAST_N": 7,
     }
     base.update(overrides)
     return base
@@ -241,3 +243,44 @@ def test_price_alert_threshold_dict_bool_value_raises():
         validate_config(
             _cfg(PRICE_ALERT_THRESHOLD={("CPH", "AMS"): True, "_default": 6000})
         )
+
+
+# --- BACKUP_DIR ---
+
+
+def test_backup_dir_none_raises():
+    with pytest.raises(ValueError, match="BACKUP_DIR"):
+        validate_config(_cfg(BACKUP_DIR=None))
+
+
+def test_backup_dir_empty_string_raises():
+    with pytest.raises(ValueError, match="BACKUP_DIR"):
+        validate_config(_cfg(BACKUP_DIR=""))
+
+
+def test_backup_dir_non_string_raises():
+    with pytest.raises(ValueError, match="BACKUP_DIR"):
+        validate_config(_cfg(BACKUP_DIR=123))
+
+
+# --- BACKUP_KEEP_LAST_N ---
+
+
+def test_backup_keep_last_n_zero_raises():
+    with pytest.raises(ValueError, match="BACKUP_KEEP_LAST_N"):
+        validate_config(_cfg(BACKUP_KEEP_LAST_N=0))
+
+
+def test_backup_keep_last_n_negative_raises():
+    with pytest.raises(ValueError, match="BACKUP_KEEP_LAST_N"):
+        validate_config(_cfg(BACKUP_KEEP_LAST_N=-1))
+
+
+def test_backup_keep_last_n_bool_raises():
+    with pytest.raises(ValueError, match="BACKUP_KEEP_LAST_N"):
+        validate_config(_cfg(BACKUP_KEEP_LAST_N=True))
+
+
+def test_backup_keep_last_n_float_raises():
+    with pytest.raises(ValueError, match="BACKUP_KEEP_LAST_N"):
+        validate_config(_cfg(BACKUP_KEEP_LAST_N=7.0))
