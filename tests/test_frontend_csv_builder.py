@@ -6,11 +6,21 @@ simplified "08:00" strings, but those do not reflect what the scraper
 actually returns and would mask real parse failures here.
 """
 
+import csv
+import logging
+import os
 from datetime import datetime, timezone
 
 import pytest
 
 from src.frontend_csv_builder import (
+    BUILD_ALL_UNPARSEABLE,
+    BUILD_HEADER_INVALID,
+    BUILD_INPUT_MISSING,
+    BUILD_OK,
+    OUTPUT_COLUMNS,
+    REQUIRED_INPUT_COLUMNS,
+    build,
     compute_duration_minutes,
     parse_prose_datetime,
     parse_retrieved_at,
@@ -84,8 +94,18 @@ def test_parse_prose_datetime_overnight():
 
 def test_parse_prose_datetime_all_months():
     months = {
-        "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
-        "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12,
+        "Jan": 1,
+        "Feb": 2,
+        "Mar": 3,
+        "Apr": 4,
+        "May": 5,
+        "Jun": 6,
+        "Jul": 7,
+        "Aug": 8,
+        "Sep": 9,
+        "Oct": 10,
+        "Nov": 11,
+        "Dec": 12,
     }
     for name, num in months.items():
         result = parse_prose_datetime(f"6:00 AM on Mon, {name} 5", 2026)
@@ -310,3 +330,217 @@ def test_sort_rows_airline_tiebreaker():
 def test_sort_rows_is_stable_and_deterministic():
     rows = [_out_row(airline="X") for _ in range(50)]
     assert sort_rows(rows) == sort_rows(list(reversed(rows)))
+
+
+def _write_input(path, rows, columns=None):
+    columns = columns or REQUIRED_INPUT_COLUMNS
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=columns)
+        writer.writeheader()
+        for r in rows:
+            writer.writerow(r)
+
+
+def _read_output(path):
+    with open(path, newline="") as f:
+        return list(csv.DictReader(f))
+
+
+def _input_csv_row(**overrides):
+    return _input_row(**overrides)
+
+
+def test_build_input_missing(tmp_path):
+    out = str(tmp_path / "out.csv")
+    written, status = build(str(tmp_path / "missing.csv"), out)
+    assert status == BUILD_INPUT_MISSING
+    assert written == 0
+    assert not os.path.exists(out)
+
+
+def test_build_header_invalid(tmp_path):
+    src_path = str(tmp_path / "in.csv")
+    out = str(tmp_path / "out.csv")
+    bad_columns = [c for c in REQUIRED_INPUT_COLUMNS if c != "price_amount"]
+    _write_input(src_path, [], columns=bad_columns)
+    written, status = build(src_path, out)
+    assert status == BUILD_HEADER_INVALID
+    assert written == 0
+    assert not os.path.exists(out)
+
+
+def test_build_empty_input_writes_header_only(tmp_path):
+    src_path = str(tmp_path / "in.csv")
+    out = str(tmp_path / "out.csv")
+    _write_input(src_path, [])
+    written, status = build(src_path, out)
+    assert status == BUILD_OK
+    assert written == 0
+    with open(out) as f:
+        contents = f.read()
+    assert contents == ",".join(OUTPUT_COLUMNS) + "\n"
+
+
+def test_build_happy_path_single_row(tmp_path):
+    src_path = str(tmp_path / "in.csv")
+    out = str(tmp_path / "out.csv")
+    _write_input(src_path, [_input_csv_row()])
+    written, status = build(src_path, out)
+    assert status == BUILD_OK
+    assert written == 1
+    rows = _read_output(out)
+    assert len(rows) == 1
+    assert rows[0]["retrieved_at"] == "2026-05-15T13:45Z"
+    assert rows[0]["price_cents"] == "9200"
+    assert rows[0]["price_currency"] == "EUR"
+    assert list(rows[0].keys()) == OUTPUT_COLUMNS
+
+
+def test_build_within_snapshot_near_duplicate_kept(tmp_path):
+    # Same retrieved_at + route + date + airline + dep/arr + currency, two prices.
+    src_path = str(tmp_path / "in.csv")
+    out = str(tmp_path / "out.csv")
+    _write_input(
+        src_path,
+        [
+            _input_csv_row(price_amount="9200"),
+            _input_csv_row(price_amount="11000"),
+        ],
+    )
+    _, status = build(src_path, out)
+    assert status == BUILD_OK
+    rows = _read_output(out)
+    assert [r["price_cents"] for r in rows] == ["9200", "11000"]
+
+
+def test_build_norwegian_klm_collision_kept(tmp_path):
+    src_path = str(tmp_path / "in.csv")
+    out = str(tmp_path / "out.csv")
+    _write_input(
+        src_path,
+        [
+            _input_csv_row(
+                airline="Norwegian",
+                price_amount="10700",
+                departure_time="4:30 PM on Fri, Jun 19",
+                arrival_time="5:55 PM on Fri, Jun 19",
+            ),
+            _input_csv_row(
+                airline="KLM",
+                price_amount="11000",
+                departure_time="4:30 PM on Fri, Jun 19",
+                arrival_time="5:55 PM on Fri, Jun 19",
+            ),
+        ],
+    )
+    _, status = build(src_path, out)
+    assert status == BUILD_OK
+    rows = _read_output(out)
+    assert {r["airline"] for r in rows} == {"Norwegian", "KLM"}
+
+
+def test_build_drops_malformed_with_warning(tmp_path, caplog):
+    src_path = str(tmp_path / "in.csv")
+    out = str(tmp_path / "out.csv")
+    _write_input(
+        src_path,
+        [
+            _input_csv_row(arrival_time="sometime Fri"),  # malformed
+            _input_csv_row(),  # ok
+        ],
+    )
+    with caplog.at_level(logging.WARNING, logger="src.frontend_csv_builder"):
+        written, status = build(src_path, out)
+    assert status == BUILD_OK
+    assert written == 1
+    rows = _read_output(out)
+    assert len(rows) == 1
+    assert any(
+        "row 1" in rec.message and "skipped" in rec.message for rec in caplog.records
+    )
+
+
+def test_build_drops_price_zero_with_warning(tmp_path, caplog):
+    src_path = str(tmp_path / "in.csv")
+    out = str(tmp_path / "out.csv")
+    _write_input(src_path, [_input_csv_row(price_amount="0"), _input_csv_row()])
+    with caplog.at_level(logging.WARNING, logger="src.frontend_csv_builder"):
+        written, status = build(src_path, out)
+    assert status == BUILD_OK
+    assert written == 1
+    assert any("price_amount" in rec.message for rec in caplog.records)
+
+
+def test_build_all_rows_unparseable_returns_status(tmp_path):
+    src_path = str(tmp_path / "in.csv")
+    out = str(tmp_path / "out.csv")
+    _write_input(src_path, [_input_csv_row(arrival_time="garbage")])
+    written, status = build(src_path, out)
+    assert status == BUILD_ALL_UNPARSEABLE
+    assert written == 0
+
+
+def test_build_sort_order_across_mixed_input(tmp_path):
+    src_path = str(tmp_path / "in.csv")
+    out = str(tmp_path / "out.csv")
+    _write_input(
+        src_path,
+        [
+            _input_csv_row(
+                departure_date="2026-06-20", airline="X", price_amount="9000"
+            ),
+            _input_csv_row(
+                departure_date="2026-06-19", airline="Z", price_amount="9000"
+            ),
+            _input_csv_row(
+                departure_date="2026-06-19", airline="A", price_amount="8000"
+            ),
+        ],
+    )
+    build(src_path, out)
+    rows = _read_output(out)
+    assert [r["departure_date"] for r in rows] == [
+        "2026-06-19",
+        "2026-06-19",
+        "2026-06-20",
+    ]
+    assert [r["airline"] for r in rows] == ["A", "Z", "X"]
+
+
+def test_build_unknown_airline_kept(tmp_path):
+    src_path = str(tmp_path / "in.csv")
+    out = str(tmp_path / "out.csv")
+    _write_input(src_path, [_input_csv_row(airline="Some Random Carrier")])
+    build(src_path, out)
+    rows = _read_output(out)
+    assert rows[0]["airline"] == "Some Random Carrier"
+
+
+def test_build_airline_with_comma_round_trips(tmp_path):
+    src_path = str(tmp_path / "in.csv")
+    out = str(tmp_path / "out.csv")
+    _write_input(src_path, [_input_csv_row(airline="Air France, KLM")])
+    build(src_path, out)
+    rows = _read_output(out)
+    assert rows[0]["airline"] == "Air France, KLM"
+
+
+def test_build_uses_lf_line_endings(tmp_path):
+    src_path = str(tmp_path / "in.csv")
+    out = str(tmp_path / "out.csv")
+    _write_input(src_path, [_input_csv_row()])
+    build(src_path, out)
+    with open(out, "rb") as f:
+        contents = f.read()
+    assert b"\r\n" not in contents
+    assert contents.count(b"\n") == 2  # header + 1 row
+
+
+def test_build_large_input_completes(tmp_path):
+    """Modest scale (1k rows) — full perf is left to manual runs against the live file."""
+    src_path = str(tmp_path / "in.csv")
+    out = str(tmp_path / "out.csv")
+    _write_input(src_path, [_input_csv_row() for _ in range(1000)])
+    written, status = build(src_path, out)
+    assert status == BUILD_OK
+    assert written == 1000

@@ -7,9 +7,44 @@ This module imports only stdlib + config per the project module contract
 wrapper in scripts/build_frontend_csv.py.
 """
 
+import csv
+import logging
+import os
 import re
 from datetime import datetime, timezone
 from typing import Optional
+
+logger = logging.getLogger(__name__)
+
+REQUIRED_INPUT_COLUMNS = [
+    "retrieved_at",
+    "departure_date",
+    "origin",
+    "destination",
+    "airline",
+    "departure_time",
+    "arrival_time",
+    "price_amount",
+    "price_currency",
+]
+
+OUTPUT_COLUMNS = [
+    "retrieved_at",
+    "departure_date",
+    "origin",
+    "destination",
+    "airline",
+    "departure_at",
+    "arrival_at",
+    "duration_minutes",
+    "price_cents",
+    "price_currency",
+]
+
+BUILD_OK = "ok"
+BUILD_INPUT_MISSING = "input_missing"
+BUILD_HEADER_INVALID = "header_invalid"
+BUILD_ALL_UNPARSEABLE = "all_unparseable"
 
 _TIME_PROSE_RE = re.compile(
     r"^\s*(?P<hour>\d{1,2}):(?P<minute>\d{2})\s*(?P<meridiem>AM|PM)\b",
@@ -17,8 +52,18 @@ _TIME_PROSE_RE = re.compile(
 )
 
 _MONTHS = {
-    "Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
-    "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12,
+    "Jan": 1,
+    "Feb": 2,
+    "Mar": 3,
+    "Apr": 4,
+    "May": 5,
+    "Jun": 6,
+    "Jul": 7,
+    "Aug": 8,
+    "Sep": 9,
+    "Oct": 10,
+    "Nov": 11,
+    "Dec": 12,
 }
 
 _PROSE_DATETIME_RE = re.compile(
@@ -133,9 +178,7 @@ def slim_row(raw_row: dict) -> Optional[dict]:
 
     try:
         retrieved_at = parse_retrieved_at(raw_row["retrieved_at"])
-        departure_date = datetime.strptime(
-            raw_row["departure_date"], "%Y-%m-%d"
-        ).date()
+        departure_date = datetime.strptime(raw_row["departure_date"], "%Y-%m-%d").date()
         dep_h, dep_m = parse_time_of_day(departure_time)
         departure_at = datetime(
             departure_date.year,
@@ -190,3 +233,65 @@ def sort_rows(rows: list) -> list:
             r["airline"],
         ),
     )
+
+
+def _drop_reason(raw: dict) -> str:
+    """Best-effort reason string for a dropped row, used in the per-row warning."""
+    if not raw.get("departure_time") or not raw.get("arrival_time"):
+        return "empty departure_time or arrival_time"
+    raw_price = raw.get("price_amount", "")
+    try:
+        if int(raw_price) <= 0:
+            return "invalid price_amount"
+    except (TypeError, ValueError):
+        return "invalid price_amount"
+    return "unparseable departure_time or arrival_time"
+
+
+def build(input_path: str, output_path: str) -> tuple:
+    """Read input CSV, transform, sort, write output CSV.
+
+    Returns (rows_written, status). The CLI maps statuses to exit codes;
+    keeping that mapping out of build() makes it trivial to unit-test.
+    """
+    if not os.path.exists(input_path):
+        logger.error("input file not found: %s", input_path)
+        return (0, BUILD_INPUT_MISSING)
+
+    with open(input_path, newline="") as f:
+        reader = csv.DictReader(f)
+        fieldnames = reader.fieldnames or []
+        missing = [c for c in REQUIRED_INPUT_COLUMNS if c not in fieldnames]
+        if missing:
+            logger.error("missing column %r", missing[0])
+            return (0, BUILD_HEADER_INVALID)
+        input_rows = list(reader)
+
+    transformed = []
+    for index, raw in enumerate(input_rows, start=1):
+        slim = slim_row(raw)
+        if slim is None:
+            logger.warning("row %d skipped: %s", index, _drop_reason(raw))
+            continue
+        transformed.append(slim)
+
+    if input_rows and not transformed:
+        logger.error("all %d input rows were unparseable", len(input_rows))
+        return (0, BUILD_ALL_UNPARSEABLE)
+
+    transformed = sort_rows(transformed)
+
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    with open(output_path, "w", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=OUTPUT_COLUMNS,
+            lineterminator="\n",
+            quoting=csv.QUOTE_MINIMAL,
+        )
+        writer.writeheader()
+        for row in transformed:
+            writer.writerow(row)
+
+    logger.info("wrote %d rows to %s", len(transformed), output_path)
+    return (len(transformed), BUILD_OK)
