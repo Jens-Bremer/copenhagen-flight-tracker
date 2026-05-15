@@ -1,6 +1,6 @@
 import logging
 from datetime import date
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import fast_flights
 
@@ -27,6 +27,19 @@ def test_returns_none_on_exception():
     with patch("fast_flights.get_flights", side_effect=Exception("network error")):
         result = fetch_flights_for_date(ORIGIN, DESTINATION, DEPARTURE)
     assert result is None
+
+
+def test_returns_none_when_patched_fetch_gets_non_200(caplog):
+    bad_res = MagicMock()
+    bad_res.status_code = 429
+    bad_res.text_markdown = "rate limited"
+
+    with patch("src.flight_fetcher.Client") as mock_client:
+        mock_client.return_value.get.return_value = bad_res
+        with caplog.at_level(logging.ERROR, logger="src.flight_fetcher"):
+            assert fetch_flights_for_date(ORIGIN, DESTINATION, DEPARTURE) is None
+
+    assert "HTTP 429" in caplog.text
 
 
 def test_passes_correct_trip_and_seat():

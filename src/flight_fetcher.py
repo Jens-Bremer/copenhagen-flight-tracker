@@ -19,7 +19,8 @@ def patched_fetch(params: dict):
         params=params,
         headers={"Cookie": "SOCS=CAI; CONSENT=PENDING+999"},
     )
-    assert res.status_code == 200, f"{res.status_code} Result: {res.text_markdown}"
+    if res.status_code != 200:
+        raise RuntimeError(f"HTTP {res.status_code}: {res.text_markdown}")
     return res
 
 
