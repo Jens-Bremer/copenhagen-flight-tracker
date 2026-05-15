@@ -63,10 +63,12 @@ Run a single command and leave it running. It handles all timing automatically �
 python scripts/run_scheduler.py
 ```
 
-This registers three jobs:
+This registers five jobs:
 - **Daily collection** — fires at 06:00 every day, spreads all requests across the day until 22:00
+- **Database backup** — fires at 01:00, snapshots `data/flights.db` and prunes old backups
 - **Health check** — fires at 23:30, alerts via ntfy if anything looks wrong
-- **CSV export** — fires at 23:45, writes `data/flights_export.csv` for frontend ingestion
+- **CSV export** — fires at 23:45, writes `data/flights_export.csv` for archival
+- **Frontend CSV** — fires at 23:46, writes `data/flights_frontend.csv` for browser ingestion
 
 Keep the terminal open, or run it in the background with `nohup` / as a system service.
 
@@ -82,12 +84,15 @@ The script waits until 06:00 if the window has not opened yet, then spaces reque
 
 ## CSV export
 
-`data/flights_export.csv` is regenerated automatically every night at 23:45. It contains all stored observations with columns: `retrieved_at`, `departure_date`, `origin`, `destination`, `airline`, `departure_time`, `arrival_time`, `price_amount`, `price_currency`. This file is intended for frontend ingestion — for example, a static HTML/JS page can fetch and parse it directly.
+`data/flights_export.csv` is regenerated automatically every night at 23:45. It contains all stored observations with columns: `retrieved_at`, `departure_date`, `origin`, `destination`, `airline`, `departure_time`, `arrival_time`, `price_amount`, `price_currency`. This file is intended for archival completeness and downstream tooling.
 
-To generate it manually at any time:
+A slimmer derivative — `data/flights_frontend.csv` — is built one minute later at 23:46 (`scripts/build_frontend_csv.py`). It carries machine-typed datetimes, precomputed `duration_minutes`, and `price_cents`, sorted deterministically; it is the file the frontend should fetch.
+
+To generate either manually at any time:
 
 ```bash
 python scripts/export_csv.py
+python scripts/build_frontend_csv.py
 ```
 
 ## Inspecting data
