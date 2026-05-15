@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 import pytest
 
 from src.frontend_csv_builder import (
+    compute_duration_minutes,
     parse_prose_datetime,
     parse_retrieved_at,
     parse_time_of_day,
@@ -102,3 +103,23 @@ def test_parse_prose_datetime_unknown_month_raises():
 def test_parse_prose_datetime_missing_date_raises():
     with pytest.raises(ValueError):
         parse_prose_datetime("9:45 AM", 2026)
+
+
+def test_compute_duration_minutes_short():
+    dep = datetime(2026, 6, 19, 19, 30)
+    arr = datetime(2026, 6, 19, 21, 0)
+    assert compute_duration_minutes(dep, arr) == 90
+
+
+def test_compute_duration_minutes_overnight():
+    # 17:00 Fri -> 09:45 Sat = 16h 45m = 1005 minutes. (The issue body cites
+    # 945 as the example for this case, but the spec's defined formula
+    # (arrival - departure).total_seconds() // 60 gives 1005.)
+    dep = datetime(2026, 6, 19, 17, 0)
+    arr = datetime(2026, 6, 20, 9, 45)
+    assert compute_duration_minutes(dep, arr) == 1005
+
+
+def test_compute_duration_minutes_zero():
+    dep = datetime(2026, 6, 19, 19, 30)
+    assert compute_duration_minutes(dep, dep) == 0

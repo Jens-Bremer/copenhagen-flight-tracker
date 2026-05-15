@@ -92,3 +92,10 @@ def parse_prose_datetime(prose: str, year: int) -> datetime:
     month = _MONTHS[month_key]
     day = int(match.group("day"))
     return datetime(year, month, day, hour_24, minute)
+
+
+def compute_duration_minutes(dep: datetime, arr: datetime) -> int:
+    """Return integer minutes between dep and arr (truncated). Negative and
+    zero results are passed through unchanged; the caller (slim_row) treats
+    non-positive durations as parse failures and drops the row."""
+    return int((arr - dep).total_seconds() // 60)
