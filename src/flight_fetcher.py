@@ -29,6 +29,7 @@ def fetch_flights_for_date(
             passengers=fast_flights.Passengers(adults=config.PASSENGERS_ADULTS),
             seat=config.SEAT_CLASS,
             fetch_mode="fallback",
+            max_stops=config.MAX_STOPS,
         )
     except Exception as exc:
         logger.error("Failed to fetch %s→%s on %s: %s", origin, destination, departure_date, exc)

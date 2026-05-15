@@ -14,6 +14,7 @@ MAX_MONTHS_AHEAD = 6
 SEAT_CLASS = "economy"
 PASSENGERS_ADULTS = 1
 TRIP_TYPE = "one-way"
+MAX_STOPS = 0  # 0 = nonstop only
 
 # --- Pacing ---
 DAILY_WINDOW_START_HOUR = 6   # Local server time, 06:00

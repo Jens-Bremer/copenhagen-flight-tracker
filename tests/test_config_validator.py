@@ -9,6 +9,7 @@ def _cfg(**overrides):
         "ROUTES": [("CPH", "AMS"), ("AMS", "CPH")],
         "DEPARTURE_WEEKDAYS": [4, 5, 6],
         "MAX_MONTHS_AHEAD": 6,
+        "MAX_STOPS": 0,
         "DAILY_WINDOW_START_HOUR": 6,
         "DAILY_WINDOW_END_HOUR": 22,
         "DATABASE_PATH": "data/flights.db",
@@ -81,6 +82,23 @@ def test_max_months_negative_raises():
 def test_max_months_non_int_raises():
     with pytest.raises(ValueError, match="MAX_MONTHS_AHEAD"):
         validate_config(_cfg(MAX_MONTHS_AHEAD=1.5))
+
+
+# --- MAX_STOPS ---
+
+def test_max_stops_none_raises():
+    with pytest.raises(ValueError, match="MAX_STOPS"):
+        validate_config(_cfg(MAX_STOPS=None))
+
+
+def test_max_stops_negative_raises():
+    with pytest.raises(ValueError, match="MAX_STOPS"):
+        validate_config(_cfg(MAX_STOPS=-1))
+
+
+def test_max_stops_bool_raises():
+    with pytest.raises(ValueError, match="MAX_STOPS"):
+        validate_config(_cfg(MAX_STOPS=True))
 
 
 # --- Window hours ---

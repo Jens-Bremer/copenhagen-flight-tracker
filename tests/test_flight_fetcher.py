@@ -44,6 +44,13 @@ def test_passes_fallback_fetch_mode():
     assert kwargs["fetch_mode"] == "fallback"
 
 
+def test_passes_nonstop_filter():
+    with patch("fast_flights.get_flights", return_value=_make_result()) as mock_get:
+        fetch_flights_for_date(ORIGIN, DESTINATION, DEPARTURE)
+    _, kwargs = mock_get.call_args
+    assert kwargs["max_stops"] == 0
+
+
 def test_passes_correct_airports_and_date():
     with patch("fast_flights.get_flights", return_value=_make_result()) as mock_get:
         fetch_flights_for_date(ORIGIN, DESTINATION, DEPARTURE)
