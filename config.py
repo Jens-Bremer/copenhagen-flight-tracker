@@ -29,5 +29,5 @@ NTFY_URL = "https://ntfy.sh"
 PRICE_ALERT_THRESHOLD = {
     ("CPH", "AMS"): 5000,  # €50
     ("AMS", "CPH"): 4500,  # €45
-    "_default": 6000,       # €60 for any unlisted route
+    "_default": 6000,  # €60 for any unlisted route
 }

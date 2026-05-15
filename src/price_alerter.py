@@ -42,8 +42,10 @@ def find_cheap_flights(
                 (f"{run_date}%",),
             ).fetchall()
             rows = [
-                r for r in all_rows
-                if r["price_amount"] <= _route_threshold(threshold, r["origin"], r["destination"])
+                r
+                for r in all_rows
+                if r["price_amount"]
+                <= _route_threshold(threshold, r["origin"], r["destination"])
             ]
         return [dict(row) for row in rows]
     finally:

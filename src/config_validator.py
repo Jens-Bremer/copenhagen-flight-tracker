@@ -87,7 +87,11 @@ def _check_price_alert_threshold(value) -> None:
                 "PRICE_ALERT_THRESHOLD dict must include a '_default' key as a fallback threshold"
             )
         for key, threshold in value.items():
-            if isinstance(threshold, bool) or not isinstance(threshold, int) or threshold < 1:
+            if (
+                isinstance(threshold, bool)
+                or not isinstance(threshold, int)
+                or threshold < 1
+            ):
                 raise ValueError(
                     f"PRICE_ALERT_THRESHOLD: all values must be positive integers,"
                     f" got {threshold!r} for key {key!r}"
