@@ -57,11 +57,12 @@ def _daily_job(heartbeat_path: Optional[str] = None) -> None:
 
 def _backup_job() -> None:
     """Back up the database and alert via ntfy if the backup fails."""
+    logger.info("Scheduler: starting backup")
     try:
         path = backup_database(
             config.DATABASE_PATH, config.BACKUP_DIR, config.BACKUP_KEEP_LAST_N
         )
-        logger.info("Backup written to %s", path)
+        logger.info("Scheduler: backup written to %s", path)
     except Exception as exc:
         logger.error("Backup failed: %s", exc)
         send_alert(
