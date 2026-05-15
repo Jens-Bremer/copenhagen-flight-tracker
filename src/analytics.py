@@ -19,7 +19,11 @@ def compute_price_percentile(
     departure_date: str,
     price_amount: int,
 ) -> Optional[float]:
-    """Return percentile rank for a price on a specific route+departure_date."""
+    """Return percentile rank for a price on a specific route+departure_date.
+
+    Ties are ranked using the midpoint of the tied range so duplicate prices
+    share the same percentile instead of being split across multiple ranks.
+    """
     conn = sqlite3.connect(db_path)
     try:
         rows = conn.execute(
