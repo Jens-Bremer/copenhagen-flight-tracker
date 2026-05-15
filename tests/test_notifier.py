@@ -90,6 +90,26 @@ def test_sets_title_and_priority_headers(monkeypatch):
     assert captured[0].get_header("Priority") == "high"
 
 
+def test_supports_unicode_title_header(monkeypatch):
+    monkeypatch.setattr(config, "NTFY_TOPIC", "my-topic")
+    captured = []
+
+    def fake_urlopen(req, *args, **kwargs):
+        captured.append(req)
+        resp = MagicMock()
+        resp.status = 200
+        resp.__enter__ = lambda s: s
+        resp.__exit__ = MagicMock(return_value=False)
+        return resp
+
+    title = "Deal €50"
+    with patch("urllib.request.urlopen", fake_urlopen):
+        send_alert(title, "body")
+
+    header = captured[0].get_header("Title")
+    assert header == title.encode("utf-8").decode("latin-1")
+
+
 def test_sends_message_as_bytes(monkeypatch):
     monkeypatch.setattr(config, "NTFY_TOPIC", "my-topic")
     captured = []

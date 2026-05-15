@@ -78,7 +78,9 @@ def run_collection(
             total_jobs,
         )
         try:
-            result = fetch_flights_for_date(origin, destination, departure_date)
+            result = fetch_flights_for_date(
+                origin, destination, departure_date, raise_on_failure=True
+            )
             observations = parse_flights(
                 result,
                 origin,
@@ -90,12 +92,14 @@ def run_collection(
             total_observations += inserted
             logger.info("Stored %d flights", inserted)
             if inserted == 0:
-                failed_jobs.append((origin, destination, departure_date))
+                failed_jobs.append(
+                    (origin, destination, departure_date, "no observations stored")
+                )
         except Exception as exc:
             logger.error(
                 "Job %s→%s %s failed: %s", origin, destination, departure_date, exc
             )
-            failed_jobs.append((origin, destination, departure_date))
+            failed_jobs.append((origin, destination, departure_date, str(exc)))
 
         if idx < total_jobs and intervals:
             sleep_fn(intervals[idx - 1])
@@ -107,8 +111,10 @@ def run_collection(
         len(failed_jobs),
     )
     if failed_jobs:
-        for origin, destination, dep_date in failed_jobs:
-            logger.warning("Failed: %s→%s %s", origin, destination, dep_date)
+        for origin, destination, dep_date, reason in failed_jobs:
+            logger.warning(
+                "Failed: %s→%s %s (%s)", origin, destination, dep_date, reason
+            )
 
     _write_heartbeat(
         heartbeat_path,

@@ -108,3 +108,14 @@ def test_failure_logged_at_error_with_context(ctx, caplog):
     # Error must include route context
     error_text = " ".join(r.message for r in errors)
     assert "CPH" in error_text or "AMS" in error_text
+
+
+def test_failure_warning_includes_reason(ctx, caplog):
+    db_path, heartbeat_path = ctx
+    with patch("fast_flights.get_flights", side_effect=Exception("timeout error")):
+        with caplog.at_level(logging.WARNING):
+            run_collection(JOBS, db_path, heartbeat_path, sleep_fn=lambda _: None)
+    warnings = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+    failed_lines = [line for line in warnings if line.startswith("Failed:")]
+    assert failed_lines
+    assert "timeout error" in failed_lines[0]
