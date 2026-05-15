@@ -15,12 +15,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Install Ruff
-        run: pip install ruff
-        
-      - name: Run Ruff Linter
+
+      # Use the official Ruff action (faster + pinned toolchain)
+      - name: Set up Ruff
+        uses: astral-sh/ruff-action@v3
+
+      - name: Run Ruff linter
         run: ruff check .
-        
-      - name: Run Ruff Formatter check
+
+      - name: Run Ruff formatter check
         run: ruff format --check .
