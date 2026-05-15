@@ -16,6 +16,7 @@ from scripts.run_scheduler import (
     _health_check_job,
     _csv_export_job,
     _backup_job,
+    _frontend_csv_job,
 )
 
 
@@ -30,9 +31,9 @@ def clear_schedule():
 # --- Job registration ---
 
 
-def test_setup_schedule_registers_four_jobs():
+def test_setup_schedule_registers_five_jobs():
     setup_schedule()
-    assert len(schedule.jobs) == 4
+    assert len(schedule.jobs) == 5
 
 
 def test_daily_job_scheduled_at_window_start():
@@ -174,3 +175,21 @@ def test_backup_job_silent_on_success(tmp_path):
     ):
         _backup_job()
     mock_alert.assert_not_called()
+
+
+def test_frontend_csv_export_scheduled_at_2346():
+    setup_schedule()
+    times = [str(job.next_run.strftime("%H:%M")) for job in schedule.jobs]
+    assert "23:46" in times
+
+
+def test_frontend_csv_job_calls_build(tmp_path):
+    with (
+        patch(
+            "scripts.run_scheduler.build_frontend_csv", return_value=(3, "ok")
+        ) as mock_build,
+        patch("scripts.run_scheduler.config") as mock_cfg,
+    ):
+        mock_cfg.DATABASE_PATH = str(tmp_path / "flights.db")
+        _frontend_csv_job()
+    mock_build.assert_called_once()
