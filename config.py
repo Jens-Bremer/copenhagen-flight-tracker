@@ -36,3 +36,6 @@ PRICE_ALERT_THRESHOLD = {
     ("AMS", "CPH"): 4500,  # €45
     "_default": 6000,  # €60 for any unlisted route
 }
+
+# --- Retry ---
+FETCH_RETRY_DELAY_SECONDS = 60  # seconds to wait between retry attempts in the second pass
