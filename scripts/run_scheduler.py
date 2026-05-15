@@ -97,6 +97,13 @@ def main() -> None:
     validate_config(vars(config))
     setup_schedule()
     logger.info("Scheduler running — press Ctrl+C to stop")
+    
+    from datetime import datetime
+    now = datetime.now()
+    if config.DAILY_WINDOW_START_HOUR <= now.hour < config.DAILY_WINDOW_END_HOUR:
+        logger.info("Started within the operating window. Executing immediate collection with compressed intervals.")
+        _daily_job()
+
     try:
         while True:
             schedule.run_pending()
