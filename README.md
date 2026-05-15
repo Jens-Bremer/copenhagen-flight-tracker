@@ -1,6 +1,18 @@
 # Copenhagen Flight Tracker
 
-A self-hosted Python service that tracks one-way flight prices between Copenhagen (CPH) and Amsterdam (AMS) in both directions. It scrapes Google Flights via the [`fast-flights`](https://github.com/AWeirdDev/flights) library (Protobuf-based, no browser needed), stores every observed price in SQLite, and spreads its ~156 daily requests evenly across a configurable time window to avoid IP bans.
+A self-hosted Python service that tracks one-way flight prices between Copenhagen (CPH) and Amsterdam (AMS) in both directions. It scrapes Google Flights via the [`fast-flights`](https://github.com/AWeirdDev/flights) library (Protobuf-based, no browser needed), stores every observed price in SQLite, and spreads requests evenly across a configurable daily window to avoid IP bans.
+
+## Architecture
+
+```
+date_generator → route_expander → flight_fetcher → response_parser → database
+                                        ↑                   ↑
+                                    request_pacer      notifier/health_checker
+                                            ↓
+                                     price_alerter (ntfy alerts)
+                                            ↓
+                                     export_csv (nightly CSV)
+```
 
 ## Install
 
@@ -39,12 +51,15 @@ NTFY_TOPIC = "your-unique-topic-name"
 Then on your phone:
 1. Install the [ntfy app](https://ntfy.sh) (free, iOS & Android).
 2. Tap **+** and subscribe to the exact same topic name.
-3. You will receive an alert if the tracker stops working or detects anomalies.
+3. You will receive alerts for price drops and system anomalies.
 
 Notes:
 - Your ntfy topic is effectively public by default. Anyone who knows the topic name can subscribe and receive your alerts. Use a long, random-looking topic name (or self-host ntfy for stronger privacy).
 - If you want to disable notifications entirely, set `NTFY_TOPIC = ""`.
 
+### Price alerts
+
+Set route-specific thresholds in `config.PRICE_ALERT_THRESHOLD` (values in cents). When a scraped flight falls below its threshold, you get an ntfy notification immediately after the daily collection finishes.
 
 ### Security / TLS note
 
@@ -52,7 +67,7 @@ Notes:
 
 ### Other settings
 
-All other tuneable values — routes, date range, pacing window, database path — are in `config.py`.
+All other tuneable values — routes, date range, pacing window, database path, health thresholds — are in `config.py`. Invalid configurations are caught and reported at startup before any work begins.
 
 ## Running the tracker
 
@@ -65,7 +80,7 @@ python scripts/run_scheduler.py
 ```
 
 This registers three jobs:
-- **Daily collection** — fires at 06:00 every day, spaces ~156 requests across the day until 22:00
+- **Daily collection** — fires at 06:00 every day, spreads all requests across the day until 22:00
 - **Health check** — fires at 23:30, alerts via ntfy if anything looks wrong
 - **CSV export** — fires at 23:45, writes `data/flights_export.csv` for frontend ingestion
 
@@ -89,6 +104,14 @@ Add these two lines to your crontab (`crontab -e`), adjusting the paths:
 55 5 * * * cd /path/to/copenhagen-flight-tracker && /path/to/.venv/bin/python scripts/run_daily.py >> logs/daily.log 2>&1
 30 23 * * * cd /path/to/copenhagen-flight-tracker && /path/to/.venv/bin/python scripts/run_health_check.py >> logs/health.log 2>&1
 ```
+
+## Features
+
+- **Config validation** on startup — catches misconfigurations before any work begins
+- **Price drop alerts** — ntfy notification when flights fall below configurable thresholds
+- **Health checks** — nightly diagnostics with stale-run detection and anomaly alerts
+- **Structured logging** — consistent timestamped logs across all modules
+- **CSV export** — nightly regeneration for frontend ingestion
 
 ## CSV export
 
