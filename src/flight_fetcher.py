@@ -50,6 +50,7 @@ def fetch_flights_for_date(
             passengers=fast_flights.Passengers(adults=config.PASSENGERS_ADULTS),
             seat=config.SEAT_CLASS,
             fetch_mode="common",
+            max_stops=config.MAX_STOPS,
         )
     except Exception as exc:
         logger.error(
