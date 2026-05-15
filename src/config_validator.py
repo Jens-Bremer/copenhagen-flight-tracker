@@ -3,6 +3,7 @@ def validate_config(cfg: dict) -> None:
     _check_routes(cfg.get("ROUTES"))
     _check_departure_weekdays(cfg.get("DEPARTURE_WEEKDAYS"))
     _check_max_months_ahead(cfg.get("MAX_MONTHS_AHEAD"))
+    _check_max_stops(cfg.get("MAX_STOPS"))
     _check_window_hours(
         cfg.get("DAILY_WINDOW_START_HOUR"), cfg.get("DAILY_WINDOW_END_HOUR")
     )
@@ -42,6 +43,13 @@ def _check_departure_weekdays(weekdays) -> None:
 def _check_max_months_ahead(value) -> None:
     if not isinstance(value, int) or isinstance(value, bool) or value < 1:
         raise ValueError("MAX_MONTHS_AHEAD must be a positive integer")
+
+
+def _check_max_stops(value) -> None:
+    if value is None:
+        raise ValueError("MAX_STOPS must be set (0 = nonstop)")
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise ValueError("MAX_STOPS must be an integer >= 0")
 
 
 def _check_window_hours(start, end) -> None:
