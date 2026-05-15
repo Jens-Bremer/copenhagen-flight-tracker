@@ -32,12 +32,14 @@ def compute_price_percentile(
     if len(prices) < 5:
         return None
 
-    if len(prices) == 1:
+    if price_amount <= prices[0]:
         return 0.0
-
-    index = bisect.bisect_left(prices, price_amount)
-    if index <= 0:
-        return 0.0
-    if index >= len(prices) - 1:
+    if price_amount >= prices[-1]:
         return 100.0
-    return (index / (len(prices) - 1)) * 100.0
+
+    lower_index = bisect.bisect_left(prices, price_amount)
+    upper_index = bisect.bisect_right(prices, price_amount)
+    rank = lower_index
+    if upper_index > lower_index:
+        rank = (lower_index + upper_index - 1) / 2
+    return (rank / (len(prices) - 1)) * 100.0
