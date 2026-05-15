@@ -11,7 +11,7 @@ import config
 
 # Patch fast_flights to avoid Google's EU cookie consent wall
 def patched_fetch(params: dict):
-    client = Client(impersonate="chrome_126", verify=False)
+    client = Client(impersonate="chrome_131", verify=False)
     # The SOCS=CAI cookie signals that the user has accepted/rejected cookies,
     # preventing the consent redirect.
     res = client.get(
