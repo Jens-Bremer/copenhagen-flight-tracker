@@ -7,6 +7,7 @@ from datetime import date
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
+from src.analytics import compute_price_percentile, format_ordinal
 from src.database import query_price_history
 
 
@@ -79,7 +80,19 @@ def cmd_cheapest() -> None:
         amount = row["min_amount"]
         currency = row["price_currency"] or ""
         price_display = f"{amount / 100:.0f} {currency}" if amount else "n/a"
-        print(f"  {row['departure_date']}  {price_display}")
+        percentile_text = ""
+        if amount is not None:
+            percentile = compute_price_percentile(
+                db_path=config.DATABASE_PATH,
+                origin=row["origin"],
+                destination=row["destination"],
+                departure_date=row["departure_date"],
+                price_amount=amount,
+            )
+            if percentile is not None:
+                rounded = round(percentile)
+                percentile_text = f" ({format_ordinal(rounded)} percentile)"
+        print(f"  {row['departure_date']}  {price_display}{percentile_text}")
 
 
 def cmd_stats() -> None:

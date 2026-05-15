@@ -133,6 +133,30 @@ def test_message_contains_flight_count(db_path):
     assert "2" in msg
 
 
+def test_message_includes_percentile_when_enough_history(db_path):
+    insert_observations(
+        db_path,
+        [
+            _obs(price_amount=3000, retrieved_date="2025-01-01"),
+            _obs(price_amount=4000, retrieved_date="2025-01-02"),
+            _obs(price_amount=5000, retrieved_date="2025-01-03"),
+            _obs(price_amount=6000, retrieved_date="2025-01-04"),
+            _obs(price_amount=7000, retrieved_date="2025-01-05"),
+        ],
+    )
+    flights = find_cheap_flights(db_path, THRESHOLD, "2025-01-01")
+    msg = format_alert_message(flights, THRESHOLD, db_path=db_path)
+    assert "0th percentile" in msg
+    assert "historically very cheap" in msg
+
+
+def test_message_omits_percentile_when_not_enough_history(db_path):
+    insert_observations(db_path, [_obs(price_amount=3000, retrieved_date="2025-01-01")])
+    flights = find_cheap_flights(db_path, THRESHOLD, "2025-01-01")
+    msg = format_alert_message(flights, THRESHOLD, db_path=db_path)
+    assert "percentile" not in msg
+
+
 # --- check_and_alert_cheap_flights ---
 
 
