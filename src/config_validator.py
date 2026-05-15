@@ -9,6 +9,8 @@ def validate_config(cfg: dict) -> None:
     )
     _check_min_request_interval_seconds(cfg.get("MIN_REQUEST_INTERVAL_SECONDS"))
     _check_database_path(cfg.get("DATABASE_PATH"))
+    _check_backup_dir(cfg.get("BACKUP_DIR"))
+    _check_backup_keep_last_n(cfg.get("BACKUP_KEEP_LAST_N"))
     _check_health_threshold(
         "HEALTH_FAILURE_RATE_THRESHOLD", cfg.get("HEALTH_FAILURE_RATE_THRESHOLD")
     )
@@ -122,3 +124,13 @@ def _check_price_alert_threshold(value) -> None:
         "PRICE_ALERT_THRESHOLD must be a positive integer (price in cents)"
         " or a dict mapping route tuples to thresholds"
     )
+
+
+def _check_backup_dir(value) -> None:
+    if not value or not isinstance(value, str):
+        raise ValueError("BACKUP_DIR must be a non-empty string")
+
+
+def _check_backup_keep_last_n(value) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError("BACKUP_KEEP_LAST_N must be a positive integer (>= 1)")
