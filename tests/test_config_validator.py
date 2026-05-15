@@ -266,6 +266,11 @@ def test_backup_dir_non_string_raises():
 # --- BACKUP_KEEP_LAST_N ---
 
 
+def test_backup_keep_last_n_none_raises():
+    with pytest.raises(ValueError, match="BACKUP_KEEP_LAST_N"):
+        validate_config(_cfg(BACKUP_KEEP_LAST_N=None))
+
+
 def test_backup_keep_last_n_zero_raises():
     with pytest.raises(ValueError, match="BACKUP_KEEP_LAST_N"):
         validate_config(_cfg(BACKUP_KEEP_LAST_N=0))
@@ -284,3 +289,7 @@ def test_backup_keep_last_n_bool_raises():
 def test_backup_keep_last_n_float_raises():
     with pytest.raises(ValueError, match="BACKUP_KEEP_LAST_N"):
         validate_config(_cfg(BACKUP_KEEP_LAST_N=7.0))
+
+
+def test_backup_keep_last_n_one_passes():
+    validate_config(_cfg(BACKUP_KEEP_LAST_N=1))  # must not raise
