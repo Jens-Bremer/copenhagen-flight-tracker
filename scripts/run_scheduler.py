@@ -18,6 +18,7 @@ from src.request_pacer import compute_sleep_intervals
 from src.route_expander import expand_jobs
 from scripts.backup_db import backup_database
 from scripts.export_csv import export_to_csv
+from src.frontend_csv_builder import build as build_frontend_csv
 from scripts.run_daily import run_collection
 
 setup_logging()
@@ -82,6 +83,22 @@ def _csv_export_job() -> None:
     logger.info("Scheduler: exported %d rows to %s", count, output_path)
 
 
+def _frontend_csv_job() -> None:
+    """Build the slim frontend CSV from flights_export.csv. Called by the
+    scheduler at 23:46, one minute after the full CSV export at 23:45."""
+    logger.info("Scheduler: building frontend CSV")
+    data_dir = os.path.dirname(os.path.abspath(config.DATABASE_PATH))
+    input_path = os.path.join(data_dir, "flights_export.csv")
+    output_path = os.path.join(data_dir, "flights_frontend.csv")
+    written, status = build_frontend_csv(input_path, output_path)
+    logger.info(
+        "Scheduler: frontend CSV finished — rows=%d status=%s output=%s",
+        written,
+        status,
+        output_path,
+    )
+
+
 def _health_check_job() -> None:
     """Run the health check and alert if problems found. Called by the scheduler at 23:30."""
     logger.info("Scheduler: running health check")
@@ -106,8 +123,10 @@ def setup_schedule() -> None:
     schedule.every().day.at("01:00").do(_backup_job)
     schedule.every().day.at("23:30").do(_health_check_job)
     schedule.every().day.at("23:45").do(_csv_export_job)
+    schedule.every().day.at("23:46").do(_frontend_csv_job)
     logger.info(
-        "Scheduler: daily collection at %s, backup at 01:00, health check at 23:30, CSV export at 23:45",
+        "Scheduler: daily collection at %s, backup at 01:00, health check at "
+        "23:30, CSV export at 23:45, frontend CSV at 23:46",
         daily_time,
     )
 
