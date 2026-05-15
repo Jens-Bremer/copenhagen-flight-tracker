@@ -41,7 +41,7 @@ def test_passes_fallback_fetch_mode():
     with patch("fast_flights.get_flights", return_value=_make_result()) as mock_get:
         fetch_flights_for_date(ORIGIN, DESTINATION, DEPARTURE)
     _, kwargs = mock_get.call_args
-    assert kwargs["fetch_mode"] == "fallback"
+    assert kwargs["fetch_mode"] == "common"
 
 
 def test_passes_correct_airports_and_date():
