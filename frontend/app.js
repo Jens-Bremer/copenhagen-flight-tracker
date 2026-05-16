@@ -521,16 +521,39 @@
       },
     });
 
-    const leadDatasets = routes.map((r) => {
+    // Three datasets per route: Q1 boundary, Q3 boundary (filled back to Q1 = IQR band), mean line.
+    const leadDatasets = routes.flatMap((r) => {
       const curve = DATA.analysis[r].lead_time_curve || [];
-      return {
-        label: r,
-        data: curve.map((c) => ({ x: c.days_before, y: c.mean_cents / 100 })),
-        borderColor: r === 'CPH-AMS' ? 'var(--color-red)' : 'var(--color-brown)',
-        spanGaps: false,
-        borderWidth: 2,
-        pointRadius: 2,
-      };
+      const bandAlpha = r === 'CPH-AMS' ? 'rgba(192,57,43,' : 'rgba(107,62,38,';
+      return [
+        {
+          label: `${r} Q1`,
+          data: curve.map((c) => ({ x: c.days_before, y: c.q1_cents / 100 })),
+          borderColor: bandAlpha + '0)',
+          backgroundColor: bandAlpha + '0)',
+          fill: false,
+          pointRadius: 0,
+          spanGaps: false,
+        },
+        {
+          label: `${r} IQR`,
+          data: curve.map((c) => ({ x: c.days_before, y: c.q3_cents / 100 })),
+          borderColor: bandAlpha + '0)',
+          backgroundColor: bandAlpha + '0.15)',
+          fill: '-1',
+          pointRadius: 0,
+          spanGaps: false,
+        },
+        {
+          label: r,
+          data: curve.map((c) => ({ x: c.days_before, y: c.mean_cents / 100 })),
+          borderColor: r === 'CPH-AMS' ? 'var(--color-red)' : 'var(--color-brown)',
+          fill: false,
+          spanGaps: false,
+          borderWidth: 2,
+          pointRadius: 2,
+        },
+      ];
     });
     charts.leadtime = new Chart($('leadtime-chart'), {
       type: 'line',
@@ -539,6 +562,11 @@
         responsive: true, maintainAspectRatio: false,
         plugins: {
           title: { display: true, text: 'Mean price by days-before-departure (descriptive history; not a prediction)' },
+          legend: {
+            labels: {
+              filter: (item) => !item.text.endsWith(' Q1') && !item.text.endsWith(' IQR'),
+            },
+          },
         },
         scales: {
           x: { type: 'linear', reverse: true, title: { display: true, text: 'Days before departure' } },

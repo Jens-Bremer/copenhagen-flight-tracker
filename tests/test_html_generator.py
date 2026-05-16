@@ -162,6 +162,52 @@ def test_build_analysis_lead_time_curve_bins_by_days_before():
     assert [e["days_before"] for e in curve] == sorted(e["days_before"] for e in curve)
 
 
+def test_build_analysis_lead_time_curve_has_quartile_fields():
+    """Each lead_time_curve entry must carry full quartile data so the frontend
+    can shade an IQR band (Q1→Q3) around the mean line, giving users a sense
+    of price spread at each booking horizon."""
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    curve = analysis["CPH-AMS"]["lead_time_curve"]
+    assert len(curve) > 0, "CPH-AMS lead_time_curve must be non-empty"
+    for entry in curve:
+        assert {"q1_cents", "median_cents", "q3_cents", "max_cents"} <= entry.keys(), (
+            f"lead_time_curve entry missing quartile keys: {entry}"
+        )
+        # Values must be in non-decreasing order.
+        assert entry["min_cents"] <= entry["q1_cents"] <= entry["median_cents"], (
+            f"min ≤ Q1 ≤ median violated: {entry}"
+        )
+        assert entry["median_cents"] <= entry["q3_cents"] <= entry["max_cents"], (
+            f"median ≤ Q3 ≤ max violated: {entry}"
+        )
+
+
+def test_leadtime_chart_renders_iqr_band():
+    """The lead-time chart must reference q1_cents/q3_cents from the JSON data
+    and use Chart.js fill to shade the IQR band between Q1 and Q3."""
+    import re
+
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    all_scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+    assert all_scripts
+    app_js = all_scripts[-1]
+
+    # The JS must map q1_cents and q3_cents from the curve data.
+    assert 'q1_cents' in app_js, (
+        "renderTrends must reference q1_cents from the lead_time_curve JSON "
+        "to build the lower bound of the IQR shading band"
+    )
+    assert 'q3_cents' in app_js, (
+        "renderTrends must reference q3_cents from the lead_time_curve JSON "
+        "to build the upper bound of the IQR shading band"
+    )
+    # Chart.js fill property must be present for the band shading.
+    assert "fill:" in app_js, (
+        "renderTrends must use Chart.js fill: option to shade the Q1→Q3 band"
+    )
+
+
 def test_build_analysis_sweet_spot_is_bucket_with_lowest_mean():
     rows = load_rows(str(FIXTURE))
     analysis = build_analysis(rows)

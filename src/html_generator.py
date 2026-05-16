@@ -252,20 +252,32 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     routes = sorted({k[0] for k in by_lead})
     out: dict[str, dict[str, Any]] = {}
 
+    def _quartiles(prices: list[int]) -> tuple[int, int, int, int, int]:
+        s = sorted(prices)
+        n = len(s)
+        return s[0], s[n // 4], s[n // 2], s[(3 * n) // 4], s[-1]
+
     for route in routes:
         curve_entries = sorted(
             ((db, prices) for (r, db), prices in by_lead.items() if r == route),
             key=lambda x: x[0],
         )
-        curve = [
-            {
-                "days_before": db,
-                "mean_cents": _mean(prices),
-                "min_cents": min(prices),
-                "obs_count": len(prices),
-            }
-            for db, prices in curve_entries
-        ]
+
+        curve = []
+        for db, prices in curve_entries:
+            mn, q1, med, q3, mx = _quartiles(prices)
+            curve.append(
+                {
+                    "days_before": db,
+                    "min_cents": mn,
+                    "q1_cents": q1,
+                    "median_cents": med,
+                    "mean_cents": _mean(prices),
+                    "q3_cents": q3,
+                    "max_cents": mx,
+                    "obs_count": len(prices),
+                }
+            )
         sweet_spot = min(curve, key=lambda e: e["mean_cents"])["days_before"]
 
         # day_of_week aggregates the per-departure cheapest
