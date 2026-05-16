@@ -94,9 +94,52 @@ def test_failed_job_counted_when_fetch_raises(ctx):
 def test_partial_failure_counted_correctly(ctx):
     db_path, heartbeat_path = ctx
     results = [_make_result(), fast_flights.Result(current_price="typical", flights=[])]
-    with patch("fast_flights.get_flights", side_effect=results):
+    with patch("fast_flights.get_flights", side_effect=results) as mock_get:
         run_collection(JOBS, db_path, heartbeat_path, sleep_fn=lambda _: None)
     with open(heartbeat_path) as f:
         hb = json.load(f)
     assert hb["total_observations"] == 1
+    # The empty-result job is retried once and fails again → still 1 failed
     assert hb["failed_jobs_count"] == 1
+    # fetch called 3 times: 2 main pass + 1 retry for the failed job
+    assert mock_get.call_count == 3
+
+
+# --- Retry pass tests ---
+
+
+def test_retry_pass_recovers_failed_job(ctx):
+    """A job that raises in pass 1 but returns results in pass 2 is counted as success."""
+    db_path, heartbeat_path = ctx
+    single_job = [("CPH", "AMS", date(2025, 9, 5))]
+    results = [Exception("network error"), _make_result()]
+    with patch("fast_flights.get_flights", side_effect=results) as mock_get:
+        total_obs, failed_count = run_collection(
+            single_job, db_path, heartbeat_path, sleep_fn=lambda _: None
+        )
+    assert failed_count == 0
+    assert total_obs == 1
+    assert mock_get.call_count == 2
+
+
+def test_retry_pass_permanent_failure(ctx):
+    """A job that fails both passes is counted as failed exactly once."""
+    db_path, heartbeat_path = ctx
+    single_job = [("CPH", "AMS", date(2025, 9, 5))]
+    with patch(
+        "fast_flights.get_flights", side_effect=Exception("persistent error")
+    ) as mock_get:
+        total_obs, failed_count = run_collection(
+            single_job, db_path, heartbeat_path, sleep_fn=lambda _: None
+        )
+    assert failed_count == 1
+    assert total_obs == 0
+    assert mock_get.call_count == 2
+
+
+def test_no_retry_when_all_succeed(ctx):
+    """When all jobs succeed, fetch is called exactly once per job with no retry pass."""
+    db_path, heartbeat_path = ctx
+    with patch("fast_flights.get_flights", return_value=_make_result()) as mock_get:
+        run_collection(JOBS, db_path, heartbeat_path, sleep_fn=lambda _: None)
+    assert mock_get.call_count == len(JOBS)
