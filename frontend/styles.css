@@ -135,9 +135,9 @@ ol, ul { list-style: none; }
   color: var(--color-brown-light); text-align: center; padding: var(--space-sm) 0;
 }
 .calendar__cell {
-  aspect-ratio: 1;
+  min-height: 52px;
   border: 1px solid var(--color-brown); border-radius: 3px;
-  padding: 4px 6px; cursor: pointer;
+  padding: 2px 4px; cursor: pointer;
   display: flex; flex-direction: column; justify-content: space-between;
   font-variant-numeric: tabular-nums;
   background: var(--color-cream); color: var(--color-text);
@@ -149,7 +149,7 @@ ol, ul { list-style: none; }
 .calendar__cell.is-today    { outline: 2px dashed var(--color-orange); outline-offset: -3px; }
 .calendar__cell:hover:not(.is-empty) { transform: translateY(-1px); }
 .calendar__cell__day { font-size: 0.7rem; opacity: 0.7; }
-.calendar__cell__price { font-family: var(--font-display); font-size: 0.95rem; }
+.calendar__cell__price { font-family: var(--font-display); font-size: 0.8rem; }
 /* CHANGE (UX): tiny cheapest-airline dot on each tinted cell. */
 .calendar__cell__dot {
   position: absolute; top: 4px; right: 4px;
