@@ -620,7 +620,7 @@
       charts[slotFor[route]] = new Chart($(canvasFor[route]), {
         type: 'bar',
         data: {
-          labels: allBins.map((bl) => `€${(bl / 100).toFixed(0)}–€${((bl + 500) / 100).toFixed(0)}`),
+          labels: allBins.map((bl) => `€${(bl / 100).toFixed(0)}`),
           datasets,
         },
         options: {
