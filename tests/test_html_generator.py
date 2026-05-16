@@ -13,6 +13,7 @@ from src.html_generator import (
     build_flights,
     build_metadata,
     build_summary,
+    generate,
     load_rows,
     render_html,
 )
@@ -265,3 +266,59 @@ def test_render_html_uses_safe_substitute_no_placeholder_leaks():
     # No raw ${...} markers should leak through
     assert "${INLINE_STYLES}" not in html
     assert "${DATA_METADATA}" not in html
+
+
+def test_generate_writes_output_file(tmp_path):
+    out_path = tmp_path / "index.html"
+    n = generate(str(FIXTURE), str(out_path))
+    assert n > 0
+    assert out_path.exists()
+    html = out_path.read_text(encoding="utf-8")
+    assert "Copenhagen" in html
+    assert '<script type="application/json" id="DATA_METADATA">' in html
+
+
+def test_generate_missing_input_raises(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        generate(str(tmp_path / "nope.csv"), str(tmp_path / "x.html"))
+
+
+def test_generate_empty_input_writes_skeleton(tmp_path):
+    p = tmp_path / "empty.csv"
+    p.write_text(
+        "retrieved_at,departure_date,origin,destination,airline,"
+        "departure_at,arrival_at,duration_minutes,price_cents,price_currency\n"
+    )
+    out_path = tmp_path / "index.html"
+    n = generate(str(p), str(out_path))
+    assert n == 0
+    html = out_path.read_text(encoding="utf-8")
+    assert "Copenhagen" in html
+    # DATA_METADATA contains total_rows=0
+    assert '"total_rows":0' in html.replace(" ", "")
+
+
+import subprocess
+
+
+def test_cli_smoke(tmp_path):
+    out = tmp_path / "index.html"
+    result = subprocess.run(
+        ["python3", "scripts/generate_html.py", "--input", str(FIXTURE), "--output", str(out)],
+        capture_output=True,
+        text=True,
+        cwd=Path(__file__).resolve().parent.parent,
+    )
+    assert result.returncode == 0, result.stderr
+    assert out.exists() and out.stat().st_size > 1024
+
+
+def test_cli_missing_input_exits_2(tmp_path):
+    out = tmp_path / "index.html"
+    result = subprocess.run(
+        ["python3", "scripts/generate_html.py", "--input", str(tmp_path / "nope.csv"),
+         "--output", str(out)],
+        capture_output=True, text=True,
+        cwd=Path(__file__).resolve().parent.parent,
+    )
+    assert result.returncode == 2

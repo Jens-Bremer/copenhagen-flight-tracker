@@ -395,3 +395,23 @@ def render_html(
         DATA_ANALYSIS=json.dumps(analysis, separators=(",", ":")),
         DATA_SUMMARY=json.dumps(summary, separators=(",", ":")),
     )
+
+
+def generate(input_path: str, output_path: str) -> int:
+    """Read CSV → run analyses → render HTML → write to disk. Returns row count."""
+    rows = load_rows(input_path)
+    now = datetime.now(timezone.utc)
+    metadata = build_metadata(rows, generated_at=now)
+    calendar = build_calendar(rows)
+    flights = build_flights(rows)
+    analysis = build_analysis(rows)
+    summary = build_summary(rows)
+    html = render_html(
+        metadata=metadata,
+        calendar=calendar,
+        flights=flights,
+        analysis=analysis,
+        summary=summary,
+    )
+    Path(output_path).write_text(html, encoding="utf-8")
+    return len(rows)
