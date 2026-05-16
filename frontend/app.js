@@ -35,6 +35,20 @@
   // ───── Data (populated once on boot) ───────────────────────────────────────
   let DATA = null;
 
+  // ───── Chart registry — destroy before re-render to avoid leaks ────────────
+  const charts = {
+    priceHistory: null,
+    marketTrend: null,
+    leadtime: null,
+    histogramOut: null,
+    histogramBack: null,
+    dow: null,
+    month: null,
+  };
+  function destroyChart(slot) {
+    if (charts[slot]) { charts[slot].destroy(); charts[slot] = null; }
+  }
+
   // ───── Tiny helpers ────────────────────────────────────────────────────────
   function $(id) { return document.getElementById(id); }
   function formatPrice(cents) { return '€' + (cents / 100).toFixed(2); }
@@ -189,7 +203,123 @@
       if (cursor > end && ((cursor.getDay() + 6) % 7) === 0) break;
     }
   }
-  function renderDrilldown()      { /* Task 16 */ }
+  function flightsForSelectedDate() {
+    if (!state.selectedDate) return [];
+    const out = [];
+    activeRoutes().forEach((route) => {
+      const list = ((DATA.flights[route] || {})[state.selectedDate]) || [];
+      list.forEach((f) => {
+        if (airlinePasses(f.airline)) out.push({ ...f, route });
+      });
+    });
+    return out;
+  }
+
+  function renderDrilldown() {
+    const title = $('drilldown-title');
+    const root = $('drilldown');
+    const historyWrap = $('price-history-wrap');
+
+    if (!state.selectedDate) {
+      title.textContent = 'Pick a day in the calendar';
+      root.innerHTML = '';
+      historyWrap.classList.add('is-hidden');
+      destroyChart('priceHistory');
+      return;
+    }
+
+    title.textContent = `Flights on ${formatDate(state.selectedDate)}`;
+    const flights = flightsForSelectedDate();
+    if (flights.length === 0) {
+      root.innerHTML = `<div class="empty-state">No flights match the current filters on this day.</div>`;
+      historyWrap.classList.add('is-hidden');
+      destroyChart('priceHistory');
+      return;
+    }
+
+    root.className = 'flight-list';
+    root.innerHTML = '';
+    flights.forEach((f) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'flight-row' + (
+        state.selectedFlight &&
+        state.selectedFlight.airline === f.airline &&
+        state.selectedFlight.dep_time === f.dep_time &&
+        state.selectedFlight.route === f.route ? ' is-selected' : ''
+      );
+      const overnight = f.overnight ? `<span class="flight-row__overnight">+1</span>` : '';
+      row.innerHTML = `
+        <span class="airline-swatch" style="background:${airlineColor(f.airline)};
+              ${AIRLINE_OUTLINE.has(f.airline) ? 'border-color:var(--color-brown);' : ''}"></span>
+        <span>${f.airline} <small>(${f.route})</small></span>
+        <span class="flight-row__time">${f.dep_time} → ${f.arr_time} ${overnight}</span>
+        <span class="flight-row__time">${Math.floor(f.duration_minutes / 60)}h ${f.duration_minutes % 60}m</span>
+        <span><strong>${formatPrice(f.latest_cents)}</strong></span>
+      `;
+      row.addEventListener('click', () => {
+        state.selectedFlight = { airline: f.airline, dep_time: f.dep_time, route: f.route };
+        renderDrilldown();
+      });
+      root.appendChild(row);
+    });
+
+    // Price-history chart for the selected flight
+    if (!state.selectedFlight) {
+      historyWrap.classList.add('is-hidden');
+      destroyChart('priceHistory');
+      return;
+    }
+    const chosen = flights.find((f) =>
+      f.airline === state.selectedFlight.airline &&
+      f.dep_time === state.selectedFlight.dep_time &&
+      f.route === state.selectedFlight.route
+    );
+    if (!chosen) {
+      historyWrap.classList.add('is-hidden');
+      destroyChart('priceHistory');
+      return;
+    }
+    historyWrap.classList.remove('is-hidden');
+    drawPriceHistory(chosen);
+  }
+
+  function drawPriceHistory(flight) {
+    destroyChart('priceHistory');
+    const ctx = $('price-history-chart');
+    charts.priceHistory = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: flight.history.map((h) => h.obs_date),
+        datasets: [{
+          label: `${flight.airline} ${flight.dep_time}`,
+          data: flight.history.map((h) => h.price_cents / 100),
+          borderColor: airlineColor(flight.airline),
+          backgroundColor: 'rgba(192, 57, 43, 0.10)',
+          spanGaps: false,
+          borderWidth: 2,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => `€${ctx.parsed.y.toFixed(2)} (${flight.history[ctx.dataIndex].days_before} days before)`,
+            },
+          },
+        },
+        scales: {
+          x: { title: { display: true, text: 'Observation date' } },
+          y: { title: { display: true, text: 'Price (€)' }, beginAtZero: false },
+        },
+      },
+    });
+  }
   function renderTrends()         { /* Task 17 */ }
   function renderHistograms()     { /* Task 18 */ }
   function renderWeekendPairs()   { /* Task 19 */ }
