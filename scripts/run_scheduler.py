@@ -19,6 +19,7 @@ from src.route_expander import expand_jobs
 from scripts.backup_db import backup_database
 from scripts.export_csv import export_to_csv
 from src.frontend_csv_builder import build as build_frontend_csv
+from src.html_generator import generate as generate_html
 from scripts.run_daily import run_collection
 
 setup_logging()
@@ -97,6 +98,39 @@ def _frontend_csv_job() -> None:
         status,
         output_path,
     )
+    # Chain the HTML build inline so it runs as soon as the slim CSV is
+    # ready — no fixed-time schedule entry, which would race when the CSV
+    # job overruns its expected window.
+    try:
+        _generate_html_job()
+    except Exception:  # noqa: BLE001
+        # _generate_html_job already alerts; suppress here to keep the
+        # CSV job's own status accurate.
+        logger.exception("HTML chain from frontend_csv_job failed")
+
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FRONTEND_OUTPUT_PATH = os.path.join(REPO_ROOT, "frontend", "index.html")
+
+
+def _generate_html_job() -> None:
+    """Generate the self-contained frontend HTML. Triggered inline at the
+    end of _frontend_csv_job so the page is regenerated as soon as the
+    slim CSV is fresh — no separate timed entry, no timing race."""
+    logger.info("Scheduler: generating frontend HTML")
+    data_dir = os.path.dirname(os.path.abspath(config.DATABASE_PATH))
+    input_path = os.path.join(data_dir, "flights_frontend.csv")
+    output_path = FRONTEND_OUTPUT_PATH
+    try:
+        n = generate_html(input_path, output_path)
+        logger.info("Scheduler: HTML generated — rows=%d output=%s", n, output_path)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("HTML generation failed: %s", exc)
+        send_alert(
+            title="Flight tracker: HTML generation failed",
+            message=str(exc),
+            priority="high",
+        )
 
 
 def _health_check_job() -> None:
@@ -126,7 +160,8 @@ def setup_schedule() -> None:
     schedule.every().day.at("23:46").do(_frontend_csv_job)
     logger.info(
         "Scheduler: daily collection at %s, backup at 01:00, health check at "
-        "23:30, CSV export at 23:45, frontend CSV at 23:46",
+        "23:30, CSV export at 23:45, frontend CSV at 23:46 "
+        "(HTML regenerates inline after the frontend CSV completes)",
         daily_time,
     )
 

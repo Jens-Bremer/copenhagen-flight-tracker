@@ -21,6 +21,10 @@ data/
 data/backups/
 logs/
 
+# Generated frontend output (sources in frontend/ are committed; the
+# index.html beside them is regenerated each night and never committed)
+frontend/index.html
+
 # Environment / secrets
 .env
 .env.*

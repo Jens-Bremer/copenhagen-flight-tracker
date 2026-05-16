@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Copenhagen Flight Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>${INLINE_STYLES}</style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header__inner">
+      <h1 class="site-header__title">Copenhagen <em>Flight</em> Tracker</h1>
+      <nav class="site-header__meta">
+        <span id="header-range">Data through —</span>
+        <span id="header-generated">Generated —</span>
+      </nav>
+    </div>
+    <div class="stripe-ribbon" aria-hidden="true">
+      <div class="stripe-ribbon__red"></div>
+      <div class="stripe-ribbon__orange"></div>
+      <div class="stripe-ribbon__yellow"></div>
+    </div>
+  </header>
+
+  <main class="page-main">
+    <!-- 1. Filters bar -->
+    <section class="filters" aria-label="Filters">
+      <div class="filters__row">
+        <div class="filters__group" id="route-toggle"></div>
+        <div class="filters__group" id="airline-filter"></div>
+      </div>
+    </section>
+
+    <!-- 2. Calendar -->
+    <section class="panel" aria-label="Calendar">
+      <h2 class="panel__heading">Calendar — cheapest observed price per day</h2>
+      <div id="calendar"></div>
+    </section>
+
+    <!-- 3. Drill-down (active when a date is selected) -->
+    <section class="panel" id="drilldown-panel" aria-label="Flights for selected date">
+      <h2 class="panel__heading"><span id="drilldown-title">Pick a day in the calendar</span></h2>
+      <div id="drilldown"></div>
+      <div id="price-history-wrap" class="chart-wrap is-hidden">
+        <canvas id="price-history-chart" aria-label="Price over time" role="img"></canvas>
+      </div>
+    </section>
+
+    <!-- 4. Price trends -->
+    <section class="panel" aria-label="Price trends">
+      <h2 class="panel__heading">Price trends</h2>
+      <div class="trends-grid">
+        <div class="chart-wrap"><canvas id="market-trend-chart" role="img"></canvas></div>
+        <div class="chart-wrap"><canvas id="leadtime-chart" role="img"></canvas></div>
+      </div>
+      <p id="sweet-spot-headline" class="headline"></p>
+    </section>
+
+    <!-- 5. Airline histograms -->
+    <section class="panel" aria-label="Airline price distributions">
+      <h2 class="panel__heading">Price distribution by airline</h2>
+      <div class="trends-grid">
+        <div class="chart-wrap"><canvas id="histogram-out" role="img"></canvas></div>
+        <div class="chart-wrap"><canvas id="histogram-back" role="img"></canvas></div>
+      </div>
+    </section>
+
+    <!-- 6. Weekend pairs -->
+    <section class="panel" aria-label="Cheapest weekend pairs">
+      <h2 class="panel__heading">Top 5 weekend pairs (Fri + Sun)</h2>
+      <div id="weekend-pairs"></div>
+    </section>
+
+    <!-- 7. Cheapness footer (dow + month) -->
+    <section class="panel" aria-label="Cheapest day of week and month">
+      <h2 class="panel__heading">Cheapness overview</h2>
+      <div class="trends-grid">
+        <div class="chart-wrap"><canvas id="dow-chart" role="img"></canvas></div>
+        <div class="chart-wrap"><canvas id="month-chart" role="img"></canvas></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="page-footer">
+    Copenhagen Flight Tracker · generated <span id="footer-generated">—</span>
+  </footer>
+
+  <script type="application/json" id="DATA_METADATA">${DATA_METADATA}</script>
+  <script type="application/json" id="DATA_CALENDAR">${DATA_CALENDAR}</script>
+  <script type="application/json" id="DATA_FLIGHTS">${DATA_FLIGHTS}</script>
+  <script type="application/json" id="DATA_ANALYSIS">${DATA_ANALYSIS}</script>
+  <script type="application/json" id="DATA_SUMMARY">${DATA_SUMMARY}</script>
+
+  <script>${INLINE_CHART_JS}</script>
+  <script>${INLINE_APP_JS}</script>
+</body>
+</html>

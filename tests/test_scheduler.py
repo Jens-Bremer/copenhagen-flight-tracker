@@ -17,6 +17,7 @@ from scripts.run_scheduler import (
     _csv_export_job,
     _backup_job,
     _frontend_csv_job,
+    _generate_html_job,
 )
 
 
@@ -32,8 +33,20 @@ def clear_schedule():
 
 
 def test_setup_schedule_registers_five_jobs():
+    """Five scheduled jobs: daily collection, backup, health check, CSV export,
+    frontend CSV. HTML generation has no separate entry — it chains inline
+    after the frontend CSV job completes."""
     setup_schedule()
     assert len(schedule.jobs) == 5
+
+
+def test_no_timed_html_generation_job():
+    """The HTML generator must NOT have a separate timed schedule entry; it
+    runs only via the inline chain from _frontend_csv_job. This guards
+    against accidentally reintroducing a 23:47 race-prone fallback."""
+    setup_schedule()
+    times = [str(job.next_run.strftime("%H:%M")) for job in schedule.jobs]
+    assert "23:47" not in times
 
 
 def test_daily_job_scheduled_at_window_start():
@@ -188,8 +201,50 @@ def test_frontend_csv_job_calls_build(tmp_path):
         patch(
             "scripts.run_scheduler.build_frontend_csv", return_value=(3, "ok")
         ) as mock_build,
+        patch("scripts.run_scheduler.generate_html", return_value=3),
         patch("scripts.run_scheduler.config") as mock_cfg,
     ):
         mock_cfg.DATABASE_PATH = str(tmp_path / "flights.db")
         _frontend_csv_job()
     mock_build.assert_called_once()
+
+
+def test_generate_html_job_calls_generate(tmp_path):
+    with (
+        patch("scripts.run_scheduler.generate_html", return_value=42) as mock_gen,
+        patch("scripts.run_scheduler.config") as mock_cfg,
+    ):
+        mock_cfg.DATABASE_PATH = str(tmp_path / "flights.db")
+        _generate_html_job()
+    mock_gen.assert_called_once()
+    args, _kwargs = mock_gen.call_args
+    # Input still reads from the data dir (alongside flights.db)
+    assert args[0].endswith("flights_frontend.csv")
+    # Output now lives in the committed frontend/ dir, not data/
+    assert args[1].endswith(os.path.join("frontend", "index.html"))
+
+
+def test_generate_html_job_sends_alert_on_failure(tmp_path):
+    with (
+        patch("scripts.run_scheduler.generate_html", side_effect=RuntimeError("boom")),
+        patch("scripts.run_scheduler.send_alert") as mock_alert,
+        patch("scripts.run_scheduler.config") as mock_cfg,
+    ):
+        mock_cfg.DATABASE_PATH = str(tmp_path / "flights.db")
+        _generate_html_job()
+    mock_alert.assert_called_once()
+    _args, kwargs = mock_alert.call_args
+    assert kwargs["priority"] == "high"
+    assert "HTML" in kwargs["title"]
+
+
+def test_frontend_csv_job_chains_html_generation(tmp_path):
+    """Verify the 23:46 frontend CSV job chains the HTML generation inline."""
+    with (
+        patch("scripts.run_scheduler.build_frontend_csv", return_value=(3, "ok")),
+        patch("scripts.run_scheduler.generate_html", return_value=3) as mock_gen,
+        patch("scripts.run_scheduler.config") as mock_cfg,
+    ):
+        mock_cfg.DATABASE_PATH = str(tmp_path / "flights.db")
+        _frontend_csv_job()
+    mock_gen.assert_called_once()
