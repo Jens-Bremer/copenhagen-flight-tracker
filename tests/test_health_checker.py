@@ -30,7 +30,13 @@ def _make_heartbeat(path, run_date=None, failed_jobs_count=0, total_jobs=100):
         json.dump(data, f)
 
 
-def _obs(retrieved_date=None, origin="CPH", destination="AMS", currency="EUR", price_amount=8900):
+def _obs(
+    retrieved_date=None,
+    origin="CPH",
+    destination="AMS",
+    currency="EUR",
+    price_amount=8900,
+):
     ts = f"{retrieved_date or TODAY}T06:00:00+00:00"
     return {
         "retrieved_at": ts,
@@ -271,7 +277,10 @@ def test_run_health_check_surfaces_missing_route_and_price_variance(ctx):
     db_path, heartbeat_path = ctx
     _make_heartbeat(heartbeat_path)
     # Only CPH→AMS with uniform price — AMS→CPH is missing, CPH→AMS has no variance
-    insert_observations(db_path, [_obs(origin="CPH", destination="AMS", price_amount=5000) for _ in range(5)])
+    insert_observations(
+        db_path,
+        [_obs(origin="CPH", destination="AMS", price_amount=5000) for _ in range(5)],
+    )
     problems = run_health_check(db_path, heartbeat_path=heartbeat_path, run_date=TODAY)
     assert any("Missing route" in p for p in problems)
     assert any("Price variance" in p for p in problems)

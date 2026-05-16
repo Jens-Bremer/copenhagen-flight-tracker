@@ -111,13 +111,13 @@ def _check_currency_inconsistency(db_path: str) -> Optional[str]:
     return None
 
 
-def check_missing_routes(db_path: str, run_date: str, expected_routes: list) -> List[str]:
+def check_missing_routes(
+    db_path: str, run_date: str, expected_routes: list
+) -> List[str]:
     """Return a problem string for each expected route with zero observations on run_date."""
     conn = sqlite3.connect(db_path)
     try:
-        total = conn.execute(
-            "SELECT COUNT(*) FROM flight_observations"
-        ).fetchone()[0]
+        total = conn.execute("SELECT COUNT(*) FROM flight_observations").fetchone()[0]
         if total == 0:
             return []
         rows = conn.execute(
@@ -134,7 +134,9 @@ def check_missing_routes(db_path: str, run_date: str, expected_routes: list) -> 
     ]
 
 
-def check_price_variance(db_path: str, run_date: str, min_distinct_prices: int = 3) -> List[str]:
+def check_price_variance(
+    db_path: str, run_date: str, min_distinct_prices: int = 3
+) -> List[str]:
     """Return a problem string for each route with fewer than min_distinct_prices distinct prices on run_date."""
     conn = sqlite3.connect(db_path)
     try:
@@ -156,13 +158,13 @@ def check_price_variance(db_path: str, run_date: str, min_distinct_prices: int =
     ]
 
 
-def check_observation_count(db_path: str, run_date: str, expected_min: int) -> List[str]:
+def check_observation_count(
+    db_path: str, run_date: str, expected_min: int
+) -> List[str]:
     """Return a problem string if total observations for run_date is below expected_min."""
     conn = sqlite3.connect(db_path)
     try:
-        total = conn.execute(
-            "SELECT COUNT(*) FROM flight_observations"
-        ).fetchone()[0]
+        total = conn.execute("SELECT COUNT(*) FROM flight_observations").fetchone()[0]
         if total == 0:
             return []
         count = conn.execute(
@@ -178,7 +180,9 @@ def check_observation_count(db_path: str, run_date: str, expected_min: int) -> L
     return []
 
 
-def run_health_check(db_path: str, heartbeat_path: Optional[str] = None, run_date: Optional[str] = None) -> list:
+def run_health_check(
+    db_path: str, heartbeat_path: Optional[str] = None, run_date: Optional[str] = None
+) -> list:
     """Run all health checks and return a list of problem descriptions (empty = healthy)."""
     if heartbeat_path is None:
         heartbeat_path = os.path.join(
