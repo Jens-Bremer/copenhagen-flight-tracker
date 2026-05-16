@@ -15,7 +15,7 @@ from __future__ import annotations
 import csv
 from collections import defaultdict
 from datetime import date as date_type
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -270,4 +270,89 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             "month": month_entries,
             "market_trend": trend_entries,
         }
+    return out
+
+
+BIN_WIDTH_CENTS = 500            # €5 bins
+WEEKEND_PAIRS_TOP_N = 5
+
+
+def _bin_low(cents: int) -> int:
+    return (cents // BIN_WIDTH_CENTS) * BIN_WIDTH_CENTS
+
+
+def build_summary(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Per route: airline histogram + top-5 Fri/Sun weekend pairs."""
+    if not rows:
+        return {}
+
+    # Histogram bins keyed by (route, airline, bin_low)
+    hist_counts: dict[tuple[str, str, int], int] = defaultdict(int)
+    # Cheapest-per-(route, departure_date) for weekend-pair join
+    cheapest_dep: dict[tuple[str, str], dict[str, Any]] = {}
+
+    for row in rows:
+        route = _route_key(row)
+        airline = row["airline"]
+        bin_lo = _bin_low(row["price_cents"])
+        hist_counts[(route, airline, bin_lo)] += 1
+
+        key = (route, row["departure_date"])
+        current = cheapest_dep.get(key)
+        if current is None or row["price_cents"] < current["price_cents"]:
+            cheapest_dep[key] = {
+                "airline": airline,
+                "dep_time": _hhmm(row["departure_at"]),
+                "price_cents": row["price_cents"],
+            }
+
+    out: dict[str, dict[str, Any]] = {}
+    routes = sorted({k[0] for k in hist_counts})
+    for route in routes:
+        # Group histogram by airline, sort bins ascending
+        histogram: dict[str, list[dict[str, int]]] = {}
+        for (r, airline, bin_lo), count in hist_counts.items():
+            if r != route:
+                continue
+            histogram.setdefault(airline, []).append({
+                "bin_low": bin_lo,
+                "bin_high": bin_lo + BIN_WIDTH_CENTS,
+                "count": count,
+            })
+        for bins in histogram.values():
+            bins.sort(key=lambda b: b["bin_low"])
+        out[route] = {"histogram": histogram, "weekend_pairs": []}
+
+    # Weekend pairs: only meaningful for the outbound direction.
+    # Fri outbound = CPH-AMS Friday departure; Sun inbound = AMS-CPH on Fri+2.
+    fri_outbound_route = "CPH-AMS"
+    sun_inbound_route = "AMS-CPH"
+    pairs: list[dict[str, Any]] = []
+    for (route, dep_iso), fri in cheapest_dep.items():
+        if route != fri_outbound_route:
+            continue
+        dep_date = date_type.fromisoformat(dep_iso)
+        if dep_date.weekday() != 4:                                   # 4 = Friday
+            continue
+        sun_iso = (dep_date + timedelta(days=2)).isoformat()
+        sun = cheapest_dep.get((sun_inbound_route, sun_iso))
+        if sun is None:
+            continue
+        pairs.append({
+            "fri_date": dep_iso,
+            "fri_airline": fri["airline"],
+            "fri_dep": fri["dep_time"],
+            "fri_cents": fri["price_cents"],
+            "sun_date": sun_iso,
+            "sun_airline": sun["airline"],
+            "sun_dep": sun["dep_time"],
+            "sun_cents": sun["price_cents"],
+            "total_cents": fri["price_cents"] + sun["price_cents"],
+        })
+    pairs.sort(key=lambda p: p["total_cents"])
+    if fri_outbound_route in out:
+        out[fri_outbound_route]["weekend_pairs"] = pairs[:WEEKEND_PAIRS_TOP_N]
+    # AMS-CPH stays in the output for symmetry but has no outbound-Friday pairs.
+    if sun_inbound_route in out:
+        out[sun_inbound_route].setdefault("weekend_pairs", [])
     return out

@@ -12,6 +12,7 @@ from src.html_generator import (
     build_calendar,
     build_flights,
     build_metadata,
+    build_summary,
     load_rows,
 )
 
@@ -183,3 +184,49 @@ def test_build_analysis_market_trend_is_sorted_by_obs_date():
 def test_build_analysis_empty_input():
     out = build_analysis([])
     assert out == {}
+
+
+def test_build_summary_histogram_bin_width_500_cents():
+    rows = load_rows(str(FIXTURE))
+    summary = build_summary(rows)
+    for route, blob in summary.items():
+        for airline, bins in blob["histogram"].items():
+            for b in bins:
+                assert b["bin_high"] - b["bin_low"] == 500
+                assert b["bin_low"] % 500 == 0
+                assert b["count"] >= 1
+
+
+def test_build_summary_weekend_pairs_join_fri_with_sun_plus_two():
+    rows = load_rows(str(FIXTURE))
+    summary = build_summary(rows)
+    # CPH-AMS: outbound Fri = 2026-06-19, AMS-CPH inbound Sun = 2026-06-21
+    pairs = summary["CPH-AMS"]["weekend_pairs"]
+    assert len(pairs) >= 1
+    pair = pairs[0]
+    assert pair["fri_date"] == "2026-06-19"
+    assert pair["sun_date"] == "2026-06-21"
+    assert pair["total_cents"] == pair["fri_cents"] + pair["sun_cents"]
+    # sorted ascending
+    totals = [p["total_cents"] for p in pairs]
+    assert totals == sorted(totals)
+    assert len(pairs) <= 5
+
+
+def test_build_summary_weekend_pairs_skip_when_inbound_missing(tmp_path):
+    """No AMS-CPH observation for the joined Sunday → pair is dropped."""
+    csv_text = (
+        "retrieved_at,departure_date,origin,destination,airline,"
+        "departure_at,arrival_at,duration_minutes,price_cents,price_currency\n"
+        "2026-05-15T13:45Z,2026-06-19,CPH,AMS,easyJet,"
+        "2026-06-19T19:30:00,2026-06-19T21:00:00,90,9200,EUR\n"
+    )
+    p = tmp_path / "x.csv"
+    p.write_text(csv_text)
+    rows = load_rows(str(p))
+    summary = build_summary(rows)
+    assert summary["CPH-AMS"]["weekend_pairs"] == []
+
+
+def test_build_summary_empty_input():
+    assert build_summary([]) == {}
