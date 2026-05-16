@@ -451,7 +451,50 @@
       });
     });
   }
-  function renderWeekendPairs()   { /* Task 19 */ }
+  function renderWeekendPairs() {
+    const root = $('weekend-pairs');
+    root.innerHTML = '';
+    root.className = 'pairs-tables';
+
+    const routesWithPairs = ['CPH-AMS', 'AMS-CPH'].filter(
+      (r) => DATA.summary[r] && (DATA.summary[r].weekend_pairs || []).length > 0
+    );
+    if (routesWithPairs.length === 0) {
+      root.innerHTML = `<div class="empty-state">No weekend pairs found in the current data window.</div>`;
+      return;
+    }
+    routesWithPairs.forEach((route) => {
+      const pairs = DATA.summary[route].weekend_pairs;
+      const tableHtml = `
+        <table class="pairs-table" aria-label="Cheapest weekend pairs for ${route}">
+          <caption>${route} weekend pairs (Fri outbound + Sun inbound)</caption>
+          <thead>
+            <tr>
+              <th>Fri date</th><th>Out</th><th>Out time</th><th>Out €</th>
+              <th>Sun date</th><th>Back</th><th>Back time</th><th>Back €</th>
+              <th>Total €</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${pairs.map((p) => `
+              <tr>
+                <td>${formatDate(p.fri_date)}</td>
+                <td>${p.fri_airline}</td>
+                <td>${p.fri_dep}</td>
+                <td>${formatPrice(p.fri_cents)}</td>
+                <td>${formatDate(p.sun_date)}</td>
+                <td>${p.sun_airline}</td>
+                <td>${p.sun_dep}</td>
+                <td>${formatPrice(p.sun_cents)}</td>
+                <td><strong>${formatPrice(p.total_cents)}</strong></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+      root.insertAdjacentHTML('beforeend', tableHtml);
+    });
+  }
   function renderFooterCharts()   { /* Task 20 */ }
 
   function renderAll() {
