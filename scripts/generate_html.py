@@ -2,8 +2,10 @@
 """CLI entry point for daily frontend HTML generation.
 
 Reads data/flights_frontend.csv (produced by the 23:46 frontend CSV job)
-and writes data/index.html. Wired into the scheduler at 23:47, but can be
-invoked manually any time. Stdlib-only; no pip deps required at runtime.
+and writes frontend/index.html. Chained inline from the frontend CSV
+scheduler job so it runs as soon as the slim CSV is ready (no timing
+race); can also be invoked manually any time. Stdlib-only; no pip deps
+required at runtime.
 
 Exit codes:
   0 — success (≥0 rows processed, output written)
@@ -26,7 +28,7 @@ from src.html_generator import generate                                  # noqa:
 from src.log_config import setup_logging                                 # noqa: E402
 
 DEFAULT_INPUT = str(Path(config.DATABASE_PATH).resolve().parent / "flights_frontend.csv")
-DEFAULT_OUTPUT = str(Path(config.DATABASE_PATH).resolve().parent / "index.html")
+DEFAULT_OUTPUT = str(REPO_ROOT / "frontend" / "index.html")
 
 
 def main(argv: list[str] | None = None) -> int:

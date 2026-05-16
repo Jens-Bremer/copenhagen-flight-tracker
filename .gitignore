@@ -20,8 +20,10 @@ ENV/
 data/
 data/backups/
 logs/
-# Generated frontend (built daily at 23:47; source lives in frontend/)
-data/index.html
+
+# Generated frontend output (sources in frontend/ are committed; the
+# index.html beside them is regenerated each night and never committed)
+frontend/index.html
 
 # Environment / secrets
 .env

@@ -97,11 +97,11 @@ python scripts/build_frontend_csv.py
 
 ## Frontend
 
-A self-contained static dashboard is generated daily at 23:47 and written to `data/index.html`. Open it directly in a browser:
+A self-contained static dashboard is regenerated every night and written to `frontend/index.html`. It runs inline at the end of the 23:46 frontend CSV job — no separate timed entry, so a slow CSV build can never leave the page stale or trigger a race against the clock. Open the output directly in a browser:
 
 ```bash
-open data/index.html        # macOS
-xdg-open data/index.html    # Linux
+open frontend/index.html        # macOS
+xdg-open frontend/index.html    # Linux
 ```
 
 The page works fully offline — Chart.js is committed under `frontend/vendor/` and inlined into the output by the generator. Only the DM Sans / DM Serif Display fonts are loaded from Google Fonts; system-font fallbacks kick in when offline.
@@ -112,7 +112,7 @@ The page works fully offline — Chart.js is committed under `frontend/vendor/` 
 python scripts/generate_html.py
 ```
 
-Reads `data/flights_frontend.csv` and writes `data/index.html`. Use `--input` / `--output` to override.
+Reads `data/flights_frontend.csv` and writes `frontend/index.html`. Use `--input` / `--output` to override.
 
 ### Initial setup (one-time)
 

@@ -1,8 +1,8 @@
 """HTML generator for the flight-tracker frontend.
 
 Reads the slim CSV produced by src/frontend_csv_builder.py and emits a
-fully self-contained data/index.html: five JSON blobs + inlined CSS, app
-JS, and Chart.js. The browser only renders.
+fully self-contained frontend/index.html: five JSON blobs + inlined CSS,
+app JS, and Chart.js. The browser only renders.
 
 Pure-functional throughout: every transform takes the row list and returns
 a value with no side effects. The orchestrator (`generate`) is the only
