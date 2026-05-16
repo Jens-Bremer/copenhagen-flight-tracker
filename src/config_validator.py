@@ -8,6 +8,7 @@ def validate_config(cfg: dict) -> None:
         cfg.get("DAILY_WINDOW_START_HOUR"), cfg.get("DAILY_WINDOW_END_HOUR")
     )
     _check_min_request_interval_seconds(cfg.get("MIN_REQUEST_INTERVAL_SECONDS"))
+    _check_fetch_retry_delay_seconds(cfg.get("FETCH_RETRY_DELAY_SECONDS"))
     _check_database_path(cfg.get("DATABASE_PATH"))
     _check_backup_dir(cfg.get("BACKUP_DIR"))
     _check_backup_keep_last_n(cfg.get("BACKUP_KEEP_LAST_N"))
@@ -82,6 +83,11 @@ def _check_database_path(path) -> None:
 def _check_min_request_interval_seconds(value) -> None:
     if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
         raise ValueError("MIN_REQUEST_INTERVAL_SECONDS must be a positive number")
+
+
+def _check_fetch_retry_delay_seconds(value) -> None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+        raise ValueError("FETCH_RETRY_DELAY_SECONDS must be a non-negative number")
 
 
 def _check_health_threshold(name: str, value) -> None:

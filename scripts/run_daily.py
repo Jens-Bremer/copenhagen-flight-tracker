@@ -104,6 +104,41 @@ def run_collection(
         if idx < total_jobs and intervals:
             sleep_fn(intervals[idx - 1])
 
+    if failed_jobs:
+        logger.info("Starting retry pass for %d failed job(s)", len(failed_jobs))
+        retry_results = []
+        for origin, destination, departure_date, _reason in failed_jobs:
+            sleep_fn(config.FETCH_RETRY_DELAY_SECONDS)
+            logger.warning("Retrying %s→%s %s", origin, destination, departure_date)
+            try:
+                result = fetch_flights_for_date(
+                    origin, destination, departure_date, raise_on_failure=True
+                )
+                observations = parse_flights(
+                    result,
+                    origin,
+                    destination,
+                    departure_date,
+                    datetime.now(tz=timezone.utc),
+                )
+                inserted = insert_observations(db_path, observations)
+                total_observations += inserted
+                logger.info("Retry stored %d flights", inserted)
+                if inserted == 0:
+                    retry_results.append(
+                        (origin, destination, departure_date, "no observations stored")
+                    )
+            except Exception as exc:
+                logger.error(
+                    "Retry failed %s→%s %s: %s",
+                    origin,
+                    destination,
+                    departure_date,
+                    exc,
+                )
+                retry_results.append((origin, destination, departure_date, str(exc)))
+        failed_jobs = retry_results
+
     duration = time.monotonic() - start_time
     logger.info(
         "Daily collection complete. Total observations: %d. Failed jobs: %d.",

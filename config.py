@@ -20,6 +20,7 @@ MAX_STOPS = 0  # 0 = nonstop only
 DAILY_WINDOW_START_HOUR = 6  # Local server time, 06:00
 DAILY_WINDOW_END_HOUR = 22  # Local server time, 22:00
 MIN_REQUEST_INTERVAL_SECONDS = 120  # Floor on any computed sleep interval
+FETCH_RETRY_DELAY_SECONDS = 60  # Wait before each retry in the two-pass retry
 
 # --- Health checks ---
 HEALTH_FAILURE_RATE_THRESHOLD = 0.25  # Alert if >25% of jobs fail

@@ -13,6 +13,7 @@ def _cfg(**overrides):
         "DAILY_WINDOW_START_HOUR": 6,
         "DAILY_WINDOW_END_HOUR": 22,
         "MIN_REQUEST_INTERVAL_SECONDS": 120,
+        "FETCH_RETRY_DELAY_SECONDS": 60,
         "DATABASE_PATH": "data/flights.db",
         "BACKUP_DIR": "data/backups",
         "BACKUP_KEEP_LAST_N": 7,
@@ -152,6 +153,37 @@ def test_min_request_interval_zero_raises():
 def test_min_request_interval_negative_raises():
     with pytest.raises(ValueError, match="MIN_REQUEST_INTERVAL_SECONDS"):
         validate_config(_cfg(MIN_REQUEST_INTERVAL_SECONDS=-1))
+
+
+# --- FETCH_RETRY_DELAY_SECONDS ---
+
+
+def test_fetch_retry_delay_zero_is_valid():
+    validate_config(_cfg(FETCH_RETRY_DELAY_SECONDS=0))  # 0 disables inter-retry sleep
+
+
+def test_fetch_retry_delay_float_is_valid():
+    validate_config(_cfg(FETCH_RETRY_DELAY_SECONDS=300.5))
+
+
+def test_fetch_retry_delay_none_raises():
+    with pytest.raises(ValueError, match="FETCH_RETRY_DELAY_SECONDS"):
+        validate_config(_cfg(FETCH_RETRY_DELAY_SECONDS=None))
+
+
+def test_fetch_retry_delay_negative_raises():
+    with pytest.raises(ValueError, match="FETCH_RETRY_DELAY_SECONDS"):
+        validate_config(_cfg(FETCH_RETRY_DELAY_SECONDS=-1))
+
+
+def test_fetch_retry_delay_string_raises():
+    with pytest.raises(ValueError, match="FETCH_RETRY_DELAY_SECONDS"):
+        validate_config(_cfg(FETCH_RETRY_DELAY_SECONDS="60"))
+
+
+def test_fetch_retry_delay_bool_raises():
+    with pytest.raises(ValueError, match="FETCH_RETRY_DELAY_SECONDS"):
+        validate_config(_cfg(FETCH_RETRY_DELAY_SECONDS=True))
 
 
 # --- HEALTH_*_THRESHOLD ---
