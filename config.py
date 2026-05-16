@@ -38,3 +38,6 @@ PRICE_ALERT_THRESHOLD = {
     ("AMS", "CPH"): 4500,  # €45
     "_default": 6000,  # €60 for any unlisted route
 }
+
+# --- Frontend CSV ---
+FRONTEND_MAX_DURATION_MINUTES = 120
