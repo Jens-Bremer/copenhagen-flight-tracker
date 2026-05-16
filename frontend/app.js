@@ -495,7 +495,57 @@
       root.insertAdjacentHTML('beforeend', tableHtml);
     });
   }
-  function renderFooterCharts()   { /* Task 20 */ }
+  function renderFooterCharts() {
+    destroyChart('dow');
+    destroyChart('month');
+
+    const routes = activeRoutes().filter((r) => DATA.analysis[r]);
+    if (routes.length === 0) return;
+
+    // Aggregate across active routes by mean of means (each route weighted equally;
+    // good enough for a descriptive summary).
+    function aggregate(field, keyField) {
+      const grouped = {};
+      routes.forEach((r) => {
+        (DATA.analysis[r][field] || []).forEach((e) => {
+          const k = e[keyField];
+          grouped[k] = grouped[k] || { values: [], label: e.label };
+          grouped[k].values.push(e.mean_cents);
+        });
+      });
+      const keys = Object.keys(grouped).map(Number).sort((a, b) => a - b);
+      return keys.map((k) => ({
+        key: k,
+        label: grouped[k].label,
+        mean_cents: Math.round(grouped[k].values.reduce((a, b) => a + b, 0) / grouped[k].values.length),
+      }));
+    }
+    const dow = aggregate('day_of_week', 'dow');
+    const month = aggregate('month', 'month');
+
+    function makeBarChart(canvas, data, title) {
+      return new Chart(canvas, {
+        type: 'bar',
+        data: {
+          labels: data.map((d) => d.label),
+          datasets: [{
+            label: 'Mean cheapest (€)',
+            data: data.map((d) => d.mean_cents / 100),
+            backgroundColor: 'var(--color-orange)',
+            borderColor: 'var(--color-brown)',
+            borderWidth: 1,
+          }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false }, title: { display: true, text: title } },
+          scales: { y: { beginAtZero: false, title: { display: true, text: 'Mean price (€)' } } },
+        },
+      });
+    }
+    charts.dow   = makeBarChart($('dow-chart'),   dow,   'Cheapest day of week (mean over departures)');
+    charts.month = makeBarChart($('month-chart'), month, 'Cheapest month of year (mean over departures)');
+  }
 
   function renderAll() {
     renderHeader();
