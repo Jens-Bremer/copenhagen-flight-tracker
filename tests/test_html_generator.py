@@ -284,6 +284,35 @@ def test_render_html_uses_safe_substitute_no_placeholder_leaks():
     assert "${DATA_METADATA}" not in html
 
 
+def test_format_price_uses_whole_euros_not_decimal():
+    """All price values rendered by app.js must use whole euros (Math.round),
+    not two-decimal-place formatting (.toFixed(2)).
+
+    Prices are stored as integer cents in the JSON blobs and divided by 100
+    in JS.  Using .toFixed(2) produces strings like '€161.00'; the correct
+    output is '€161'.  This test checks the inlined app.js script for the
+    presence of the correct pattern.
+    """
+    import re
+
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    # app.js is always the last <script> tag in the template (Chart.js comes before it).
+    # We must not match Chart.js, which also uses .toFixed(2) internally.
+    all_scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+    assert all_scripts, "No <script> blocks found in rendered HTML"
+    app_js = all_scripts[-1]  # app.js is the very last script tag per the template
+
+    # No price value should be formatted with two decimal places.
+    assert ".toFixed(2)" not in app_js, (
+        "Found .toFixed(2) in inlined app.js — price formatting must use "
+        "Math.round() to show whole euros (e.g. '€161' not '€161.00')"
+    )
+    # The formatPrice helper must exist and use Math.round.
+    assert "Math.round(cents / 100)" in app_js, (
+        "formatPrice must use Math.round(cents / 100) for whole-euro amounts"
+    )
+
+
 def test_render_html_inlines_escapeHtml_helper():
     """app.js must inline an escapeHtml helper so attacker-controlled airline
     names cannot inject HTML via innerHTML/insertAdjacentHTML."""

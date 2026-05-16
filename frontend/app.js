@@ -78,8 +78,7 @@
 
   // ───── Tiny helpers ────────────────────────────────────────────────────────
   function $(id) { return document.getElementById(id); }
-  function formatPrice(cents) { return '€' + (cents / 100).toFixed(2); }
-  function formatPriceShort(cents) { return '€' + Math.round(cents / 100); }
+  function formatPrice(cents) { return '€' + Math.round(cents / 100); }
 
   /** HTML-escape *s* for safe interpolation into `innerHTML`. Defends against
    *  attacker-controlled airline names from the upstream scraper. */
@@ -330,9 +329,9 @@
     legend.className = 'calendar-legend';
     legend.setAttribute('aria-hidden', 'true');
     legend.innerHTML = `
-      <span>${formatPriceShort(range.min)}</span>
+      <span>${formatPrice(range.min)}</span>
       <div class="calendar-legend__bar"></div>
-      <span>${formatPriceShort(range.max)}</span>
+      <span>${formatPrice(range.max)}</span>
     `;
     root.insertAdjacentElement('afterend', legend);
   }
@@ -445,7 +444,7 @@
           legend: { display: false },
           tooltip: {
             callbacks: {
-              label: (ctx) => `€${ctx.parsed.y.toFixed(2)} (${flight.history[ctx.dataIndex].days_before} days before)`,
+              label: (ctx) => `€${Math.round(ctx.parsed.y)} (${flight.history[ctx.dataIndex].days_before} days before)`,
             },
           },
         },
@@ -458,7 +457,7 @@
     chartA11ySummary(ctx, flight.history.map((h) => ({
       'observation date': h.obs_date,
       'days before': h.days_before,
-      'price (EUR)': (h.price_cents / 100).toFixed(2),
+      'price (EUR)': Math.round(h.price_cents / 100),
     })));
   }
 
@@ -496,7 +495,7 @@
         responsive: true, maintainAspectRatio: false,
         plugins: {
           title: { display: true, text: 'Market trend — cheapest seen on each scrape day' },
-          tooltip: { callbacks: { label: (c) => `${c.dataset.label}: €${c.parsed.y.toFixed(2)}` } },
+          tooltip: { callbacks: { label: (c) => `${c.dataset.label}: €${Math.round(c.parsed.y)}` } },
         },
         scales: { y: { title: { display: true, text: 'Price (€)' } } },
       },
