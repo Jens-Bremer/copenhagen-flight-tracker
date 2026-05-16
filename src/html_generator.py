@@ -120,3 +120,56 @@ def build_calendar(rows: list[dict[str, Any]]) -> dict[str, dict[str, dict[str, 
         for cell in route_cells.values():
             cell["flight_count"] = len(cell.pop("_flights"))
     return out
+
+
+def _flight_id(row: dict[str, Any]) -> tuple[str, str]:
+    return (row["airline"], row["departure_at"].strftime("%H:%M"))
+
+
+def _hhmm(dt: datetime) -> str:
+    return dt.strftime("%H:%M")
+
+
+def build_flights(
+    rows: list[dict[str, Any]],
+) -> dict[str, dict[str, list[dict[str, Any]]]]:
+    """Per (route, departure_date): list of flights with price history.
+
+    A "flight" is identified by (airline, departure_time_of_day). All
+    observations for that flight, sorted by retrieved_at, become its
+    `history` array. `latest_cents` is the most recent observed price.
+    """
+    grouped: dict[tuple[str, str, str, str], dict[str, Any]] = {}
+    for row in rows:
+        route = _route_key(row)
+        date = row["departure_date"]
+        airline, dep_time = _flight_id(row)
+        key = (route, date, airline, dep_time)
+        bucket = grouped.setdefault(key, {
+            "airline": airline,
+            "dep_time": dep_time,
+            "arr_time": _hhmm(row["arrival_at"]),
+            "duration_minutes": row["duration_minutes"],
+            "overnight": row["arrival_at"].date() > row["departure_at"].date(),
+            "_obs": [],
+        })
+        obs_date = row["retrieved_at"].date().isoformat()
+        days_before = (row["departure_at"].date() - row["retrieved_at"].date()).days
+        bucket["_obs"].append({
+            "obs_date": obs_date,
+            "price_cents": row["price_cents"],
+            "days_before": days_before,
+        })
+
+    out: dict[str, dict[str, list[dict[str, Any]]]] = {}
+    for (route, date, _a, _t), bucket in grouped.items():
+        bucket["_obs"].sort(key=lambda o: o["obs_date"])
+        bucket["history"] = bucket.pop("_obs")
+        bucket["latest_cents"] = bucket["history"][-1]["price_cents"]
+        out.setdefault(route, {}).setdefault(date, []).append(bucket)
+
+    # Stable presentation order: cheapest-latest first
+    for route_dates in out.values():
+        for flight_list in route_dates.values():
+            flight_list.sort(key=lambda f: (f["latest_cents"], f["dep_time"]))
+    return out

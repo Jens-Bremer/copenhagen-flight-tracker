@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from src.html_generator import build_calendar, build_metadata, load_rows
+from src.html_generator import build_calendar, build_flights, build_metadata, load_rows
 
 FIXTURE = Path(__file__).parent / "fixtures" / "flights_frontend_sample.csv"
 
@@ -93,3 +93,43 @@ def test_build_calendar_separates_directions():
         cal["CPH-AMS"][d]["min_cents"] != cal["AMS-CPH"][d]["min_cents"]
         for d in overlap
     )
+
+
+def test_build_flights_returns_history_sorted_by_obs_date():
+    rows = load_rows(str(FIXTURE))
+    flights = build_flights(rows)
+    # easyJet 19:30 on 2026-06-19 was observed 3 times (May 10/12/15) in the fixture
+    easyjet = next(
+        f for f in flights["CPH-AMS"]["2026-06-19"]
+        if f["airline"] == "easyJet" and f["dep_time"] == "19:30"
+    )
+    assert len(easyjet["history"]) == 3
+    dates = [h["obs_date"] for h in easyjet["history"]]
+    assert dates == sorted(dates), "history must be chronological"
+    assert easyjet["latest_cents"] == easyjet["history"][-1]["price_cents"]
+
+
+def test_build_flights_overnight_flag():
+    rows = load_rows(str(FIXTURE))
+    flights = build_flights(rows)
+    finnair = next(
+        f for f in flights["CPH-AMS"]["2026-06-19"]
+        if f["airline"] == "Finnair"
+    )
+    assert finnair["overnight"] is True
+    assert finnair["duration_minutes"] == 945
+
+
+def test_build_flights_days_before_per_observation():
+    rows = load_rows(str(FIXTURE))
+    flights = build_flights(rows)
+    easyjet = next(
+        f for f in flights["CPH-AMS"]["2026-06-19"]
+        if f["airline"] == "easyJet" and f["dep_time"] == "19:30"
+    )
+    # 2026-05-10 retrieved_at → 2026-06-19 departure = 40 days
+    assert easyjet["history"][0]["days_before"] == 40
+
+
+def test_build_flights_empty_input():
+    assert build_flights([]) == {}
