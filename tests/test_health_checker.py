@@ -1,3 +1,4 @@
+import config
 import json
 import os
 from datetime import date
@@ -5,7 +6,10 @@ from datetime import date
 import pytest
 
 from src.database import initialize_database, insert_observations
-from src.health_checker import run_health_check
+from src.health_checker import (
+    check_missing_routes,
+    run_health_check,
+)
 
 
 TODAY = date.today().isoformat()
@@ -24,7 +28,7 @@ def _make_heartbeat(path, run_date=None, failed_jobs_count=0, total_jobs=100):
         json.dump(data, f)
 
 
-def _obs(retrieved_date=None, origin="CPH", destination="AMS", currency="EUR"):
+def _obs(retrieved_date=None, origin="CPH", destination="AMS", currency="EUR", price_amount=8900):
     ts = f"{retrieved_date or TODAY}T06:00:00+00:00"
     return {
         "retrieved_at": ts,
@@ -37,7 +41,7 @@ def _obs(retrieved_date=None, origin="CPH", destination="AMS", currency="EUR"):
         "duration": "2h 5m",
         "stops": 0,
         "price": "€89",
-        "price_amount": 8900,
+        "price_amount": price_amount,
         "price_currency": currency,
         "is_best": True,
         "current_price_trend": "typical",
@@ -176,3 +180,30 @@ def test_returns_multiple_problems(ctx):
     # No observations today → zero obs problem too
     problems = run_health_check(db_path, heartbeat_path=heartbeat_path)
     assert len(problems) >= 2
+
+
+# --- check_missing_routes ---
+
+
+def test_check_missing_routes_flags_missing_route(ctx):
+    db_path, _ = ctx
+    insert_observations(db_path, [_obs(origin="CPH", destination="AMS")])
+    problems = check_missing_routes(db_path, TODAY, [("CPH", "AMS"), ("AMS", "CPH")])
+    assert len(problems) == 1
+    assert "Missing route" in problems[0]
+
+
+def test_check_missing_routes_empty_when_all_routes_present(ctx):
+    db_path, _ = ctx
+    insert_observations(
+        db_path,
+        [_obs(origin="CPH", destination="AMS"), _obs(origin="AMS", destination="CPH")],
+    )
+    problems = check_missing_routes(db_path, TODAY, [("CPH", "AMS"), ("AMS", "CPH")])
+    assert problems == []
+
+
+def test_check_missing_routes_empty_on_empty_db(ctx):
+    db_path, _ = ctx
+    problems = check_missing_routes(db_path, TODAY, [("CPH", "AMS"), ("AMS", "CPH")])
+    assert problems == []

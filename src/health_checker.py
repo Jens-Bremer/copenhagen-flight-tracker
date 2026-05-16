@@ -111,6 +111,29 @@ def _check_currency_inconsistency(db_path: str) -> Optional[str]:
     return None
 
 
+def check_missing_routes(db_path: str, run_date: str, expected_routes: list) -> list[str]:
+    """Return a problem string for each expected route with zero observations on run_date."""
+    conn = sqlite3.connect(db_path)
+    try:
+        total = conn.execute(
+            "SELECT COUNT(*) FROM flight_observations"
+        ).fetchone()[0]
+        if total == 0:
+            return []
+        rows = conn.execute(
+            "SELECT DISTINCT origin, destination FROM flight_observations WHERE DATE(retrieved_at) = ?",
+            (run_date,),
+        ).fetchall()
+    finally:
+        conn.close()
+    present = {(r[0], r[1]) for r in rows}
+    return [
+        f"[high] Missing route: no observations for {origin}→{destination} on {run_date}"
+        for origin, destination in expected_routes
+        if (origin, destination) not in present
+    ]
+
+
 def run_health_check(db_path: str, heartbeat_path: Optional[str] = None) -> list:
     """Run all health checks and return a list of problem descriptions (empty = healthy)."""
     if heartbeat_path is None:
