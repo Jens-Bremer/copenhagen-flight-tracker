@@ -117,7 +117,7 @@
     'hero-best-time', 'hero-market', 'hero-book-when',
     'cal-prev', 'cal-month-label', 'cal-next',
     'calendar', 'drilldown-panel', 'drilldown-title', 'drilldown-sort', 'drilldown',
-    'price-history-wrap', 'price-history-chart',
+    'price-history-wrap', 'verdict-card', 'price-history-chart',
     'market-trend-chart', 'leadtime-chart', 'sweet-spot-headline',
     'histogram-out', 'histogram-back',
     'weekend-pairs',
@@ -458,10 +458,11 @@
       root.appendChild(row);
     });
 
-    // Price-history chart for the selected flight
+    // Price-history chart + verdict card for the selected flight
     if (!state.selectedFlight) {
       historyWrap.classList.add('is-hidden');
       destroyChart('priceHistory');
+      renderVerdict(null);
       return;
     }
     const chosen = flights.find((f) =>
@@ -472,9 +473,11 @@
     if (!chosen) {
       historyWrap.classList.add('is-hidden');
       destroyChart('priceHistory');
+      renderVerdict(null);
       return;
     }
     historyWrap.classList.remove('is-hidden');
+    renderVerdict(chosen);
     drawPriceHistory(chosen);
   }
 
@@ -979,6 +982,54 @@
         },
       },
     });
+  }
+
+  function renderVerdict(flight) {
+    const card = $('verdict-card');
+    if (!card) return;
+    if (!flight) {
+      card.innerHTML = '';
+      card.classList.add('is-hidden');
+      return;
+    }
+    const { percentile, historical_mean_cents, latest_cents, airline, dep_time, route } = flight;
+
+    let verdictText, verdictCls;
+    if (percentile === null || percentile === undefined) {
+      verdictText = 'Not enough data yet to assess this price';
+      verdictCls = '';
+    } else if (percentile <= 15) {
+      verdictText = 'Great time to buy';
+      verdictCls = 'is-good';
+    } else if (percentile <= 25) {
+      verdictText = 'Good time to buy';
+      verdictCls = 'is-good';
+    } else if (percentile <= 75) {
+      verdictText = 'Fair price';
+      verdictCls = 'is-fair';
+    } else {
+      verdictText = 'Above average';
+      verdictCls = 'is-bad';
+    }
+
+    let vsAvgText = '';
+    if (historical_mean_cents && latest_cents) {
+      const diff = Math.round((historical_mean_cents - latest_cents) / historical_mean_cents * 100);
+      vsAvgText = diff >= 0
+        ? `${diff}% below historical average`
+        : `${Math.abs(diff)}% above historical average`;
+    }
+
+    card.innerHTML = `
+      <p class="verdict-card__header">${escapeHtml(airline)} ${escapeHtml(dep_time)} · ${escapeHtml(route || '')}</p>
+      <div class="verdict-card__rows">
+        <span>Current price</span><span><strong>${formatPrice(latest_cents)}</strong></span>
+        ${historical_mean_cents ? `<span>Historical avg</span><span>${formatPrice(historical_mean_cents)}</span>` : ''}
+        ${vsAvgText ? `<span>You are seeing</span><span>${escapeHtml(vsAvgText)}</span>` : ''}
+      </div>
+      <p class="verdict-card__verdict ${escapeHtml(verdictCls)}">${escapeHtml(verdictText)}</p>
+    `;
+    card.classList.remove('is-hidden');
   }
 
   function renderHero() {

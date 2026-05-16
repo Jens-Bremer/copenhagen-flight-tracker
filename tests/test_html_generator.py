@@ -845,6 +845,62 @@ def test_hero_shows_fallback_when_no_analysis_data():
     )
 
 
+# ─── Issue #97: price verdict card ───────────────────────────────────────────
+
+
+def test_verdict_card_dom_id_in_template():
+    """Template must include a #verdict-card container in the price-history wrap."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert 'id="verdict-card"' in html, "#verdict-card container missing from template"
+
+
+def test_verdict_card_in_required_dom_ids():
+    """verdict-card must be listed in REQUIRED_DOM_IDS."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "'verdict-card'" in js, "verdict-card not in REQUIRED_DOM_IDS"
+
+
+def test_verdict_card_reads_percentile_and_historical_mean():
+    """JS must read percentile and historical_mean_cents from flight data."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "percentile" in js
+    assert "historical_mean_cents" in js
+
+
+def test_verdict_card_thresholds_all_present():
+    """JS must implement all four percentile thresholds from the spec."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "Great time to buy" in js
+    assert "Good time to buy" in js
+    assert "Fair price" in js
+    assert "Above average" in js
+
+
+def test_verdict_card_null_percentile_fallback():
+    """When percentile is null, the card must show 'Not enough data'."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "Not enough data" in js
+
+
+def test_verdict_card_css_class_in_styles():
+    """styles.css must define .verdict-card."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert ".verdict-card" in html
+
+
+def test_verdict_card_verdict_colour_classes():
+    """JS must use is-good/is-fair/is-bad CSS modifier classes for verdict colour."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "is-good" in js
+    assert "is-fair" in js
+    assert "is-bad" in js
+
+
 # ─── Issue #96: per-flight trajectory arrows in drill-down ────────────────────
 
 

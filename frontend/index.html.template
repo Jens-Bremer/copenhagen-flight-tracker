@@ -58,6 +58,7 @@
       <div id="drilldown-sort" class="drilldown-sort"></div>
       <div id="drilldown"></div>
       <div id="price-history-wrap" class="chart-wrap is-hidden">
+        <div id="verdict-card" class="verdict-card is-hidden"></div>
         <canvas id="price-history-chart" aria-label="Price over time" role="img"></canvas>
       </div>
     </section>

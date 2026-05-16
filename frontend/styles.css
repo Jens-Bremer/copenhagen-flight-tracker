@@ -328,7 +328,36 @@ ol, ul { list-style: none; }
   .hero-card { flex: 1; }
 }
 
-/* ─── 15. A11y ─── */
+/* ─── 15. Verdict card ─── */
+.verdict-card {
+  background: var(--color-cream-mid);
+  border: var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-md);
+  margin-bottom: var(--space-sm);
+  font-size: 0.875rem;
+}
+.verdict-card__header {
+  font-size: 0.75rem;
+  color: var(--color-brown-light);
+  margin-bottom: var(--space-sm);
+}
+.verdict-card__rows {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px var(--space-md);
+  font-variant-numeric: tabular-nums;
+}
+.verdict-card__verdict {
+  margin-top: var(--space-sm);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.verdict-card__verdict.is-good { color: var(--color-green-ahead); }
+.verdict-card__verdict.is-fair { color: var(--color-brown-light); }
+.verdict-card__verdict.is-bad  { color: var(--color-red); }
+
+/* ─── 16. A11y ─── */
 .calendar__cell:focus-visible,
 .flight-row:focus-visible,
 .filter-chip:focus-visible { outline: 3px solid var(--color-orange); outline-offset: 2px; }
