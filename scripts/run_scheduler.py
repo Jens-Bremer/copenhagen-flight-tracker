@@ -103,7 +103,7 @@ def _frontend_csv_job() -> None:
     # job overruns its expected window.
     try:
         _generate_html_job()
-    except Exception:                                                    # noqa: BLE001
+    except Exception:  # noqa: BLE001
         # _generate_html_job already alerts; suppress here to keep the
         # CSV job's own status accurate.
         logger.exception("HTML chain from frontend_csv_job failed")
@@ -124,7 +124,7 @@ def _generate_html_job() -> None:
     try:
         n = generate_html(input_path, output_path)
         logger.info("Scheduler: HTML generated — rows=%d output=%s", n, output_path)
-    except Exception as exc:                                            # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         logger.error("HTML generation failed: %s", exc)
         send_alert(
             title="Flight tracker: HTML generation failed",

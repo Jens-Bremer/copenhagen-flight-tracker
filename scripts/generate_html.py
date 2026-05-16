@@ -13,6 +13,7 @@ Exit codes:
   3 — required frontend asset missing (e.g. frontend/styles.css)
   4 — uncaught exception during generation
 """
+
 from __future__ import annotations
 
 import argparse
@@ -23,11 +24,13 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-import config                                                            # noqa: E402
-from src.html_generator import generate                                  # noqa: E402
-from src.log_config import setup_logging                                 # noqa: E402
+import config  # noqa: E402
+from src.html_generator import generate  # noqa: E402
+from src.log_config import setup_logging  # noqa: E402
 
-DEFAULT_INPUT = str(Path(config.DATABASE_PATH).resolve().parent / "flights_frontend.csv")
+DEFAULT_INPUT = str(
+    Path(config.DATABASE_PATH).resolve().parent / "flights_frontend.csv"
+)
 DEFAULT_OUTPUT = str(REPO_ROOT / "frontend" / "index.html")
 
 
@@ -52,7 +55,7 @@ def main(argv: list[str] | None = None) -> int:
         log.error("Frontend asset missing: %s", exc)
         print(f"error: {exc}", file=sys.stderr)
         return 3
-    except Exception as exc:                                             # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
         log.exception("Generation failed")
         print(f"error: {exc}", file=sys.stderr)
         return 4

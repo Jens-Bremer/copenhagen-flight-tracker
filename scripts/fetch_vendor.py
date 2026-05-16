@@ -5,6 +5,7 @@ and reused by every daily HTML generation.
 
 Re-run only when bumping the Chart.js version. Not part of the daily pipeline.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -14,7 +15,9 @@ from pathlib import Path
 
 CHART_JS_URL = "https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"
 EXPECTED_SHA256 = "d46d97a1fd022c5fb29fa2f45ebcbc32202d73aeebf076ce5f7248f5498fc7d7"
-TARGET_PATH = Path(__file__).resolve().parent.parent / "frontend" / "vendor" / "chart.min.js"
+TARGET_PATH = (
+    Path(__file__).resolve().parent.parent / "frontend" / "vendor" / "chart.min.js"
+)
 
 
 def main() -> int:

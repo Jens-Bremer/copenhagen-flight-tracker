@@ -1,4 +1,5 @@
 """Tests for src/html_generator.py — frontend HTML generation from the slim CSV."""
+
 from __future__ import annotations
 
 import json
@@ -31,10 +32,10 @@ def test_load_rows_returns_one_dict_per_csv_row():
 def test_load_rows_coerces_types():
     rows = load_rows(str(FIXTURE))
     row = rows[0]
-    assert isinstance(row["retrieved_at"], datetime)      # tz-aware UTC
+    assert isinstance(row["retrieved_at"], datetime)  # tz-aware UTC
     assert row["retrieved_at"].tzinfo is not None
-    assert isinstance(row["departure_date"], str)         # kept as ISO string
-    assert isinstance(row["departure_at"], datetime)      # naive local
+    assert isinstance(row["departure_date"], str)  # kept as ISO string
+    assert isinstance(row["departure_at"], datetime)  # naive local
     assert row["departure_at"].tzinfo is None
     assert isinstance(row["arrival_at"], datetime)
     assert isinstance(row["duration_minutes"], int)
@@ -62,7 +63,9 @@ def test_load_rows_raises_on_missing_file(tmp_path):
 
 def test_build_metadata_summarises_input_rows():
     rows = load_rows(str(FIXTURE))
-    meta = build_metadata(rows, generated_at=datetime(2026, 5, 15, 23, 47, tzinfo=timezone.utc))
+    meta = build_metadata(
+        rows, generated_at=datetime(2026, 5, 15, 23, 47, tzinfo=timezone.utc)
+    )
     assert meta["generated_at"] == "2026-05-15T23:47Z"
     assert meta["total_rows"] == len(rows)
     assert meta["date_range"]["from"] <= meta["date_range"]["to"]
@@ -72,7 +75,9 @@ def test_build_metadata_summarises_input_rows():
 
 
 def test_build_metadata_handles_empty_input():
-    meta = build_metadata([], generated_at=datetime(2026, 5, 15, 23, 47, tzinfo=timezone.utc))
+    meta = build_metadata(
+        [], generated_at=datetime(2026, 5, 15, 23, 47, tzinfo=timezone.utc)
+    )
     assert meta["total_rows"] == 0
     assert meta["date_range"] == {"from": None, "to": None}
     assert meta["routes"] == []
@@ -110,7 +115,8 @@ def test_build_flights_returns_history_sorted_by_obs_date():
     flights = build_flights(rows)
     # easyJet 19:30 on 2026-06-19 was observed 3 times (May 10/12/15) in the fixture
     easyjet = next(
-        f for f in flights["CPH-AMS"]["2026-06-19"]
+        f
+        for f in flights["CPH-AMS"]["2026-06-19"]
         if f["airline"] == "easyJet" and f["dep_time"] == "19:30"
     )
     assert len(easyjet["history"]) == 3
@@ -123,8 +129,7 @@ def test_build_flights_overnight_flag():
     rows = load_rows(str(FIXTURE))
     flights = build_flights(rows)
     finnair = next(
-        f for f in flights["CPH-AMS"]["2026-06-19"]
-        if f["airline"] == "Finnair"
+        f for f in flights["CPH-AMS"]["2026-06-19"] if f["airline"] == "Finnair"
     )
     assert finnair["overnight"] is True
     assert finnair["duration_minutes"] == 945
@@ -134,7 +139,8 @@ def test_build_flights_days_before_per_observation():
     rows = load_rows(str(FIXTURE))
     flights = build_flights(rows)
     easyjet = next(
-        f for f in flights["CPH-AMS"]["2026-06-19"]
+        f
+        for f in flights["CPH-AMS"]["2026-06-19"]
         if f["airline"] == "easyJet" and f["dep_time"] == "19:30"
     )
     # 2026-05-10 retrieved_at → 2026-06-19 departure = 40 days
@@ -249,9 +255,18 @@ def test_render_html_inlines_assets_and_data():
     assert "Chart.js" in html or "Chart=" in html or "chart.js" in html.lower()
     # JSON blobs are valid JSON inside <script> tags
     import re
-    blobs = re.findall(r'<script type="application/json" id="(DATA_\w+)">(.*?)</script>', html, re.S)
+
+    blobs = re.findall(
+        r'<script type="application/json" id="(DATA_\w+)">(.*?)</script>', html, re.S
+    )
     blob_dict = {k: v for k, v in blobs}
-    assert set(blob_dict) == {"DATA_METADATA", "DATA_CALENDAR", "DATA_FLIGHTS", "DATA_ANALYSIS", "DATA_SUMMARY"}
+    assert set(blob_dict) == {
+        "DATA_METADATA",
+        "DATA_CALENDAR",
+        "DATA_FLIGHTS",
+        "DATA_ANALYSIS",
+        "DATA_SUMMARY",
+    }
     for raw in blob_dict.values():
         json.loads(raw)
 
@@ -294,9 +309,11 @@ def test_render_html_escapes_script_close_in_json_blobs():
     )
     # Raw </script> must not appear inside the metadata blob
     import re
+
     m = re.search(
         r'<script type="application/json" id="DATA_METADATA">(.*?)</script>',
-        html, re.S,
+        html,
+        re.S,
     )
     assert m, "DATA_METADATA blob not found"
     raw = m.group(1)
@@ -341,7 +358,14 @@ def test_generate_empty_input_writes_skeleton(tmp_path):
 def test_cli_smoke(tmp_path):
     out = tmp_path / "index.html"
     result = subprocess.run(
-        ["python3", "scripts/generate_html.py", "--input", str(FIXTURE), "--output", str(out)],
+        [
+            "python3",
+            "scripts/generate_html.py",
+            "--input",
+            str(FIXTURE),
+            "--output",
+            str(out),
+        ],
         capture_output=True,
         text=True,
         cwd=Path(__file__).resolve().parent.parent,
@@ -353,9 +377,16 @@ def test_cli_smoke(tmp_path):
 def test_cli_missing_input_exits_2(tmp_path):
     out = tmp_path / "index.html"
     result = subprocess.run(
-        ["python3", "scripts/generate_html.py", "--input", str(tmp_path / "nope.csv"),
-         "--output", str(out)],
-        capture_output=True, text=True,
+        [
+            "python3",
+            "scripts/generate_html.py",
+            "--input",
+            str(tmp_path / "nope.csv"),
+            "--output",
+            str(out),
+        ],
+        capture_output=True,
+        text=True,
         cwd=Path(__file__).resolve().parent.parent,
     )
     assert result.returncode == 2

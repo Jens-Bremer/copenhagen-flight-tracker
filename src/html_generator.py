@@ -10,6 +10,7 @@ function that touches the filesystem.
 
 Imports only config + stdlib + json (per CLAUDE.md module contract).
 """
+
 from __future__ import annotations
 
 import csv
@@ -60,18 +61,20 @@ def load_rows(path: str) -> list[dict[str, Any]]:
         for raw in reader:
             if not raw or all((v or "").strip() == "" for v in raw.values()):
                 continue
-            rows.append({
-                "retrieved_at": _parse_retrieved_at(raw["retrieved_at"]),
-                "departure_date": raw["departure_date"],
-                "origin": raw["origin"],
-                "destination": raw["destination"],
-                "airline": raw["airline"],
-                "departure_at": _parse_naive_local(raw["departure_at"]),
-                "arrival_at": _parse_naive_local(raw["arrival_at"]),
-                "duration_minutes": int(raw["duration_minutes"]),
-                "price_cents": int(raw["price_cents"]),
-                "price_currency": raw["price_currency"],
-            })
+            rows.append(
+                {
+                    "retrieved_at": _parse_retrieved_at(raw["retrieved_at"]),
+                    "departure_date": raw["departure_date"],
+                    "origin": raw["origin"],
+                    "destination": raw["destination"],
+                    "airline": raw["airline"],
+                    "departure_at": _parse_naive_local(raw["departure_at"]),
+                    "arrival_at": _parse_naive_local(raw["arrival_at"]),
+                    "duration_minutes": int(raw["duration_minutes"]),
+                    "price_cents": int(raw["price_cents"]),
+                    "price_currency": raw["price_currency"],
+                }
+            )
     return rows
 
 
@@ -82,7 +85,9 @@ def _format_minute_z(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
 
 
-def build_metadata(rows: list[dict[str, Any]], generated_at: datetime) -> dict[str, Any]:
+def build_metadata(
+    rows: list[dict[str, Any]], generated_at: datetime
+) -> dict[str, Any]:
     """Top-level metadata: generation timestamp, date range, route + airline lists."""
     if not rows:
         return {
@@ -155,21 +160,26 @@ def build_flights(
         date = row["departure_date"]
         airline, dep_time = _flight_id(row)
         key = (route, date, airline, dep_time)
-        bucket = grouped.setdefault(key, {
-            "airline": airline,
-            "dep_time": dep_time,
-            "arr_time": _hhmm(row["arrival_at"]),
-            "duration_minutes": row["duration_minutes"],
-            "overnight": row["arrival_at"].date() > row["departure_at"].date(),
-            "_obs": [],
-        })
+        bucket = grouped.setdefault(
+            key,
+            {
+                "airline": airline,
+                "dep_time": dep_time,
+                "arr_time": _hhmm(row["arrival_at"]),
+                "duration_minutes": row["duration_minutes"],
+                "overnight": row["arrival_at"].date() > row["departure_at"].date(),
+                "_obs": [],
+            },
+        )
         obs_date = row["retrieved_at"].date().isoformat()
         days_before = (row["departure_at"].date() - row["retrieved_at"].date()).days
-        bucket["_obs"].append({
-            "obs_date": obs_date,
-            "price_cents": row["price_cents"],
-            "days_before": days_before,
-        })
+        bucket["_obs"].append(
+            {
+                "obs_date": obs_date,
+                "price_cents": row["price_cents"],
+                "days_before": days_before,
+            }
+        )
 
     out: dict[str, dict[str, list[dict[str, Any]]]] = {}
     for (route, date, _a, _t), bucket in grouped.items():
@@ -186,8 +196,20 @@ def build_flights(
 
 
 _DOW_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-_MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+_MONTH_LABELS = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+]
 
 
 def _mean(values: list[int]) -> int:
@@ -266,8 +288,11 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         ]
 
         trend_entries = sorted(
-            ({"obs_date": od, "min_cents": cents}
-             for (r, od), cents in cheapest_per_obs.items() if r == route),
+            (
+                {"obs_date": od, "min_cents": cents}
+                for (r, od), cents in cheapest_per_obs.items()
+                if r == route
+            ),
             key=lambda e: e["obs_date"],
         )
 
@@ -281,7 +306,7 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return out
 
 
-BIN_WIDTH_CENTS = 500            # €5 bins
+BIN_WIDTH_CENTS = 500  # €5 bins
 WEEKEND_PAIRS_TOP_N = 5
 
 
@@ -322,11 +347,13 @@ def build_summary(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         for (r, airline, bin_lo), count in hist_counts.items():
             if r != route:
                 continue
-            histogram.setdefault(airline, []).append({
-                "bin_low": bin_lo,
-                "bin_high": bin_lo + BIN_WIDTH_CENTS,
-                "count": count,
-            })
+            histogram.setdefault(airline, []).append(
+                {
+                    "bin_low": bin_lo,
+                    "bin_high": bin_lo + BIN_WIDTH_CENTS,
+                    "count": count,
+                }
+            )
         for bins in histogram.values():
             bins.sort(key=lambda b: b["bin_low"])
         out[route] = {"histogram": histogram, "weekend_pairs": []}
@@ -340,23 +367,25 @@ def build_summary(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         if route != fri_outbound_route:
             continue
         dep_date = date_type.fromisoformat(dep_iso)
-        if dep_date.weekday() != 4:                                   # 4 = Friday
+        if dep_date.weekday() != 4:  # 4 = Friday
             continue
         sun_iso = (dep_date + timedelta(days=2)).isoformat()
         sun = cheapest_dep.get((sun_inbound_route, sun_iso))
         if sun is None:
             continue
-        pairs.append({
-            "fri_date": dep_iso,
-            "fri_airline": fri["airline"],
-            "fri_dep": fri["dep_time"],
-            "fri_cents": fri["price_cents"],
-            "sun_date": sun_iso,
-            "sun_airline": sun["airline"],
-            "sun_dep": sun["dep_time"],
-            "sun_cents": sun["price_cents"],
-            "total_cents": fri["price_cents"] + sun["price_cents"],
-        })
+        pairs.append(
+            {
+                "fri_date": dep_iso,
+                "fri_airline": fri["airline"],
+                "fri_dep": fri["dep_time"],
+                "fri_cents": fri["price_cents"],
+                "sun_date": sun_iso,
+                "sun_airline": sun["airline"],
+                "sun_dep": sun["dep_time"],
+                "sun_cents": sun["price_cents"],
+                "total_cents": fri["price_cents"] + sun["price_cents"],
+            }
+        )
     pairs.sort(key=lambda p: p["total_cents"])
     if fri_outbound_route in out:
         out[fri_outbound_route]["weekend_pairs"] = pairs[:WEEKEND_PAIRS_TOP_N]

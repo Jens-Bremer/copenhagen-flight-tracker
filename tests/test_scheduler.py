@@ -241,9 +241,7 @@ def test_generate_html_job_sends_alert_on_failure(tmp_path):
 def test_frontend_csv_job_chains_html_generation(tmp_path):
     """Verify the 23:46 frontend CSV job chains the HTML generation inline."""
     with (
-        patch(
-            "scripts.run_scheduler.build_frontend_csv", return_value=(3, "ok")
-        ),
+        patch("scripts.run_scheduler.build_frontend_csv", return_value=(3, "ok")),
         patch("scripts.run_scheduler.generate_html", return_value=3) as mock_gen,
         patch("scripts.run_scheduler.config") as mock_cfg,
     ):
