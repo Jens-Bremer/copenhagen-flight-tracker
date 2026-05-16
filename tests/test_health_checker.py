@@ -8,6 +8,7 @@ import pytest
 from src.database import initialize_database, insert_observations
 from src.health_checker import (
     check_missing_routes,
+    check_price_variance,
     run_health_check,
 )
 
@@ -206,4 +207,29 @@ def test_check_missing_routes_empty_when_all_routes_present(ctx):
 def test_check_missing_routes_empty_on_empty_db(ctx):
     db_path, _ = ctx
     problems = check_missing_routes(db_path, TODAY, [("CPH", "AMS"), ("AMS", "CPH")])
+    assert problems == []
+
+
+# --- check_price_variance ---
+
+
+def test_check_price_variance_flags_uniform_prices(ctx):
+    db_path, _ = ctx
+    insert_observations(db_path, [_obs(price_amount=5000) for _ in range(10)])
+    problems = check_price_variance(db_path, TODAY)
+    assert len(problems) == 1
+    assert "Price variance" in problems[0]
+
+
+def test_check_price_variance_no_problem_with_varied_prices(ctx):
+    db_path, _ = ctx
+    prices = [4500, 5000, 5500, 6000, 6500, 7000, 7500, 8000, 8500, 9000]
+    insert_observations(db_path, [_obs(price_amount=p) for p in prices])
+    problems = check_price_variance(db_path, TODAY)
+    assert problems == []
+
+
+def test_check_price_variance_empty_on_empty_db(ctx):
+    db_path, _ = ctx
+    problems = check_price_variance(db_path, TODAY)
     assert problems == []

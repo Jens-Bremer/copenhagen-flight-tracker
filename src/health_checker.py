@@ -134,6 +134,28 @@ def check_missing_routes(db_path: str, run_date: str, expected_routes: list) -> 
     ]
 
 
+def check_price_variance(db_path: str, run_date: str, min_distinct_prices: int = 3) -> List[str]:
+    """Return a problem string for each route with fewer than min_distinct_prices distinct prices on run_date."""
+    conn = sqlite3.connect(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT origin, destination, COUNT(DISTINCT price_amount) AS distinct_prices
+            FROM flight_observations
+            WHERE DATE(retrieved_at) = ?
+            GROUP BY origin, destination
+            """,
+            (run_date,),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [
+        f"[high] Price variance: only {count} distinct price(s) for {origin}→{destination} on {run_date}"
+        for origin, destination, count in rows
+        if count < min_distinct_prices
+    ]
+
+
 def run_health_check(db_path: str, heartbeat_path: Optional[str] = None) -> list:
     """Run all health checks and return a list of problem descriptions (empty = healthy)."""
     if heartbeat_path is None:
