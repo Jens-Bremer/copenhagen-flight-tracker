@@ -243,13 +243,13 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         if days_before < 0:
             continue
         by_lead[(route, days_before)].append(row["price_cents"])
-        by_time[(route, row["departure_at"].weekday(), row["departure_at"].hour)].append(
-            row["price_cents"]
-        )
+        by_time[
+            (route, row["departure_at"].weekday(), row["departure_at"].hour)
+        ].append(row["price_cents"])
         dep_time = _hhmm(row["departure_at"])
-        by_flight[(route, row["departure_date"], row["airline"], dep_time)][days_before].append(
-            row["price_cents"]
-        )
+        by_flight[(route, row["departure_date"], row["airline"], dep_time)][
+            days_before
+        ].append(row["price_cents"])
 
         key_dep = (route, row["departure_date"])
         prev_dep = cheapest_per_dep.get(key_dep)
@@ -267,7 +267,9 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     for (route, _dep, _air, _time), obs_by_days in by_flight.items():
         if len(obs_by_days) < 2:
             continue
-        sorted_days = sorted(obs_by_days.keys(), reverse=True)  # oldest = highest days_before
+        sorted_days = sorted(
+            obs_by_days.keys(), reverse=True
+        )  # oldest = highest days_before
         base = _mean(obs_by_days[sorted_days[0]])
         if base == 0:
             continue

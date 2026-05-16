@@ -189,16 +189,16 @@ def test_leadtime_chart_renders_iqr_band():
     import re
 
     html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    all_scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
     assert all_scripts
     app_js = all_scripts[-1]
 
     # The JS must map q1_cents and q3_cents from the curve data.
-    assert 'q1_cents' in app_js, (
+    assert "q1_cents" in app_js, (
         "renderTrends must reference q1_cents from the lead_time_curve JSON "
         "to build the lower bound of the IQR shading band"
     )
-    assert 'q3_cents' in app_js, (
+    assert "q3_cents" in app_js, (
         "renderTrends must reference q3_cents from the lead_time_curve JSON "
         "to build the upper bound of the IQR shading band"
     )
@@ -289,7 +289,9 @@ def test_build_analysis_normalized_price_progression():
         )
     # Sorted ascending by days_before
     days = [e["days_before"] for e in prog]
-    assert days == sorted(days), "normalized_price_progression must be sorted by days_before"
+    assert days == sorted(days), (
+        "normalized_price_progression must be sorted by days_before"
+    )
 
 
 def test_normprog_panel_rendered_in_html():
@@ -298,15 +300,15 @@ def test_normprog_panel_rendered_in_html():
     import re
 
     html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    all_scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
     assert all_scripts
     app_js = all_scripts[-1]
 
     assert 'id="normprog-chart"' in html, (
-        "HTML template must include <canvas id=\"normprog-chart\"> for the "
+        'HTML template must include <canvas id="normprog-chart"> for the '
         "normalised price progression panel"
     )
-    assert 'normalized_price_progression' in app_js, (
+    assert "normalized_price_progression" in app_js, (
         "app.js must reference normalized_price_progression to render the chart"
     )
 
@@ -317,19 +319,19 @@ def test_timeheat_panel_rendered_in_html():
     import re
 
     html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    all_scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
     assert all_scripts
     app_js = all_scripts[-1]
 
     # Canvas elements for the two heatmap panels
     assert 'id="timeheat-out"' in html, (
-        "HTML template must include <canvas id=\"timeheat-out\"> for CPH-AMS heatmap"
+        'HTML template must include <canvas id="timeheat-out"> for CPH-AMS heatmap'
     )
     assert 'id="timeheat-back"' in html, (
-        "HTML template must include <canvas id=\"timeheat-back\"> for AMS-CPH heatmap"
+        'HTML template must include <canvas id="timeheat-back"> for AMS-CPH heatmap'
     )
     # JS must read time_of_day_matrix from the analysis data
-    assert 'time_of_day_matrix' in app_js, (
+    assert "time_of_day_matrix" in app_js, (
         "app.js must reference time_of_day_matrix to render the heatmap cells"
     )
 
@@ -482,7 +484,7 @@ def test_format_price_uses_whole_euros_not_decimal():
     html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
     # app.js is always the last <script> tag in the template (Chart.js comes before it).
     # We must not match Chart.js, which also uses .toFixed(2) internally.
-    all_scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
     assert all_scripts, "No <script> blocks found in rendered HTML"
     app_js = all_scripts[-1]  # app.js is the very last script tag per the template
 
@@ -511,23 +513,23 @@ def test_histograms_use_stacked_bars_with_airline_segments():
 
     html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
     # app.js is always the last <script> tag in the template.
-    all_scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
     assert all_scripts, "No <script> blocks found in rendered HTML"
     app_js = all_scripts[-1]
 
     # Grouped mode (old behaviour) must be absent.
-    assert 'stacked: false' not in app_js, (
+    assert "stacked: false" not in app_js, (
         "Found 'stacked: false' in app.js — histogram bars must use stacked: true "
         "so that per-airline segments stack into a single bar per price bin"
     )
     # Both x and y axes of the histogram chart must opt into stacking.
-    stacked_true_count = app_js.count('stacked: true')
+    stacked_true_count = app_js.count("stacked: true")
     assert stacked_true_count >= 2, (
         f"Expected at least 2 occurrences of 'stacked: true' (one per axis) "
         f"in renderHistograms, found {stacked_true_count}"
     )
     # A tooltip footer callback must exist to show the bin total.
-    assert 'footer:' in app_js, (
+    assert "footer:" in app_js, (
         "renderHistograms tooltip must include a 'footer:' callback "
         "showing the aggregate observation count for the hovered bin"
     )
@@ -545,7 +547,7 @@ def test_footer_charts_use_gentle_pricetint_palette():
     import re
 
     html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    all_scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
     assert all_scripts, "No <script> blocks found in rendered HTML"
     app_js = all_scripts[-1]
 
@@ -560,7 +562,7 @@ def test_footer_charts_use_gentle_pricetint_palette():
     )
     # priceTint() must now be called inside renderFooterCharts/makeBarChart as
     # well as in renderCalendar — so it appears at least twice in the source.
-    assert app_js.count('priceTint(') >= 2, (
+    assert app_js.count("priceTint(") >= 2, (
         "Expected priceTint() to appear at least twice — once in renderCalendar "
         "and once inside renderFooterCharts/makeBarChart"
     )
@@ -578,18 +580,18 @@ def test_footer_charts_show_both_routes_as_grouped_bars():
     import re
 
     html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    all_scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
     assert all_scripts, "No <script> blocks found in rendered HTML"
     app_js = all_scripts[-1]
 
     # A ROUTE_COLORS map must exist to colour each route's bars distinctly.
-    assert 'ROUTE_COLORS' in app_js, (
+    assert "ROUTE_COLORS" in app_js, (
         "renderFooterCharts must define ROUTE_COLORS to assign a distinct "
         "colour per route in the grouped bar charts"
     )
     # The old aggregate() implementation averaged both routes into one value
     # per key — this must be gone, replaced by per-route datasets.
-    assert 'grouped[k].values.push' not in app_js, (
+    assert "grouped[k].values.push" not in app_js, (
         "The aggregate() helper in renderFooterCharts must be removed; "
         "show one dataset per route instead of averaging them together"
     )
@@ -611,27 +613,33 @@ def test_calendar_local_dates_and_month_navigation():
     import re
 
     html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    all_scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
     assert all_scripts, "No <script> blocks found in rendered HTML"
     app_js = all_scripts[-1]
 
     # (a) Local-date ISO construction must replace cursor.toISOString().
     # Note: the string 'toISOString()' may appear in explanatory comments; we
     # specifically check for the cursor. call-site form.
-    assert 'cursor.toISOString()' not in app_js, (
+    assert "cursor.toISOString()" not in app_js, (
         "renderCalendar must not call cursor.toISOString() — it converts to UTC "
         "and shifts dates in positive-offset timezones. Build the ISO string "
         "from getFullYear()/getMonth()/getDate() instead."
     )
     # (b) state must track the currently displayed month.
-    assert 'calendarMonth' in app_js, (
+    assert "calendarMonth" in app_js, (
         "state must include a calendarMonth property so the calendar renders "
         "only one month at a time and can navigate between months"
     )
     # (c) Navigation DOM elements must be present in the generated HTML.
-    assert 'id="cal-prev"' in html, "Previous-month button (id=cal-prev) missing from template"
-    assert 'id="cal-next"' in html, "Next-month button (id=cal-next) missing from template"
-    assert 'id="cal-month-label"' in html, "Month label (id=cal-month-label) missing from template"
+    assert 'id="cal-prev"' in html, (
+        "Previous-month button (id=cal-prev) missing from template"
+    )
+    assert 'id="cal-next"' in html, (
+        "Next-month button (id=cal-next) missing from template"
+    )
+    assert 'id="cal-month-label"' in html, (
+        "Month label (id=cal-month-label) missing from template"
+    )
 
 
 def test_render_html_inlines_escapeHtml_helper():
