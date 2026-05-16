@@ -104,10 +104,21 @@ ol, ul { list-style: none; }
 }
 
 /* ─── 6. Filters bar ─── */
-.filters { padding: var(--space-md) var(--space-lg); border: var(--border);
-           border-radius: var(--radius); background: var(--color-cream-mid); }
+/* CHANGE (UX): sticky-on-scroll + group labels.
+   Sticky keeps filters reachable while drilling; no behavioural change. */
+.filters {
+  padding: var(--space-md) var(--space-lg); border: var(--border);
+  border-radius: var(--radius); background: var(--color-cream-mid);
+  position: sticky; top: 8px; z-index: 5;
+  box-shadow: 0 2px 6px rgba(43, 26, 16, 0.10);
+}
 .filters__row { display: flex; gap: var(--space-xl); flex-wrap: wrap; align-items: center; }
 .filters__group { display: flex; gap: var(--space-sm); align-items: center; flex-wrap: wrap; }
+.filters__label {
+  font-size: 0.7rem; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--color-brown-light);
+  font-weight: 500;
+}
 .filter-chip {
   padding: 6px 12px; border: var(--border); border-radius: 999px;
   background: var(--color-cream); cursor: pointer; user-select: none;
@@ -131,15 +142,49 @@ ol, ul { list-style: none; }
   font-variant-numeric: tabular-nums;
   background: var(--color-cream); color: var(--color-text);
   transition: transform 150ms ease, box-shadow 150ms ease;
+  position: relative;
 }
 .calendar__cell.is-empty { background: rgba(107,62,38,0.06); color: var(--color-brown-light); cursor: default; }
 .calendar__cell.is-selected { box-shadow: 0 0 0 3px var(--color-brown); }
+.calendar__cell.is-today    { outline: 2px dashed var(--color-orange); outline-offset: -3px; }
 .calendar__cell:hover:not(.is-empty) { transform: translateY(-1px); }
 .calendar__cell__day { font-size: 0.7rem; opacity: 0.7; }
 .calendar__cell__price { font-family: var(--font-display); font-size: 0.95rem; }
+/* CHANGE (UX): tiny cheapest-airline dot on each tinted cell. */
+.calendar__cell__dot {
+  position: absolute; top: 4px; right: 4px;
+  width: 6px; height: 6px; border-radius: 50%;
+  border: 1px solid var(--color-brown);
+}
 
-/* Tonal background applied via inline style="background:..." set by JS,
-   using the shared min/max scale across both routes. */
+/* CHANGE (UX): month divider row + min/max legend.
+   Both are injected by app.js so the JSON contract is untouched. */
+.calendar__month-row {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; gap: 14px;
+  padding: var(--space-md) 0 var(--space-sm);
+  font-family: var(--font-display); color: var(--color-brown); font-size: 1.05rem;
+}
+.calendar__month-row::after {
+  content: ""; flex: 1; height: 1px;
+  background: var(--color-brown); opacity: 0.4;
+}
+.calendar-legend {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: var(--space-md);
+  font-size: 0.7rem; color: var(--color-brown-light);
+  text-transform: uppercase; letter-spacing: 0.04em; font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.calendar-legend__bar {
+  flex: 1; height: 8px; border-radius: 2px;
+  background: linear-gradient(to right,
+    rgba(61,122,61,0.5)   0%,
+    rgba(241,196,15,0.5)  40%,
+    rgba(230,126,34,0.5)  70%,
+    rgba(192,57,43,0.5)   100%);
+  border: 1px solid var(--color-brown);
+}
 
 /* ─── 8. Drill-down ─── */
 .flight-list { display: grid; gap: var(--space-sm); }
@@ -179,9 +224,13 @@ ol, ul { list-style: none; }
 .pairs-table tbody tr:hover { background: var(--color-cream); }
 
 /* ─── 11. Empty / error states ─── */
+/* CHANGE (UX): dashed border on empty state makes it read as a placeholder
+   container rather than a paragraph of body text. */
 .empty-state {
   padding: var(--space-lg); text-align: center;
   font-size: 0.9rem; color: var(--color-brown-light);
+  border: 1.5px dashed var(--color-brown-light);
+  border-radius: var(--radius);
 }
 .error-banner {
   background: var(--color-red); color: var(--color-cream);
@@ -201,6 +250,8 @@ ol, ul { list-style: none; }
     grid-template-areas: "swatch airline price" "time time time";
     row-gap: 4px;
   }
+  /* Sticky filters become non-sticky on mobile (saves vertical real estate) */
+  .filters { position: static; }
 }
 
 /* ─── 13. Reveal animation ─── */
