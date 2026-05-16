@@ -52,6 +52,8 @@
     histogramBack: null,
     dow: null,
     month: null,
+    timeheatOut: null,
+    timeheatBack: null,
   };
   function destroyChart(slot) {
     if (charts[slot]) { charts[slot].destroy(); charts[slot] = null; }
@@ -117,6 +119,7 @@
     'histogram-out', 'histogram-back',
     'weekend-pairs',
     'dow-chart', 'month-chart',
+    'timeheat-out', 'timeheat-back',
   ];
   function assertRequiredDomIds() {
     const missing = REQUIRED_DOM_IDS.filter((id) => !$(id));
@@ -755,6 +758,147 @@
     charts.month = makeGroupedChart($('month-chart'), 'month',       'month', 'Mean price by month');
   }
 
+  const _DOW_LABELS_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  function renderTimeheat() {
+    const pairs = [
+      { route: 'CPH-AMS', slot: 'timeheatOut', canvasId: 'timeheat-out' },
+      { route: 'AMS-CPH', slot: 'timeheatBack', canvasId: 'timeheat-back' },
+    ];
+
+    pairs.forEach(({ route, slot, canvasId }) => {
+      // Clear any previous draw state stored on the canvas element.
+      const canvas = $(canvasId);
+      if (!canvas) return;
+      if (charts[slot]) { charts[slot] = null; }
+      canvas._heatCells = null;
+
+      const routeData = DATA.analysis[route];
+      const matrix = routeData ? (routeData.time_of_day_matrix || []) : [];
+
+      // Filter to active airline set — we have no per-cell airline info here,
+      // so always show the matrix regardless of airline filter.
+      const visible = activeRoutes().includes(route) ? matrix : [];
+
+      if (!visible.length) {
+        const ctx = canvas.getContext('2d');
+        const W = canvas.offsetWidth || 360;
+        canvas.width = W; canvas.height = 80;
+        ctx.clearRect(0, 0, W, 80);
+        ctx.fillStyle = 'rgba(107,62,38,0.4)';
+        ctx.font = '13px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`No data for ${route}`, W / 2, 44);
+        return;
+      }
+
+      // Determine axis ranges.
+      const hours = Array.from(new Set(visible.map((e) => e.hour))).sort((a, b) => a - b);
+      const dows = [0, 1, 2, 3, 4, 5, 6];
+      const allCents = visible.map((e) => e.mean_cents);
+      const priceRange = { min: Math.min(...allCents), max: Math.max(...allCents) };
+
+      // Layout constants.
+      const PAD_LEFT = 36, PAD_TOP = 18, PAD_BOTTOM = 24, PAD_RIGHT = 8;
+      const CELL_H = 24;
+      const totalH = PAD_TOP + dows.length * CELL_H + PAD_BOTTOM;
+      const W = Math.max(canvas.offsetWidth || 480, 280);
+      const gridW = W - PAD_LEFT - PAD_RIGHT;
+      const CELL_W = Math.floor(gridW / hours.length);
+      canvas.width = W;
+      canvas.height = totalH;
+
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, W, totalH);
+
+      // Build a lookup for fast cell access.
+      const lookup = new Map();
+      visible.forEach((e) => lookup.set(`${e.dow}_${e.hour}`, e));
+
+      // Store cell rectangles for hover detection.
+      const cells = [];
+
+      dows.forEach((dow, ri) => {
+        const y = PAD_TOP + ri * CELL_H;
+        hours.forEach((hour, ci) => {
+          const x = PAD_LEFT + ci * CELL_W;
+          const entry = lookup.get(`${dow}_${hour}`);
+          if (entry) {
+            ctx.fillStyle = priceTint(entry.mean_cents, priceRange);
+            ctx.fillRect(x, y, CELL_W - 1, CELL_H - 1);
+            cells.push({ x, y, w: CELL_W - 1, h: CELL_H - 1, dow, hour, mean_cents: entry.mean_cents });
+          } else {
+            ctx.fillStyle = 'rgba(200,200,200,0.12)';
+            ctx.fillRect(x, y, CELL_W - 1, CELL_H - 1);
+          }
+        });
+        // Row label (day name).
+        ctx.fillStyle = 'rgba(107,62,38,0.8)';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(_DOW_LABELS_SHORT[dow], PAD_LEFT - 4, y + CELL_H / 2);
+      });
+
+      // Column labels (hours).
+      ctx.fillStyle = 'rgba(107,62,38,0.8)';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      hours.forEach((hour, ci) => {
+        if (ci % 2 === 0 || hours.length <= 8) {
+          const x = PAD_LEFT + ci * CELL_W + CELL_W / 2;
+          ctx.fillText(`${String(hour).padStart(2, '0')}h`, x, PAD_TOP + dows.length * CELL_H + 4);
+        }
+      });
+
+      // Route label at top.
+      ctx.fillStyle = 'rgba(107,62,38,0.6)';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(route, PAD_LEFT, 3);
+
+      // Store cells for hover tooltip.
+      canvas._heatCells = cells;
+      charts[slot] = true;  // mark as drawn
+
+      // Wire hover tooltip (idempotent — remove any previous listener first).
+      if (canvas._heatMouseHandler) canvas.removeEventListener('mousemove', canvas._heatMouseHandler);
+      if (canvas._heatLeaveHandler) canvas.removeEventListener('mouseleave', canvas._heatLeaveHandler);
+
+      let tooltip = canvas._heatTooltip;
+      if (!tooltip) {
+        tooltip = document.createElement('div');
+        tooltip.style.cssText = (
+          'position:fixed;pointer-events:none;display:none;' +
+          'background:rgba(43,26,16,0.9);color:#f3e7c9;' +
+          'font-size:12px;padding:6px 10px;border-radius:4px;z-index:100;'
+        );
+        document.body.appendChild(tooltip);
+        canvas._heatTooltip = tooltip;
+      }
+
+      canvas._heatMouseHandler = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+        const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+        const hit = cells.find((c) => mx >= c.x && mx < c.x + c.w && my >= c.y && my < c.y + c.h);
+        if (hit) {
+          tooltip.textContent = `${_DOW_LABELS_SHORT[hit.dow]} ${String(hit.hour).padStart(2,'0')}:00–${String(hit.hour+1).padStart(2,'0')}:00 · €${Math.round(hit.mean_cents / 100)}`;
+          tooltip.style.display = 'block';
+          tooltip.style.left = `${e.clientX + 12}px`;
+          tooltip.style.top  = `${e.clientY - 8}px`;
+        } else {
+          tooltip.style.display = 'none';
+        }
+      };
+      canvas._heatLeaveHandler = () => { tooltip.style.display = 'none'; };
+      canvas.addEventListener('mousemove', canvas._heatMouseHandler);
+      canvas.addEventListener('mouseleave', canvas._heatLeaveHandler);
+    });
+  }
+
   function renderAll() {
     renderHeader();
     renderCalendar();
@@ -763,6 +907,7 @@
     renderHistograms();
     renderWeekendPairs();
     renderFooterCharts();
+    renderTimeheat();
   }
 
   // ───── Filter wiring ───────────────────────────────────────────────────────

@@ -241,6 +241,52 @@ def test_build_analysis_empty_input():
     assert out == {}
 
 
+def test_build_analysis_time_of_day_matrix_has_correct_shape():
+    """build_analysis must include a time_of_day_matrix per route.
+
+    Each entry is a {dow, hour, mean_cents} dict where dow is 0=Mon..6=Sun
+    and hour is the integer departure hour. The CPH-AMS fixture has flights
+    with varied departure hours, so the matrix must be non-empty.
+    """
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    assert "time_of_day_matrix" in analysis["CPH-AMS"], (
+        "build_analysis must add time_of_day_matrix to each route's analysis dict"
+    )
+    matrix = analysis["CPH-AMS"]["time_of_day_matrix"]
+    assert len(matrix) > 0, "time_of_day_matrix must be non-empty for CPH-AMS"
+    for entry in matrix:
+        assert {"dow", "hour", "mean_cents"} <= entry.keys(), (
+            f"time_of_day_matrix entry missing required keys: {entry}"
+        )
+        assert 0 <= entry["dow"] <= 6, f"dow out of range: {entry}"
+        assert 0 <= entry["hour"] <= 23, f"hour out of range: {entry}"
+        assert entry["mean_cents"] > 0, f"mean_cents must be positive: {entry}"
+
+
+def test_timeheat_panel_rendered_in_html():
+    """The rendered HTML must contain two heatmap canvas elements and the
+    JS must reference time_of_day_matrix to populate them."""
+    import re
+
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    all_scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+    assert all_scripts
+    app_js = all_scripts[-1]
+
+    # Canvas elements for the two heatmap panels
+    assert 'id="timeheat-out"' in html, (
+        "HTML template must include <canvas id=\"timeheat-out\"> for CPH-AMS heatmap"
+    )
+    assert 'id="timeheat-back"' in html, (
+        "HTML template must include <canvas id=\"timeheat-back\"> for AMS-CPH heatmap"
+    )
+    # JS must read time_of_day_matrix from the analysis data
+    assert 'time_of_day_matrix' in app_js, (
+        "app.js must reference time_of_day_matrix to render the heatmap cells"
+    )
+
+
 def test_build_summary_histogram_bin_width_500_cents():
     rows = load_rows(str(FIXTURE))
     summary = build_summary(rows)

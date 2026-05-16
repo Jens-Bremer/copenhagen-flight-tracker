@@ -227,6 +227,8 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     cheapest_per_dep: dict[tuple[str, str], int] = {}
     # Group cheapest-per-obs-date by (route, obs_date)
     cheapest_per_obs: dict[tuple[str, str], int] = {}
+    # Group prices by (route, dow, hour) for the time-of-day heatmap
+    by_time: dict[tuple[str, int, int], list[int]] = defaultdict(list)
 
     for row in rows:
         route = _route_key(row)
@@ -237,6 +239,9 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         if days_before < 0:
             continue
         by_lead[(route, days_before)].append(row["price_cents"])
+        by_time[(route, row["departure_at"].weekday(), row["departure_at"].hour)].append(
+            row["price_cents"]
+        )
 
         key_dep = (route, row["departure_date"])
         prev_dep = cheapest_per_dep.get(key_dep)
@@ -308,12 +313,22 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             key=lambda e: e["obs_date"],
         )
 
+        time_matrix = sorted(
+            (
+                {"dow": dow, "hour": hour, "mean_cents": _mean(prices)}
+                for (r, dow, hour), prices in by_time.items()
+                if r == route
+            ),
+            key=lambda e: (e["dow"], e["hour"]),
+        )
+
         out[route] = {
             "lead_time_curve": curve,
             "sweet_spot_days": sweet_spot,
             "day_of_week": dow_entries,
             "month": month_entries,
             "market_trend": trend_entries,
+            "time_of_day_matrix": time_matrix,
         }
     return out
 

@@ -87,6 +87,15 @@
         <div class="chart-wrap"><canvas id="month-chart" role="img"></canvas></div>
       </div>
     </section>
+
+    <!-- 8. Time-of-day price heatmap -->
+    <section class="panel" aria-labelledby="timeheat-heading">
+      <h2 class="panel__heading" id="timeheat-heading">Price by time of day</h2>
+      <div class="timeheat-wrap">
+        <canvas id="timeheat-out" aria-label="CPH-AMS price heatmap by time of day"></canvas>
+        <canvas id="timeheat-back" aria-label="AMS-CPH price heatmap by time of day"></canvas>
+      </div>
+    </section>
   </main>
 
   <footer class="page-footer">
