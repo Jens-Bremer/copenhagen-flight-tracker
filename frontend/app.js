@@ -34,6 +34,7 @@
   // ───── State (single source of truth) ──────────────────────────────────────
   const state = {
     route: 'CPH-AMS',        // 'CPH-AMS' | 'AMS-CPH' | 'both'
+    calendarMonth: null,     // 'YYYY-MM' — currently displayed month
     selectedDate: null,      // 'YYYY-MM-DD' | null
     selectedFlight: null,    // { airline, dep_time } | null
     airlineFilter: new Set() // empty Set = all airlines visible
@@ -109,6 +110,7 @@
   const REQUIRED_DOM_IDS = [
     'header-range', 'header-generated', 'footer-generated',
     'route-toggle', 'airline-filter',
+    'cal-prev', 'cal-month-label', 'cal-next',
     'calendar', 'drilldown-panel', 'drilldown-title', 'drilldown',
     'price-history-wrap', 'price-history-chart',
     'market-trend-chart', 'leadtime-chart', 'sweet-spot-headline',
@@ -218,14 +220,30 @@
     return bestAirline ? airlineColor(bestAirline) : null;
   }
 
+  /** Sorted list of 'YYYY-MM' strings covering the full data date range. */
+  function availableMonths() {
+    const dr = DATA.metadata.date_range || {};
+    if (!dr.from || !dr.to) return [];
+    const months = [];
+    let [y, m] = dr.from.split('-').map(Number);
+    const [ty, tm] = dr.to.split('-').map(Number);
+    while (y < ty || (y === ty && m <= tm)) {
+      months.push(`${y}-${String(m).padStart(2, '0')}`);
+      m++;
+      if (m > 12) { m = 1; y++; }
+    }
+    return months;
+  }
+
   function renderCalendar() {
     const root = $('calendar');
     root.innerHTML = '';
     root.className = 'calendar';
-    // CHANGE (UX): legend lives in a sibling node next to the grid; remove any
-    // stale legend before re-rendering.
     const oldLegend = root.parentElement && root.parentElement.querySelector('.calendar-legend');
     if (oldLegend) oldLegend.remove();
+
+    // Guard: calendarMonth must be set before rendering.
+    if (!state.calendarMonth) return;
 
     const range = calendarPriceRange();
     if (!range) {
@@ -233,7 +251,17 @@
       return;
     }
 
-    // Weekday header row
+    // Update nav label and button states.
+    const months = availableMonths();
+    const monthIdx = months.indexOf(state.calendarMonth);
+    const [cy, cm] = state.calendarMonth.split('-').map(Number);
+    const labelEl = $('cal-month-label');
+    if (labelEl) labelEl.textContent = formatMonth(new Date(cy, cm - 1, 1));
+    const prevBtn = $('cal-prev'), nextBtn = $('cal-next');
+    if (prevBtn) prevBtn.disabled = (monthIdx <= 0);
+    if (nextBtn) nextBtn.disabled = (monthIdx >= months.length - 1);
+
+    // Weekday header row.
     ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach((w) => {
       const el = document.createElement('div');
       el.className = 'calendar__weekday';
@@ -241,19 +269,12 @@
       root.appendChild(el);
     });
 
-    // Build the chronological grid from the metadata's date_range, padded so
-    // the first row aligns to Monday.
-    const fromIso = DATA.metadata.date_range.from;
-    const toIso   = DATA.metadata.date_range.to;
-    if (!fromIso || !toIso) return;
-    const [fy, fm, fd] = fromIso.split('-').map(Number);
-    const [ty, tm, td] = toIso.split('-').map(Number);
-    let cursor = new Date(fy, fm - 1, fd);
-    const end = new Date(ty, tm - 1, td);
-    const padDays = (cursor.getDay() + 6) % 7;                   // 0=Mon...6=Sun
+    // Grid for this month only. Pad start to Monday, complete last week to Sunday.
+    let cursor = new Date(cy, cm - 1, 1);
+    const end = new Date(cy, cm, 0);                              // last day of month
+    const padDays = (cursor.getDay() + 6) % 7;                   // 0=Mon…6=Sun
     cursor.setDate(cursor.getDate() - padDays);
 
-    // Cheapest across active routes for cell rendering
     function cellPrice(iso) {
       let cheapest = Infinity;
       activeRoutes().forEach((route) => {
@@ -263,24 +284,12 @@
       return isFinite(cheapest) ? cheapest : null;
     }
 
-    // CHANGE (UX): month-divider tracking — emit a serif label + rule whenever
-    // a new month starts on a Monday (column 1). Skip the very first row.
-    let lastMonth = -1;
-    let firstRow = true;
     const todayStr = todayIso();
 
     while (cursor <= end || ((cursor.getDay() + 6) % 7) !== 0) {
-      const iso = cursor.toISOString().slice(0, 10);
-      const month = cursor.getMonth();
-
-      if (((cursor.getDay() + 6) % 7) === 0 && month !== lastMonth && !firstRow) {
-        const divider = document.createElement('div');
-        divider.className = 'calendar__month-row';
-        divider.textContent = formatMonth(cursor);
-        root.appendChild(divider);
-      }
-      lastMonth = month;
-      firstRow = false;
+      // Use local date components — toISOString() converts to UTC and shifts
+      // dates in timezones east of UTC (e.g. CEST: local midnight → prev UTC day).
+      const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
 
       const cell = document.createElement('div');
       const price = cellPrice(iso);
@@ -298,7 +307,6 @@
         cell.setAttribute('aria-label', `${iso}, cheapest ${formatPrice(price)}`);
         if (state.selectedDate === iso) cell.classList.add('is-selected');
 
-        // CHANGE (UX): airline-colour dot in the top-right of every tinted cell.
         const dotColor = cheapestAirlineColor(iso);
         if (dotColor) {
           const dot = document.createElement('span');
@@ -323,8 +331,6 @@
       if (cursor > end && ((cursor.getDay() + 6) % 7) === 0) break;
     }
 
-    // CHANGE (UX): min/max price legend under the grid. Inserted after the grid
-    // so layout reflow is cheap.
     const legend = document.createElement('div');
     legend.className = 'calendar-legend';
     legend.setAttribute('aria-hidden', 'true');
@@ -334,6 +340,20 @@
       <span>${formatPrice(range.max)}</span>
     `;
     root.insertAdjacentElement('afterend', legend);
+  }
+
+  function wireCalendarNav() {
+    const months = availableMonths();
+    const prev = $('cal-prev'), next = $('cal-next');
+    if (!prev || !next) return;
+    prev.addEventListener('click', () => {
+      const idx = months.indexOf(state.calendarMonth);
+      if (idx > 0) { state.calendarMonth = months[idx - 1]; renderCalendar(); }
+    });
+    next.addEventListener('click', () => {
+      const idx = months.indexOf(state.calendarMonth);
+      if (idx < months.length - 1) { state.calendarMonth = months[idx + 1]; renderCalendar(); }
+    });
   }
 
   function flightsForSelectedDate() {
@@ -808,7 +828,12 @@
       return;
     }
 
+    // Initialise calendarMonth to the first month in the data range.
+    const firstMonth = (DATA.metadata.date_range || {}).from;
+    state.calendarMonth = firstMonth ? firstMonth.slice(0, 7) : null;
+
     wireFilters();
+    wireCalendarNav();
     renderAll();
     // Expose for debugging (read-only in spirit; do not write from outside)
     window.__tracker = { state, DATA };

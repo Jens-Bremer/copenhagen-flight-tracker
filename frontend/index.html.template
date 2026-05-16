@@ -37,6 +37,11 @@
     <!-- 2. Calendar -->
     <section class="panel" aria-label="Calendar">
       <h2 class="panel__heading">Calendar — cheapest observed price per day</h2>
+      <div class="calendar-nav">
+        <button id="cal-prev" class="filter-chip" aria-label="Previous month">← Prev</button>
+        <span id="cal-month-label" class="calendar-nav__label"></span>
+        <button id="cal-next" class="filter-chip" aria-label="Next month">Next →</button>
+      </div>
       <div id="calendar"></div>
     </section>
 

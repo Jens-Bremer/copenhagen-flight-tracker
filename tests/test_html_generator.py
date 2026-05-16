@@ -411,6 +411,45 @@ def test_footer_charts_show_both_routes_as_grouped_bars():
     )
 
 
+def test_calendar_local_dates_and_month_navigation():
+    """The calendar must:
+
+    (a) Build ISO strings from *local* Date components, not toISOString(),
+        which converts to UTC and shifts displayed dates in timezones east of
+        UTC (e.g. CEST = UTC+2: local midnight becomes the previous UTC day).
+
+    (b) Render only one calendar month at a time, tracked by state.calendarMonth,
+        so the grid is compact and easy to scan.
+
+    (c) Expose three navigation elements in the HTML so the user can move
+        between months: id=cal-prev, id=cal-month-label, id=cal-next.
+    """
+    import re
+
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    all_scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+    assert all_scripts, "No <script> blocks found in rendered HTML"
+    app_js = all_scripts[-1]
+
+    # (a) Local-date ISO construction must replace cursor.toISOString().
+    # Note: the string 'toISOString()' may appear in explanatory comments; we
+    # specifically check for the cursor. call-site form.
+    assert 'cursor.toISOString()' not in app_js, (
+        "renderCalendar must not call cursor.toISOString() — it converts to UTC "
+        "and shifts dates in positive-offset timezones. Build the ISO string "
+        "from getFullYear()/getMonth()/getDate() instead."
+    )
+    # (b) state must track the currently displayed month.
+    assert 'calendarMonth' in app_js, (
+        "state must include a calendarMonth property so the calendar renders "
+        "only one month at a time and can navigate between months"
+    )
+    # (c) Navigation DOM elements must be present in the generated HTML.
+    assert 'id="cal-prev"' in html, "Previous-month button (id=cal-prev) missing from template"
+    assert 'id="cal-next"' in html, "Next-month button (id=cal-next) missing from template"
+    assert 'id="cal-month-label"' in html, "Month label (id=cal-month-label) missing from template"
+
+
 def test_render_html_inlines_escapeHtml_helper():
     """app.js must inline an escapeHtml helper so attacker-controlled airline
     names cannot inject HTML via innerHTML/insertAdjacentHTML."""
