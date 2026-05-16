@@ -13,11 +13,19 @@ Imports only config + stdlib + json (per CLAUDE.md module contract).
 from __future__ import annotations
 
 import csv
+import json
+import string
 from collections import defaultdict
 from datetime import date as date_type
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+
+FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
+TEMPLATE_PATH = FRONTEND_DIR / "index.html.template"
+STYLES_PATH = FRONTEND_DIR / "styles.css"
+APP_JS_PATH = FRONTEND_DIR / "app.js"
+CHART_JS_PATH = FRONTEND_DIR / "vendor" / "chart.min.js"
 
 # ─── CSV loader ──────────────────────────────────────────────────────────────
 
@@ -356,3 +364,34 @@ def build_summary(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     if sun_inbound_route in out:
         out[sun_inbound_route].setdefault("weekend_pairs", [])
     return out
+
+
+def _read_text(path: Path) -> str:
+    if not path.exists():
+        raise FileNotFoundError(f"required frontend asset missing: {path}")
+    return path.read_text(encoding="utf-8")
+
+
+def render_html(
+    metadata: dict[str, Any],
+    calendar: dict[str, Any],
+    flights: dict[str, Any],
+    analysis: dict[str, Any],
+    summary: dict[str, Any],
+) -> str:
+    """Inline assets + JSON blobs into the template. Returns the full HTML string."""
+    template = _read_text(TEMPLATE_PATH)
+    styles = _read_text(STYLES_PATH)
+    chart_js = _read_text(CHART_JS_PATH)
+    app_js = _read_text(APP_JS_PATH)
+
+    return string.Template(template).safe_substitute(
+        INLINE_STYLES=styles,
+        INLINE_CHART_JS=chart_js,
+        INLINE_APP_JS=app_js,
+        DATA_METADATA=json.dumps(metadata, separators=(",", ":")),
+        DATA_CALENDAR=json.dumps(calendar, separators=(",", ":")),
+        DATA_FLIGHTS=json.dumps(flights, separators=(",", ":")),
+        DATA_ANALYSIS=json.dumps(analysis, separators=(",", ":")),
+        DATA_SUMMARY=json.dumps(summary, separators=(",", ":")),
+    )

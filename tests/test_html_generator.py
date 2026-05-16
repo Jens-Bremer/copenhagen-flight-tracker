@@ -14,6 +14,7 @@ from src.html_generator import (
     build_metadata,
     build_summary,
     load_rows,
+    render_html,
 )
 
 FIXTURE = Path(__file__).parent / "fixtures" / "flights_frontend_sample.csv"
@@ -230,3 +231,37 @@ def test_build_summary_weekend_pairs_skip_when_inbound_missing(tmp_path):
 
 def test_build_summary_empty_input():
     assert build_summary([]) == {}
+
+
+def test_render_html_inlines_assets_and_data():
+    html = render_html(
+        metadata={"generated_at": "2026-05-15T23:47Z"},
+        calendar={"CPH-AMS": {}},
+        flights={"CPH-AMS": {}},
+        analysis={"CPH-AMS": {}},
+        summary={"CPH-AMS": {}},
+    )
+    # Asset inlining
+    assert "<style>" in html
+    assert "Theme port pending" in html or "--color-cream" in html
+    assert "Chart.js" in html or "Chart=" in html or "chart.js" in html.lower()
+    # JSON blobs are valid JSON inside <script> tags
+    import re
+    blobs = re.findall(r'<script type="application/json" id="(DATA_\w+)">(.*?)</script>', html, re.S)
+    blob_dict = {k: v for k, v in blobs}
+    assert set(blob_dict) == {"DATA_METADATA", "DATA_CALENDAR", "DATA_FLIGHTS", "DATA_ANALYSIS", "DATA_SUMMARY"}
+    for raw in blob_dict.values():
+        json.loads(raw)
+
+
+def test_render_html_uses_safe_substitute_no_placeholder_leaks():
+    html = render_html(
+        metadata={},
+        calendar={},
+        flights={},
+        analysis={},
+        summary={},
+    )
+    # No raw ${...} markers should leak through
+    assert "${INLINE_STYLES}" not in html
+    assert "${DATA_METADATA}" not in html
