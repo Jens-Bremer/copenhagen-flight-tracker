@@ -395,7 +395,62 @@
     }).filter(Boolean);
     headline.textContent = lines.join(' · ');
   }
-  function renderHistograms()     { /* Task 18 */ }
+  function renderHistograms() {
+    destroyChart('histogramOut');
+    destroyChart('histogramBack');
+
+    const canvasFor = { 'CPH-AMS': 'histogram-out', 'AMS-CPH': 'histogram-back' };
+    const slotFor   = { 'CPH-AMS': 'histogramOut', 'AMS-CPH': 'histogramBack' };
+
+    ['CPH-AMS', 'AMS-CPH'].forEach((route) => {
+      const summary = DATA.summary[route];
+      if (!summary) return;
+
+      // Union of all bin_lows across airlines, then airline order = legend order
+      const histogram = summary.histogram || {};
+      const airlines = Object.keys(histogram)
+        .filter(airlinePasses)
+        .sort();
+      const allBins = Array.from(new Set(
+        airlines.flatMap((a) => histogram[a].map((b) => b.bin_low))
+      )).sort((a, b) => a - b);
+
+      const datasets = airlines.map((airline) => {
+        const byBin = Object.fromEntries(histogram[airline].map((b) => [b.bin_low, b.count]));
+        return {
+          label: airline,
+          data: allBins.map((bl) => byBin[bl] || 0),
+          backgroundColor: airlineColor(airline),
+          borderColor: AIRLINE_OUTLINE.has(airline) ? 'var(--color-brown)' : airlineColor(airline),
+          borderWidth: AIRLINE_OUTLINE.has(airline) ? 1.5 : 0,
+        };
+      });
+
+      charts[slotFor[route]] = new Chart($(canvasFor[route]), {
+        type: 'bar',
+        data: {
+          labels: allBins.map((bl) => `€${(bl / 100).toFixed(0)}–€${((bl + 500) / 100).toFixed(0)}`),
+          datasets,
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            title: { display: true, text: `${route} — price distribution (€5 bins)` },
+            legend: { position: 'right' },
+            tooltip: {
+              callbacks: {
+                label: (c) => `${c.dataset.label}: ${c.parsed.y} obs`,
+              },
+            },
+          },
+          scales: {
+            x: { stacked: false, title: { display: true, text: 'Price bin' } },
+            y: { beginAtZero: true, title: { display: true, text: 'Observation count' } },
+          },
+        },
+      });
+    });
+  }
   function renderWeekendPairs()   { /* Task 19 */ }
   function renderFooterCharts()   { /* Task 20 */ }
 
