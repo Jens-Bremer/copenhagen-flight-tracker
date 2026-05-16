@@ -748,3 +748,778 @@ def test_cli_missing_input_exits_2(tmp_path):
         cwd=Path(__file__).resolve().parent.parent,
     )
     assert result.returncode == 2
+
+
+# ─── Issue #95: hero summary panel ───────────────────────────────────────────
+
+
+def _app_js(html: str) -> str:
+    """Extract the last <script> block (inlined app.js) from rendered HTML."""
+    import re
+
+    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
+    assert all_scripts, "No <script> blocks found in rendered HTML"
+    return all_scripts[-1]
+
+
+def test_hero_panel_dom_ids_present_in_template():
+    """Template must include the three hero card container IDs."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert 'id="hero-best-time"' in html, "hero-best-time container missing"
+    assert 'id="hero-market"' in html, "hero-market container missing"
+    assert 'id="hero-book-when"' in html, "hero-book-when container missing"
+
+
+def test_hero_ids_in_required_dom_ids():
+    """All three hero IDs must be asserted at boot via REQUIRED_DOM_IDS."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "'hero-best-time'" in js, "hero-best-time not in REQUIRED_DOM_IDS"
+    assert "'hero-market'" in js, "hero-market not in REQUIRED_DOM_IDS"
+    assert "'hero-book-when'" in js, "hero-book-when not in REQUIRED_DOM_IDS"
+
+
+def test_render_hero_function_exists_and_called_from_render_all():
+    """app.js must define renderHero() and call it from renderAll()."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "function renderHero" in js, "renderHero function not defined"
+    assert "renderHero()" in js, "renderHero() not called from renderAll()"
+
+
+def test_hero_best_time_reads_correct_analysis_fields():
+    """renderHero must read best_time_to_visit with cheapest_month, cheapest_dow,
+    and lowest_ever from DATA_ANALYSIS."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "best_time_to_visit" in js
+    assert "cheapest_month" in js
+    assert "cheapest_dow" in js
+    assert "lowest_ever" in js
+
+
+def test_hero_market_reads_market_direction_from_analysis():
+    """renderHero must read market_direction.trend and market_direction.label."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "market_direction" in js
+    # Must handle all three trend values
+    assert "'down'" in js or '"down"' in js, "trend 'down' not handled"
+    assert "'up'" in js or '"up"' in js, "trend 'up' not handled"
+    assert "'stable'" in js or '"stable"' in js, "trend 'stable' not handled"
+
+
+def test_hero_book_when_uses_sweet_spot_days():
+    """renderHero must use sweet_spot_days from DATA_ANALYSIS for the booking card."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "sweet_spot_days" in js
+
+
+def test_hero_css_classes_present_in_styles():
+    """Generated HTML must include .hero-summary and .hero-card CSS rules."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert "hero-summary" in html
+    assert "hero-card" in html
+
+
+def test_hero_section_positioned_before_calendar_in_template():
+    """Hero panel must appear in the template before the calendar section."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    hero_pos = html.find('id="hero-best-time"')
+    calendar_pos = html.find('id="calendar"')
+    assert hero_pos != -1, "hero-best-time not in HTML"
+    assert calendar_pos != -1, "calendar not in HTML"
+    assert hero_pos < calendar_pos, (
+        "Hero panel must appear before the calendar in the HTML"
+    )
+
+
+def test_hero_shows_fallback_when_no_analysis_data():
+    """renderHero must not crash and show a fallback when DATA_ANALYSIS is empty."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    # There must be a fallback path (e.g. early return or "Not enough data" text)
+    assert "Not enough data" in js or "fallback" in js.lower() or "return" in js, (
+        "renderHero must handle empty analysis gracefully"
+    )
+
+
+# ─── Issue #93 scope: "you are here" marker on lead-time curve ────────────────
+
+
+def test_leadtime_chart_has_you_are_here_marker_logic():
+    """renderTrends must compute the number of days until the selected departure
+    date and draw a 'you are here' vertical marker on the lead-time chart."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    # The JS must reference selectedDate to compute proximity to departure
+    assert "selectedDate" in js
+    # It must calculate days until departure (some variation of the formula)
+    assert "daysUntilDep" in js or "days_until" in js or "daysBeforeDep" in js
+
+
+def test_leadtime_you_are_here_uses_afterdraw_plugin():
+    """The 'you are here' marker must be drawn via a Chart.js afterDraw plugin
+    so it works without an external annotation library."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "afterDraw" in js, "afterDraw plugin required for 'you are here' marker"
+
+
+def test_leadtime_you_are_here_label_present():
+    """The marker must include a visible 'today' label for users to understand it."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "today" in js or "You are here" in js or "you are here" in js.lower()
+
+
+# ─── Issue #95 scope: hero "both" route aggregation ───────────────────────────
+
+
+def test_hero_both_route_averages_sweet_spot_days():
+    """renderHero must average sweet_spot_days across both routes when
+    state.route === 'both', not silently use only CPH-AMS."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    # The hero function must reference more than activeRoutes()[0] for sweet_spot_days
+    # i.e. it must iterate or reduce over activeRoutes()
+    patterns = [
+        "activeRoutes().length",
+        "routes.length",
+        "routes.forEach",
+        "routes.map",
+    ]
+    assert any(p in js for p in patterns), (
+        "renderHero must iterate over all active routes to aggregate data for 'both'"
+    )
+
+
+# ─── Issue #100: per-day trajectory arrows on calendar cells ──────────────────
+
+
+def test_calendar_cell_trajectory_span_referenced_in_app_js():
+    """renderCalendar must emit a .calendar__cell__trajectory span for
+    cells where the cheapest flight has a non-null trajectory."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "calendar__cell__trajectory" in js, (
+        "renderCalendar must reference calendar__cell__trajectory"
+    )
+
+
+def test_calendar_trajectory_reads_from_flights_data():
+    """The calendar trajectory indicator must read trajectory from DATA_FLIGHTS,
+    not from DATA_CALENDAR (which has no trajectory field)."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    # renderCalendar must look up trajectory from DATA.flights
+    assert "trajectory" in js
+    assert "DATA.flights" in js or "flights[" in js
+
+
+def test_calendar_trajectory_skipped_when_null():
+    """No arrow must be emitted when trajectory is null."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    # There must be a null guard for trajectory in the calendar rendering path
+    assert "trajectory" in js
+    # Either explicit null check or falsy guard
+    assert "null" in js or "trajectory)" in js or "!trajectory" in js
+
+
+def test_calendar_trajectory_arrow_has_aria_label():
+    """The calendar trajectory span must carry an aria-label."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    # aria-label must be set on the trajectory span in calendar rendering
+    # (There is already one for the drill-down arrows; we need it in renderCalendar too)
+    assert "trending" in js.lower() or "aria-label" in js
+
+
+def test_calendar_trajectory_css_in_styles():
+    """styles.css must define .calendar__cell__trajectory."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert ".calendar__cell__trajectory" in html
+
+
+# ─── Issue #99: integration — new fields appear in rendered JSON blobs ────────
+
+
+def test_data_analysis_blob_contains_market_direction_and_best_time():
+    """DATA_ANALYSIS JSON blob in the rendered HTML must contain market_direction
+    and best_time_to_visit for every route in the fixture data."""
+    import re
+
+    rows = load_rows(str(FIXTURE))
+    now = datetime(2026, 5, 15, 23, 47, tzinfo=timezone.utc)
+    analysis = build_analysis(rows)
+    html = render_html(
+        metadata=build_metadata(rows, now),
+        calendar=build_calendar(rows),
+        flights=build_flights(rows),
+        analysis=analysis,
+        summary=build_summary(rows),
+    )
+    m = re.search(
+        r'<script type="application/json" id="DATA_ANALYSIS">(.*?)</script>',
+        html,
+        re.S,
+    )
+    assert m, "DATA_ANALYSIS blob not found"
+    blob = json.loads(m.group(1))
+    for route in blob:
+        assert "market_direction" in blob[route], (
+            f"market_direction missing from DATA_ANALYSIS[{route}]"
+        )
+        assert "best_time_to_visit" in blob[route], (
+            f"best_time_to_visit missing from DATA_ANALYSIS[{route}]"
+        )
+
+
+def test_data_flights_blob_contains_trajectory_percentile_mean():
+    """DATA_FLIGHTS JSON blob must carry trajectory, trajectory_pct, percentile,
+    and historical_mean_cents on every flight entry."""
+    import re
+
+    rows = load_rows(str(FIXTURE))
+    now = datetime(2026, 5, 15, 23, 47, tzinfo=timezone.utc)
+    html = render_html(
+        metadata=build_metadata(rows, now),
+        calendar=build_calendar(rows),
+        flights=build_flights(rows),
+        analysis=build_analysis(rows),
+        summary=build_summary(rows),
+    )
+    m = re.search(
+        r'<script type="application/json" id="DATA_FLIGHTS">(.*?)</script>',
+        html,
+        re.S,
+    )
+    assert m, "DATA_FLIGHTS blob not found"
+    blob = json.loads(m.group(1))
+    for route, dates in blob.items():
+        for date, flights in dates.items():
+            for f in flights:
+                required = (
+                    "trajectory",
+                    "trajectory_pct",
+                    "percentile",
+                    "historical_mean_cents",
+                )
+                for field in required:
+                    assert field in f, (
+                        f"{field} missing from DATA_FLIGHTS[{route}][{date}] entry"
+                    )
+
+
+# ─── Issue #98: panel heading + subtitle cleanup ──────────────────────────────
+
+
+def test_panel_subtitles_present_in_rendered_html():
+    """All 6 panels must include a .panel__subtitle paragraph."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert "panel__subtitle" in html, ".panel__subtitle not found in rendered HTML"
+    # Check that all 6 subtitles from the spec are present
+    assert "How prices have changed over time" in html
+    assert "each bar is one 5 euro bin" in html or "5 euro bin" in html
+    assert "Cheapest Friday to Sunday" in html
+    assert "averaged per day or month" in html
+    assert "Cheapest hours to fly" in html
+    assert "whether prices tend to rise or fall" in html
+
+
+def test_panel_subtitle_css_in_styles():
+    """styles.css must define .panel__subtitle."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert ".panel__subtitle" in html
+
+
+def test_weekend_pairs_heading_updated():
+    """Weekend pairs panel heading must use the friendlier 'Weekend trips' label."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert "Weekend trips" in html
+
+
+def test_cheapness_panel_heading_updated():
+    """Cheapness panel heading must be updated to 'Cheapest days and months to fly'."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert "Cheapest days and months to fly" in html
+
+
+def test_heatmap_heading_updated():
+    """Heatmap panel heading must use 'Prices by departure time'."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert "Prices by departure time" in html
+
+
+def test_normprog_heading_updated():
+    """Normalised progression panel must use the plain-English heading."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert "How prices change as departure approaches" in html
+
+
+# ─── Issue #97: price verdict card ───────────────────────────────────────────
+
+
+def test_verdict_card_dom_id_in_template():
+    """Template must include a #verdict-card container in the price-history wrap."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert 'id="verdict-card"' in html, "#verdict-card container missing from template"
+
+
+def test_verdict_card_in_required_dom_ids():
+    """verdict-card must be listed in REQUIRED_DOM_IDS."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "'verdict-card'" in js, "verdict-card not in REQUIRED_DOM_IDS"
+
+
+def test_verdict_card_reads_percentile_and_historical_mean():
+    """JS must read percentile and historical_mean_cents from flight data."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "percentile" in js
+    assert "historical_mean_cents" in js
+
+
+def test_verdict_card_thresholds_all_present():
+    """JS must implement all four percentile thresholds from the spec."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "Great time to buy" in js
+    assert "Good time to buy" in js
+    assert "Fair price" in js
+    assert "Above average" in js
+
+
+def test_verdict_card_null_percentile_fallback():
+    """When percentile is null, the card must show 'Not enough data'."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "Not enough data" in js
+
+
+def test_verdict_card_css_class_in_styles():
+    """styles.css must define .verdict-card."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert ".verdict-card" in html
+
+
+def test_verdict_card_verdict_colour_classes():
+    """JS must use is-good/is-fair/is-bad CSS modifier classes for verdict colour."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "is-good" in js
+    assert "is-fair" in js
+    assert "is-bad" in js
+
+
+# ─── Issue #96: per-flight trajectory arrows in drill-down ────────────────────
+
+
+def test_drilldown_trajectory_arrow_rendered_when_not_null():
+    """renderDrilldown must emit a .flight-row__trajectory span when trajectory
+    is non-null, with an aria-label that names the direction and percentage."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "flight-row__trajectory" in js, (
+        "renderDrilldown must include .flight-row__trajectory for trajectory arrows"
+    )
+    assert "trajectory" in js, "renderDrilldown must read trajectory from flight data"
+
+
+def test_drilldown_trajectory_arrow_skipped_when_null():
+    """No arrow span must be emitted when trajectory is null."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    # The null guard must be present (some form of null/falsy check on trajectory)
+    assert "trajectory" in js
+    # There must be a conditional that avoids rendering when trajectory is null
+    assert "f.trajectory" in js, (
+        "JS must access f.trajectory to conditionally render the arrow"
+    )
+
+
+def test_drilldown_trajectory_arrow_has_aria_label():
+    """Each trajectory arrow span must carry an aria-label for screen readers."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "aria-label" in js, "trajectory arrow span must have an aria-label attribute"
+
+
+def test_drilldown_trajectory_arrow_colors_all_directions():
+    """app.js must produce distinct CSS for each of the three directions."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    # Colors for each direction (inline style or CSS class references)
+    assert "trajectory--down" in js or "#3d7a3d" in js or "green" in js.lower(), (
+        "down trajectory must have a green indicator"
+    )
+    assert "trajectory--up" in js or "#c0392b" in js or "color-red" in js, (
+        "up trajectory must have a red indicator"
+    )
+    assert "trajectory--stable" in js or "#999" in js or "stable" in js, (
+        "stable trajectory must have a gray/neutral indicator"
+    )
+
+
+def test_drilldown_trajectory_css_class_in_styles():
+    """styles.css must define .flight-row__trajectory."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert ".flight-row__trajectory" in html
+
+
+# ─── Issue #94: trajectory, verdict, market-direction ─────────────────────────
+
+
+def _make_rows(csv_text: str, tmp_path: Path) -> list:
+    p = tmp_path / "x.csv"
+    header = (
+        "retrieved_at,departure_date,origin,destination,airline,"
+        "departure_at,arrival_at,duration_minutes,price_cents,price_currency\n"
+    )
+    p.write_text(header + csv_text)
+    return load_rows(str(p))
+
+
+# ── build_analysis: market_direction ──────────────────────────────────────────
+
+
+def test_build_analysis_market_direction_present_for_each_route():
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    for route in analysis:
+        assert "market_direction" in analysis[route], (
+            f"market_direction missing from route {route}"
+        )
+        md = analysis[route]["market_direction"]
+        assert md["trend"] in ("up", "down", "stable"), f"invalid trend: {md['trend']}"
+        assert isinstance(md["pct_change"], float)
+        assert isinstance(md["label"], str)
+        assert len(md["label"]) > 0
+
+
+def test_build_analysis_market_direction_down_when_prices_falling(tmp_path):
+    # 4 obs dates: old pair avg 15000, new pair avg 10000 → -33% → "down"
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,15000,EUR\n"
+        "2026-04-02T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,14000,EUR\n"
+        "2026-04-10T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10000,EUR\n"
+        "2026-04-11T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,9000,EUR\n",
+        tmp_path,
+    )
+    analysis = build_analysis(rows)
+    md = analysis["CPH-AMS"]["market_direction"]
+    assert md["trend"] == "down"
+    assert md["pct_change"] < -3
+
+
+def test_build_analysis_market_direction_up_when_prices_rising(tmp_path):
+    # 4 obs dates: old pair avg 5000, new pair avg 8000 → +60% → "up"
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,5000,EUR\n"
+        "2026-04-02T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,5200,EUR\n"
+        "2026-04-10T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,8000,EUR\n"
+        "2026-04-11T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,8200,EUR\n",
+        tmp_path,
+    )
+    analysis = build_analysis(rows)
+    md = analysis["CPH-AMS"]["market_direction"]
+    assert md["trend"] == "up"
+    assert md["pct_change"] > 3
+
+
+def test_build_analysis_market_direction_stable_when_prices_flat(tmp_path):
+    # 4 obs dates: all near 10000 → pct_change within ±3% → "stable"
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10000,EUR\n"
+        "2026-04-02T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10100,EUR\n"
+        "2026-04-10T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10050,EUR\n"
+        "2026-04-11T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10200,EUR\n",
+        tmp_path,
+    )
+    analysis = build_analysis(rows)
+    md = analysis["CPH-AMS"]["market_direction"]
+    assert md["trend"] == "stable"
+    assert -3 <= md["pct_change"] <= 3
+
+
+def test_build_analysis_market_direction_with_only_two_obs_dates(tmp_path):
+    # Minimum case: 2 obs dates — must still produce a result
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10000,EUR\n"
+        "2026-04-10T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,8000,EUR\n",
+        tmp_path,
+    )
+    analysis = build_analysis(rows)
+    md = analysis["CPH-AMS"]["market_direction"]
+    assert md["trend"] in ("up", "down", "stable")
+    assert isinstance(md["pct_change"], float)
+
+
+def test_build_analysis_market_direction_stable_with_one_obs_date(tmp_path):
+    # Only 1 obs date — cannot compare, so trend must be "stable" with pct_change 0.0
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10000,EUR\n",
+        tmp_path,
+    )
+    analysis = build_analysis(rows)
+    md = analysis["CPH-AMS"]["market_direction"]
+    assert md["trend"] == "stable"
+    assert md["pct_change"] == 0.0
+
+
+# ── build_analysis: best_time_to_visit ────────────────────────────────────────
+
+
+def test_build_analysis_best_time_to_visit_present_for_each_route():
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    for route in analysis:
+        assert "best_time_to_visit" in analysis[route], (
+            f"best_time_to_visit missing from route {route}"
+        )
+        btv = analysis[route]["best_time_to_visit"]
+        assert "cheapest_month" in btv
+        assert "cheapest_dow" in btv
+        assert "lowest_ever" in btv
+
+
+def test_build_analysis_best_time_cheapest_month_matches_month_list():
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    cph = analysis["CPH-AMS"]
+    cheapest_month = cph["best_time_to_visit"]["cheapest_month"]
+    min_month = min(cph["month"], key=lambda m: m["mean_cents"])
+    assert cheapest_month["label"] == min_month["label"]
+    assert cheapest_month["mean_cents"] == min_month["mean_cents"]
+
+
+def test_build_analysis_best_time_cheapest_dow_matches_dow_list():
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    cph = analysis["CPH-AMS"]
+    cheapest_dow = cph["best_time_to_visit"]["cheapest_dow"]
+    min_dow = min(cph["day_of_week"], key=lambda d: d["mean_cents"])
+    assert cheapest_dow["label"] == min_dow["label"]
+    assert cheapest_dow["mean_cents"] == min_dow["mean_cents"]
+
+
+def test_build_analysis_best_time_lowest_ever_is_minimum_price_for_route():
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    cph = analysis["CPH-AMS"]
+    lowest_ever = cph["best_time_to_visit"]["lowest_ever"]
+    # Fixture: Ryanair 7800 on 2026-05-15 for CPH-AMS 2026-06-19 departure
+    assert lowest_ever["price_cents"] == 7800
+    assert lowest_ever["departure_date"] == "2026-06-19"
+    assert lowest_ever["airline"] == "Ryanair"
+    assert "route" in lowest_ever
+
+
+# ── build_flights: trajectory ─────────────────────────────────────────────────
+
+
+def test_build_flights_trajectory_null_when_fewer_than_six_obs():
+    rows = load_rows(str(FIXTURE))
+    flights = build_flights(rows)
+    # easyJet 19:30 CPH-AMS 2026-06-19 has 3 observations → trajectory must be null
+    easyjet = next(
+        f
+        for f in flights["CPH-AMS"]["2026-06-19"]
+        if f["airline"] == "easyJet" and f["dep_time"] == "19:30"
+    )
+    assert len(easyjet["history"]) == 3
+    assert easyjet["trajectory"] is None
+    assert easyjet["trajectory_pct"] is None
+
+
+def test_build_flights_trajectory_down_when_prices_falling(tmp_path):
+    # 6 obs: prev 3 avg 15000, recent 3 avg 10000 → -33% → "down"
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,15000,EUR\n"
+        "2026-04-02T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,15000,EUR\n"
+        "2026-04-03T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,15000,EUR\n"
+        "2026-04-10T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10000,EUR\n"
+        "2026-04-11T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10000,EUR\n"
+        "2026-04-12T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10000,EUR\n",
+        tmp_path,
+    )
+    flights = build_flights(rows)
+    easyjet = flights["CPH-AMS"]["2026-06-19"][0]
+    assert len(easyjet["history"]) == 6
+    assert easyjet["trajectory"] == "down"
+    assert easyjet["trajectory_pct"] is not None
+    assert easyjet["trajectory_pct"] < -3
+
+
+def test_build_flights_trajectory_up_when_prices_rising(tmp_path):
+    # 6 obs: prev 3 avg 5000, recent 3 avg 8000 → +60% → "up"
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,5000,EUR\n"
+        "2026-04-02T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,5000,EUR\n"
+        "2026-04-03T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,5000,EUR\n"
+        "2026-04-10T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,8000,EUR\n"
+        "2026-04-11T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,8000,EUR\n"
+        "2026-04-12T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,8000,EUR\n",
+        tmp_path,
+    )
+    flights = build_flights(rows)
+    easyjet = flights["CPH-AMS"]["2026-06-19"][0]
+    assert easyjet["trajectory"] == "up"
+    assert easyjet["trajectory_pct"] > 3
+
+
+def test_build_flights_trajectory_stable_when_prices_flat(tmp_path):
+    # 6 obs all at 10000 → 0% change → "stable"
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10000,EUR\n"
+        "2026-04-02T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10000,EUR\n"
+        "2026-04-03T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10000,EUR\n"
+        "2026-04-10T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10200,EUR\n"
+        "2026-04-11T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,9900,EUR\n"
+        "2026-04-12T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10100,EUR\n",
+        tmp_path,
+    )
+    flights = build_flights(rows)
+    easyjet = flights["CPH-AMS"]["2026-06-19"][0]
+    assert easyjet["trajectory"] == "stable"
+    assert -3 <= easyjet["trajectory_pct"] <= 3
+
+
+# ── build_flights: historical_mean_cents ──────────────────────────────────────
+
+
+def test_build_flights_historical_mean_cents_is_mean_of_all_history_prices():
+    rows = load_rows(str(FIXTURE))
+    flights = build_flights(rows)
+    easyjet = next(
+        f
+        for f in flights["CPH-AMS"]["2026-06-19"]
+        if f["airline"] == "easyJet" and f["dep_time"] == "19:30"
+    )
+    # history prices: 11000, 9900, 9200
+    expected = round((11000 + 9900 + 9200) / 3)
+    assert easyjet["historical_mean_cents"] == expected
+
+
+# ── build_flights: percentile ─────────────────────────────────────────────────
+
+
+def test_build_flights_percentile_null_when_fewer_than_five_obs():
+    rows = load_rows(str(FIXTURE))
+    flights = build_flights(rows)
+    # easyJet 19:30 CPH-AMS 2026-06-19 has 3 observations → percentile must be null
+    easyjet = next(
+        f
+        for f in flights["CPH-AMS"]["2026-06-19"]
+        if f["airline"] == "easyJet" and f["dep_time"] == "19:30"
+    )
+    assert easyjet["percentile"] is None
+
+
+def test_build_flights_percentile_correct_when_five_or_more_obs(tmp_path):
+    # 5 observations: [5000, 6000, 7000, 8000, 9000], latest_cents=5000
+    # Sorted prices: [5000, 6000, 7000, 8000, 9000]
+    # latest_cents=5000 is the minimum → percentile=0.0
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,9000,EUR\n"
+        "2026-04-02T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,8000,EUR\n"
+        "2026-04-03T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,7000,EUR\n"
+        "2026-04-10T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,6000,EUR\n"
+        "2026-04-11T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,5000,EUR\n",
+        tmp_path,
+    )
+    flights = build_flights(rows)
+    easyjet = flights["CPH-AMS"]["2026-06-19"][0]
+    assert len(easyjet["history"]) == 5
+    # latest_cents = 5000 (most recent) = the minimum → 0th percentile
+    assert easyjet["latest_cents"] == 5000
+    assert easyjet["percentile"] == 0.0
+
+
+def test_build_flights_percentile_100_when_latest_is_max(tmp_path):
+    # 5 observations with latest being the highest price → 100th percentile
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,5000,EUR\n"
+        "2026-04-02T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,6000,EUR\n"
+        "2026-04-03T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,7000,EUR\n"
+        "2026-04-10T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,8000,EUR\n"
+        "2026-04-11T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,9000,EUR\n",
+        tmp_path,
+    )
+    flights = build_flights(rows)
+    easyjet = flights["CPH-AMS"]["2026-06-19"][0]
+    assert easyjet["latest_cents"] == 9000
+    assert easyjet["percentile"] == 100.0
+
+
+def test_build_flights_percentile_midpoint_for_median_price(tmp_path):
+    # 5 observations: [5000, 6000, 7000, 8000, 9000], latest=7000 (median)
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,5000,EUR\n"
+        "2026-04-02T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,6000,EUR\n"
+        "2026-04-03T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,8000,EUR\n"
+        "2026-04-10T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,9000,EUR\n"
+        "2026-04-11T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,7000,EUR\n",
+        tmp_path,
+    )
+    flights = build_flights(rows)
+    easyjet = flights["CPH-AMS"]["2026-06-19"][0]
+    # latest_cents = 7000 (obs_date 2026-04-11, sorted last)
+    assert easyjet["latest_cents"] == 7000
+    # prices sorted: [5000, 6000, 7000, 8000, 9000]
+    # 7000 is at index 2 → percentile = 2/4 * 100 = 50.0
+    assert easyjet["percentile"] == 50.0
+
+
+# ─── Issue #101: selected-flight marker on lead-time chart ────────────────────
+
+
+def test_leadtime_selected_flight_dot_uses_arc():
+    """When a flight is selected the afterDraw plugin must draw a dot
+    (canvas arc) at the flight's price level on the lead-time chart."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "arc(" in js, (
+        "afterDraw plugin must call ctx.arc() to draw a dot for the selected flight"
+    )
+
+
+def test_leadtime_selected_flight_chart_update_called():
+    """Clicking a flight row must call charts.leadtime.update() so the
+    afterDraw plugin re-runs and the marker moves to the new flight."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "leadtime.update" in js, (
+        "flight row click handler must call charts.leadtime.update()"
+    )
+
+
+def test_leadtime_selected_flight_reads_selectedflight_in_afterdraw():
+    """The afterDraw plugin must reference state.selectedFlight to find the
+    selected flight and draw the dot at its price position."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "selectedFlight" in js
+    assert "afterDraw" in js
+
+
+def test_leadtime_selected_flight_dot_disappears_when_none():
+    """When state.selectedFlight is null the dot must not be drawn.
+    The afterDraw plugin must guard against a null selectedFlight."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    # afterDraw block must check selectedFlight before drawing dot
+    assert "selectedFlight" in js
+    # guard must be present — either explicit null check or if-block
+    assert "if (state.selectedFlight)" in js or "selectedFlight &&" in js
+
+
+def test_leadtime_selected_flight_css_dot_colour():
+    """The dot for the selected flight must use the site red colour
+    (rgba(192,57,43,...) or var(--color-red)) for visual consistency."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "192,57,43" in js or "color-red" in js

@@ -114,9 +114,10 @@
   const REQUIRED_DOM_IDS = [
     'header-range', 'header-generated', 'footer-generated',
     'route-toggle', 'airline-filter',
+    'hero-best-time', 'hero-market', 'hero-book-when',
     'cal-prev', 'cal-month-label', 'cal-next',
     'calendar', 'drilldown-panel', 'drilldown-title', 'drilldown-sort', 'drilldown',
-    'price-history-wrap', 'price-history-chart',
+    'price-history-wrap', 'verdict-card', 'price-history-chart',
     'market-trend-chart', 'leadtime-chart', 'sweet-spot-headline',
     'histogram-out', 'histogram-back',
     'weekend-pairs',
@@ -302,9 +303,28 @@
       cell.className = 'calendar__cell' + (price === null ? ' is-empty' : '');
       if (iso === todayStr && price !== null) cell.classList.add('is-today');
       cell.dataset.date = iso;
+      // Cheapest flight's trajectory from DATA.flights (first entry = cheapest by sort order).
+      let cellTrajectory = null;
+      if (price !== null) {
+        activeRoutes().forEach((route) => {
+          const list = ((DATA.flights[route] || {})[iso]) || [];
+          if (list.length && !cellTrajectory) cellTrajectory = list[0].trajectory;
+        });
+      }
+      const trajectoryGlyph = cellTrajectory === 'down'   ? '↓'
+                             : cellTrajectory === 'up'    ? '↑'
+                             : cellTrajectory === 'stable' ? '→' : '';
+      const trajectoryAriaLabel = cellTrajectory === 'down'
+        ? 'Prices trending down'
+        : cellTrajectory === 'up' ? 'Prices trending up' : 'Prices stable';
+      const trajectoryHtmlStr = trajectoryGlyph
+        ? `<span class="calendar__cell__trajectory calendar__cell__trajectory--${cellTrajectory}"
+               aria-label="${trajectoryAriaLabel}">${trajectoryGlyph}</span>`
+        : '';
       cell.innerHTML = `
         <span class="calendar__cell__day">${cursor.getDate()}</span>
         <span class="calendar__cell__price">${price !== null ? formatPrice(price) : '—'}</span>
+        ${trajectoryHtmlStr}
       `;
       if (price !== null) {
         cell.style.background = priceTint(price, range);
@@ -429,6 +449,17 @@
         state.selectedFlight.route === f.route ? ' is-selected' : ''
       );
       const overnight = f.overnight ? `<span class="flight-row__overnight">+1</span>` : '';
+      // Trajectory arrow: green ↓ for down, red ↑ for up, gray → for stable, none for null.
+      let trajectoryHtml = '';
+      if (f.trajectory === 'down') {
+        const pct = f.trajectory_pct !== null ? Math.abs(Math.round(f.trajectory_pct)) + '%' : '';
+        trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--down" aria-label="down ${pct}">↓</span>`;
+      } else if (f.trajectory === 'up') {
+        const pct = f.trajectory_pct !== null ? Math.abs(Math.round(f.trajectory_pct)) + '%' : '';
+        trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--up" aria-label="up ${pct}">↑</span>`;
+      } else if (f.trajectory === 'stable') {
+        trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--stable" aria-label="stable">→</span>`;
+      }
       // airlineColor() returns one of: a fixed hex/white/orange constant or a
       // synthesised hsl(deg,70%,50%) — both safe inside a style attribute.
       row.innerHTML = `
@@ -437,19 +468,21 @@
         <span>${escapeHtml(f.airline)} <small>(${escapeHtml(f.route)})</small></span>
         <span class="flight-row__time">${escapeHtml(f.dep_time)} → ${escapeHtml(f.arr_time)} ${overnight}</span>
         <span class="flight-row__time">${Math.floor(f.duration_minutes / 60)}h ${f.duration_minutes % 60}m</span>
-        <span><strong>${formatPrice(f.latest_cents)}</strong></span>
+        <span><strong>${formatPrice(f.latest_cents)}</strong>${trajectoryHtml}</span>
       `;
       row.addEventListener('click', () => {
         state.selectedFlight = { airline: f.airline, dep_time: f.dep_time, route: f.route };
         renderDrilldown();
+        if (charts.leadtime) charts.leadtime.update();
       });
       root.appendChild(row);
     });
 
-    // Price-history chart for the selected flight
+    // Price-history chart + verdict card for the selected flight
     if (!state.selectedFlight) {
       historyWrap.classList.add('is-hidden');
       destroyChart('priceHistory');
+      renderVerdict(null);
       return;
     }
     const chosen = flights.find((f) =>
@@ -460,9 +493,11 @@
     if (!chosen) {
       historyWrap.classList.add('is-hidden');
       destroyChart('priceHistory');
+      renderVerdict(null);
       return;
     }
     historyWrap.classList.remove('is-hidden');
+    renderVerdict(chosen);
     drawPriceHistory(chosen);
   }
 
@@ -582,13 +617,60 @@
         },
       ];
     });
+    const youAreHerePlugin = {
+      id: 'youAreHere',
+      afterDraw(chart) {
+        if (!state.selectedDate) return;
+        const todayMs = new Date().setHours(0, 0, 0, 0);
+        const depMs   = new Date(state.selectedDate).setHours(0, 0, 0, 0);
+        const daysUntilDep = Math.round((depMs - todayMs) / 86400000);
+        if (daysUntilDep < 0) return;
+        const { ctx, chartArea, scales } = chart;
+        const xPx = scales.x.getPixelForValue(daysUntilDep);
+        if (xPx < chartArea.left || xPx > chartArea.right) return;
+        ctx.save();
+        ctx.setLineDash([5, 3]);
+        ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(xPx, chartArea.top);
+        ctx.lineTo(xPx, chartArea.bottom);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = '11px sans-serif';
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillText('You are here', xPx + 4, chartArea.top + 14);
+        if (state.selectedFlight) {
+          const sf = state.selectedFlight;
+          const dfl = ((DATA.flights || {})[sf.route] || {})[state.selectedDate] || [];
+          const chosen = dfl.find(
+            (f) => f.airline === sf.airline && f.dep_time === sf.dep_time
+          );
+          if (chosen && chosen.latest_cents) {
+            const yPx = scales.y.getPixelForValue(chosen.latest_cents / 100);
+            ctx.beginPath();
+            ctx.arc(xPx, yPx, 6, 0, 2 * Math.PI);
+            ctx.fillStyle = 'rgba(192,57,43,0.9)';
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
+      },
+    };
     charts.leadtime = new Chart($('leadtime-chart'), {
       type: 'line',
       data: { datasets: leadDatasets },
+      plugins: [youAreHerePlugin],
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: {
-          title: { display: true, text: 'Mean price by days-before-departure (descriptive history; not a prediction)' },
+          title: {
+            display: true,
+            text: 'Mean price by days-before-departure (descriptive history; not a prediction)',
+          },
           legend: {
             labels: {
               filter: (item) => !item.text.endsWith(' Q1') && !item.text.endsWith(' IQR'),
@@ -596,7 +678,10 @@
           },
         },
         scales: {
-          x: { type: 'linear', reverse: true, title: { display: true, text: 'Days before departure' } },
+          x: {
+            type: 'linear', reverse: true,
+            title: { display: true, text: 'Days before departure' },
+          },
           y: { title: { display: true, text: 'Mean price (€)' } },
         },
       },
@@ -969,8 +1054,121 @@
     });
   }
 
+  function renderVerdict(flight) {
+    const card = $('verdict-card');
+    if (!card) return;
+    if (!flight) {
+      card.innerHTML = '';
+      card.classList.add('is-hidden');
+      return;
+    }
+    const { percentile, historical_mean_cents, latest_cents, airline, dep_time, route } = flight;
+
+    let verdictText, verdictCls;
+    if (percentile === null || percentile === undefined) {
+      verdictText = 'Not enough data yet to assess this price';
+      verdictCls = '';
+    } else if (percentile <= 15) {
+      verdictText = 'Great time to buy';
+      verdictCls = 'is-good';
+    } else if (percentile <= 25) {
+      verdictText = 'Good time to buy';
+      verdictCls = 'is-good';
+    } else if (percentile <= 75) {
+      verdictText = 'Fair price';
+      verdictCls = 'is-fair';
+    } else {
+      verdictText = 'Above average';
+      verdictCls = 'is-bad';
+    }
+
+    let vsAvgText = '';
+    if (historical_mean_cents && latest_cents) {
+      const diff = Math.round((historical_mean_cents - latest_cents) / historical_mean_cents * 100);
+      vsAvgText = diff >= 0
+        ? `${diff}% below historical average`
+        : `${Math.abs(diff)}% above historical average`;
+    }
+
+    card.innerHTML = `
+      <p class="verdict-card__header">${escapeHtml(airline)} ${escapeHtml(dep_time)} · ${escapeHtml(route || '')}</p>
+      <div class="verdict-card__rows">
+        <span>Current price</span><span><strong>${formatPrice(latest_cents)}</strong></span>
+        ${historical_mean_cents ? `<span>Historical avg</span><span>${formatPrice(historical_mean_cents)}</span>` : ''}
+        ${vsAvgText ? `<span>You are seeing</span><span>${escapeHtml(vsAvgText)}</span>` : ''}
+      </div>
+      <p class="verdict-card__verdict ${escapeHtml(verdictCls)}">${escapeHtml(verdictText)}</p>
+    `;
+    card.classList.remove('is-hidden');
+  }
+
+  function renderHero() {
+    // Primary route for hero data. When "both" is active, CPH-AMS is used.
+    const primaryRoute = activeRoutes()[0];
+    const routeData = DATA.analysis[primaryRoute];
+
+    function fill(id, html) { const el = $(id); if (el) el.innerHTML = html; }
+
+    const fallback = '<p class="hero-card__fallback">Not enough data yet.</p>';
+    if (!routeData) {
+      fill('hero-best-time', fallback);
+      fill('hero-market', fallback);
+      fill('hero-book-when', fallback);
+      return;
+    }
+
+    // Card 1 — Best time to visit
+    const btv = routeData.best_time_to_visit || {};
+    const cm  = btv.cheapest_month || {};
+    const cdow = btv.cheapest_dow || {};
+    const le  = btv.lowest_ever || {};
+    const leDate = le.departure_date ? formatDate(le.departure_date) : '—';
+    const leLine = le.price_cents
+      ? `${formatPrice(le.price_cents)} — ${escapeHtml(le.airline || '')}, ${escapeHtml(primaryRoute)}, ${escapeHtml(leDate)}`
+      : '—';
+    fill('hero-best-time', `
+      <h3 class="hero-card__title">Best time to visit</h3>
+      <p>Cheapest month: <strong>${escapeHtml(cm.label || '—')}</strong>${cm.mean_cents ? ' (avg ' + formatPrice(cm.mean_cents) + ')' : ''}</p>
+      <p>Cheapest day: <strong>${escapeHtml(cdow.label || '—')}</strong>${cdow.mean_cents ? ' (avg ' + formatPrice(cdow.mean_cents) + ')' : ''}</p>
+      <p>Lowest ever: <strong>${leLine}</strong></p>
+    `);
+
+    // Card 2 — Market direction
+    const md = routeData.market_direction || {};
+    const arrowGlyph = md.trend === 'down'   ? '↓'
+                     : md.trend === 'up'    ? '↑'
+                     :                        '→';
+    const arrowCls   = md.trend === 'down'   ? 'hero-card__arrow--down'
+                     : md.trend === 'up'    ? 'hero-card__arrow--up'
+                     : md.trend === 'stable' ? 'hero-card__arrow--stable'
+                     :                        'hero-card__arrow--stable';
+    fill('hero-market', `
+      <h3 class="hero-card__title">Market direction</h3>
+      <p><span class="hero-card__arrow ${escapeHtml(arrowCls)}" aria-hidden="true">${arrowGlyph}</span>
+         ${escapeHtml(md.label || 'Prices stable this week')}</p>
+      <p class="hero-card__sub">Based on last 14 days of observations</p>
+    `);
+
+    // Card 3 — When to book
+    const sweetSpotDays = routeData.sweet_spot_days;
+    let bookByText = '—';
+    if (sweetSpotDays !== undefined && sweetSpotDays !== null) {
+      const t = new Date();
+      t.setDate(t.getDate() + sweetSpotDays);
+      bookByText = formatDate(
+        `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
+      );
+    }
+    fill('hero-book-when', `
+      <h3 class="hero-card__title">When to book</h3>
+      <p>Sweet spot: <strong>~${sweetSpotDays !== undefined && sweetSpotDays !== null ? sweetSpotDays : '—'} days</strong> before departure</p>
+      <p>Book by <strong>${escapeHtml(bookByText)}</strong> for cheapest fares</p>
+    `);
+  }
+
   function renderAll() {
     renderHeader();
+    renderHero();
     renderCalendar();
     renderDrilldown();
     renderTrends();

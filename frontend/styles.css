@@ -216,6 +216,21 @@ ol, ul { list-style: none; }
 .flight-row__time { font-variant-numeric: tabular-nums; }
 .flight-row__overnight { font-size: 0.7rem; padding: 2px 6px; border-radius: 999px;
                          background: var(--color-orange); color: var(--color-cream); }
+.flight-row__trajectory { font-size: 13px; font-weight: 600; margin-left: 4px; }
+.flight-row__trajectory--down   { color: var(--color-green-ahead); }
+.flight-row__trajectory--up     { color: var(--color-red); }
+.flight-row__trajectory--stable { color: #999; }
+.calendar__cell__trajectory {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+.calendar__cell__trajectory--down   { color: var(--color-green-ahead); }
+.calendar__cell__trajectory--up     { color: var(--color-red); }
+.calendar__cell__trajectory--stable { color: #999; }
 
 /* ─── 8b. Time-of-day heatmap ─── */
 .timeheat-wrap {
@@ -287,7 +302,81 @@ ol, ul { list-style: none; }
   .panel { opacity: 1; animation: none; }
 }
 
-/* ─── 14. A11y ─── */
+/* ─── 14. Hero summary ─── */
+.hero-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-md) 0;
+}
+.hero-card {
+  background: var(--color-cream-mid);
+  border: var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-md);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.hero-card__title {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-brown-light);
+  margin-bottom: var(--space-xs);
+}
+.hero-card p { margin: 0 0 var(--space-xs); }
+.hero-card p:last-child { margin-bottom: 0; }
+.hero-card__sub { font-size: 0.8rem; color: var(--color-brown-light); }
+.hero-card__fallback { color: var(--color-brown-light); font-style: italic; margin: 0; }
+.hero-card__arrow { font-weight: 700; margin-right: var(--space-xs); }
+.hero-card__arrow--down  { color: var(--color-green-ahead); }
+.hero-card__arrow--up    { color: var(--color-red); }
+.hero-card__arrow--stable { color: var(--color-brown-light); }
+@media (min-width: 640px) {
+  .hero-summary { flex-direction: row; }
+  .hero-card { flex: 1; }
+}
+
+/* ─── 15. Verdict card ─── */
+.verdict-card {
+  background: var(--color-cream-mid);
+  border: var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-md);
+  margin-bottom: var(--space-sm);
+  font-size: 0.875rem;
+}
+.verdict-card__header {
+  font-size: 0.75rem;
+  color: var(--color-brown-light);
+  margin-bottom: var(--space-sm);
+}
+.verdict-card__rows {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px var(--space-md);
+  font-variant-numeric: tabular-nums;
+}
+.verdict-card__verdict {
+  margin-top: var(--space-sm);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.verdict-card__verdict.is-good { color: var(--color-green-ahead); }
+.verdict-card__verdict.is-fair { color: var(--color-brown-light); }
+.verdict-card__verdict.is-bad  { color: var(--color-red); }
+
+/* ─── 16. Panel subtitle ─── */
+.panel__subtitle {
+  margin: -6px 0 var(--space-md);
+  font-size: 0.8rem;
+  color: var(--color-brown-light);
+  line-height: 1.4;
+}
+
+/* ─── 17. A11y ─── */
 .calendar__cell:focus-visible,
 .flight-row:focus-visible,
 .filter-chip:focus-visible { outline: 3px solid var(--color-orange); outline-offset: 2px; }
