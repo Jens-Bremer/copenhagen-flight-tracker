@@ -3,7 +3,7 @@ import logging
 import os
 import sqlite3
 from datetime import date
-from typing import Optional
+from typing import List, Optional
 
 import config
 
@@ -111,7 +111,7 @@ def _check_currency_inconsistency(db_path: str) -> Optional[str]:
     return None
 
 
-def check_missing_routes(db_path: str, run_date: str, expected_routes: list) -> list[str]:
+def check_missing_routes(db_path: str, run_date: str, expected_routes: list) -> List[str]:
     """Return a problem string for each expected route with zero observations on run_date."""
     conn = sqlite3.connect(db_path)
     try:
