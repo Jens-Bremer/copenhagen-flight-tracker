@@ -156,6 +156,28 @@ def check_price_variance(db_path: str, run_date: str, min_distinct_prices: int =
     ]
 
 
+def check_observation_count(db_path: str, run_date: str, expected_min: int) -> List[str]:
+    """Return a problem string if total observations for run_date is below expected_min."""
+    conn = sqlite3.connect(db_path)
+    try:
+        total = conn.execute(
+            "SELECT COUNT(*) FROM flight_observations"
+        ).fetchone()[0]
+        if total == 0:
+            return []
+        count = conn.execute(
+            "SELECT COUNT(*) FROM flight_observations WHERE DATE(retrieved_at) = ?",
+            (run_date,),
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    if count < expected_min:
+        return [
+            f"[high] Low observation count: {count} observations on {run_date} (expected at least {expected_min})"
+        ]
+    return []
+
+
 def run_health_check(db_path: str, heartbeat_path: Optional[str] = None) -> list:
     """Run all health checks and return a list of problem descriptions (empty = healthy)."""
     if heartbeat_path is None:

@@ -8,6 +8,7 @@ import pytest
 from src.database import initialize_database, insert_observations
 from src.health_checker import (
     check_missing_routes,
+    check_observation_count,
     check_price_variance,
     run_health_check,
 )
@@ -232,4 +233,28 @@ def test_check_price_variance_no_problem_with_varied_prices(ctx):
 def test_check_price_variance_empty_on_empty_db(ctx):
     db_path, _ = ctx
     problems = check_price_variance(db_path, TODAY)
+    assert problems == []
+
+
+# --- check_observation_count ---
+
+
+def test_check_observation_count_flags_below_minimum(ctx):
+    db_path, _ = ctx
+    insert_observations(db_path, [_obs() for _ in range(10)])
+    problems = check_observation_count(db_path, TODAY, expected_min=50)
+    assert len(problems) == 1
+    assert "Low observation count" in problems[0]
+
+
+def test_check_observation_count_no_problem_at_minimum(ctx):
+    db_path, _ = ctx
+    insert_observations(db_path, [_obs() for _ in range(50)])
+    problems = check_observation_count(db_path, TODAY, expected_min=50)
+    assert problems == []
+
+
+def test_check_observation_count_empty_on_empty_db(ctx):
+    db_path, _ = ctx
+    problems = check_observation_count(db_path, TODAY, expected_min=50)
     assert problems == []
