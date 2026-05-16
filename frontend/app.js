@@ -114,6 +114,7 @@
   const REQUIRED_DOM_IDS = [
     'header-range', 'header-generated', 'footer-generated',
     'route-toggle', 'airline-filter',
+    'hero-best-time', 'hero-market', 'hero-book-when',
     'cal-prev', 'cal-month-label', 'cal-next',
     'calendar', 'drilldown-panel', 'drilldown-title', 'drilldown-sort', 'drilldown',
     'price-history-wrap', 'price-history-chart',
@@ -969,8 +970,73 @@
     });
   }
 
+  function renderHero() {
+    // Primary route for hero data. When "both" is active, CPH-AMS is used.
+    const primaryRoute = activeRoutes()[0];
+    const routeData = DATA.analysis[primaryRoute];
+
+    function fill(id, html) { const el = $(id); if (el) el.innerHTML = html; }
+
+    const fallback = '<p class="hero-card__fallback">Not enough data yet.</p>';
+    if (!routeData) {
+      fill('hero-best-time', fallback);
+      fill('hero-market', fallback);
+      fill('hero-book-when', fallback);
+      return;
+    }
+
+    // Card 1 — Best time to visit
+    const btv = routeData.best_time_to_visit || {};
+    const cm  = btv.cheapest_month || {};
+    const cdow = btv.cheapest_dow || {};
+    const le  = btv.lowest_ever || {};
+    const leDate = le.departure_date ? formatDate(le.departure_date) : '—';
+    const leLine = le.price_cents
+      ? `${formatPrice(le.price_cents)} — ${escapeHtml(le.airline || '')}, ${escapeHtml(primaryRoute)}, ${escapeHtml(leDate)}`
+      : '—';
+    fill('hero-best-time', `
+      <h3 class="hero-card__title">Best time to visit</h3>
+      <p>Cheapest month: <strong>${escapeHtml(cm.label || '—')}</strong>${cm.mean_cents ? ' (avg ' + formatPrice(cm.mean_cents) + ')' : ''}</p>
+      <p>Cheapest day: <strong>${escapeHtml(cdow.label || '—')}</strong>${cdow.mean_cents ? ' (avg ' + formatPrice(cdow.mean_cents) + ')' : ''}</p>
+      <p>Lowest ever: <strong>${leLine}</strong></p>
+    `);
+
+    // Card 2 — Market direction
+    const md = routeData.market_direction || {};
+    const arrowGlyph = md.trend === 'down'   ? '↓'
+                     : md.trend === 'up'    ? '↑'
+                     :                        '→';
+    const arrowCls   = md.trend === 'down'   ? 'hero-card__arrow--down'
+                     : md.trend === 'up'    ? 'hero-card__arrow--up'
+                     : md.trend === 'stable' ? 'hero-card__arrow--stable'
+                     :                        'hero-card__arrow--stable';
+    fill('hero-market', `
+      <h3 class="hero-card__title">Market direction</h3>
+      <p><span class="hero-card__arrow ${escapeHtml(arrowCls)}" aria-hidden="true">${arrowGlyph}</span>
+         ${escapeHtml(md.label || 'Prices stable this week')}</p>
+      <p class="hero-card__sub">Based on last 14 days of observations</p>
+    `);
+
+    // Card 3 — When to book
+    const sweetSpotDays = routeData.sweet_spot_days;
+    let bookByText = '—';
+    if (sweetSpotDays !== undefined && sweetSpotDays !== null) {
+      const t = new Date();
+      t.setDate(t.getDate() + sweetSpotDays);
+      bookByText = formatDate(
+        `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
+      );
+    }
+    fill('hero-book-when', `
+      <h3 class="hero-card__title">When to book</h3>
+      <p>Sweet spot: <strong>~${sweetSpotDays !== undefined && sweetSpotDays !== null ? sweetSpotDays : '—'} days</strong> before departure</p>
+      <p>Book by <strong>${escapeHtml(bookByText)}</strong> for cheapest fares</p>
+    `);
+  }
+
   function renderAll() {
     renderHeader();
+    renderHero();
     renderCalendar();
     renderDrilldown();
     renderTrends();

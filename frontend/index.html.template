@@ -34,7 +34,14 @@
       </div>
     </section>
 
-    <!-- 2. Calendar -->
+    <!-- 2. Hero summary -->
+    <section class="panel hero-summary" aria-label="Quick summary">
+      <div id="hero-best-time" class="hero-card"></div>
+      <div id="hero-market" class="hero-card"></div>
+      <div id="hero-book-when" class="hero-card"></div>
+    </section>
+
+    <!-- 3. Calendar -->
     <section class="panel" aria-label="Calendar">
       <h2 class="panel__heading">Calendar — cheapest observed price per day</h2>
       <div class="calendar-nav">

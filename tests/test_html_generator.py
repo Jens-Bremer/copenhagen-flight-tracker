@@ -750,6 +750,101 @@ def test_cli_missing_input_exits_2(tmp_path):
     assert result.returncode == 2
 
 
+# ─── Issue #95: hero summary panel ───────────────────────────────────────────
+
+
+def _app_js(html: str) -> str:
+    """Extract the last <script> block (inlined app.js) from rendered HTML."""
+    import re
+
+    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
+    assert all_scripts, "No <script> blocks found in rendered HTML"
+    return all_scripts[-1]
+
+
+def test_hero_panel_dom_ids_present_in_template():
+    """Template must include the three hero card container IDs."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert 'id="hero-best-time"' in html, "hero-best-time container missing"
+    assert 'id="hero-market"' in html, "hero-market container missing"
+    assert 'id="hero-book-when"' in html, "hero-book-when container missing"
+
+
+def test_hero_ids_in_required_dom_ids():
+    """All three hero IDs must be asserted at boot via REQUIRED_DOM_IDS."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "'hero-best-time'" in js, "hero-best-time not in REQUIRED_DOM_IDS"
+    assert "'hero-market'" in js, "hero-market not in REQUIRED_DOM_IDS"
+    assert "'hero-book-when'" in js, "hero-book-when not in REQUIRED_DOM_IDS"
+
+
+def test_render_hero_function_exists_and_called_from_render_all():
+    """app.js must define renderHero() and call it from renderAll()."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "function renderHero" in js, "renderHero function not defined"
+    assert "renderHero()" in js, "renderHero() not called from renderAll()"
+
+
+def test_hero_best_time_reads_correct_analysis_fields():
+    """renderHero must read best_time_to_visit with cheapest_month, cheapest_dow,
+    and lowest_ever from DATA_ANALYSIS."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "best_time_to_visit" in js
+    assert "cheapest_month" in js
+    assert "cheapest_dow" in js
+    assert "lowest_ever" in js
+
+
+def test_hero_market_reads_market_direction_from_analysis():
+    """renderHero must read market_direction.trend and market_direction.label."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "market_direction" in js
+    # Must handle all three trend values
+    assert "'down'" in js or '"down"' in js, "trend 'down' not handled"
+    assert "'up'" in js or '"up"' in js, "trend 'up' not handled"
+    assert "'stable'" in js or '"stable"' in js, "trend 'stable' not handled"
+
+
+def test_hero_book_when_uses_sweet_spot_days():
+    """renderHero must use sweet_spot_days from DATA_ANALYSIS for the booking card."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "sweet_spot_days" in js
+
+
+def test_hero_css_classes_present_in_styles():
+    """Generated HTML must include .hero-summary and .hero-card CSS rules."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert "hero-summary" in html
+    assert "hero-card" in html
+
+
+def test_hero_section_positioned_before_calendar_in_template():
+    """Hero panel must appear in the template before the calendar section."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    hero_pos = html.find('id="hero-best-time"')
+    calendar_pos = html.find('id="calendar"')
+    assert hero_pos != -1, "hero-best-time not in HTML"
+    assert calendar_pos != -1, "calendar not in HTML"
+    assert hero_pos < calendar_pos, (
+        "Hero panel must appear before the calendar in the HTML"
+    )
+
+
+def test_hero_shows_fallback_when_no_analysis_data():
+    """renderHero must not crash and show a fallback when DATA_ANALYSIS is empty."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    # There must be a fallback path (e.g. early return or "Not enough data" text)
+    assert "Not enough data" in js or "fallback" in js.lower() or "return" in js, (
+        "renderHero must handle empty analysis gracefully"
+    )
+
+
 # ─── Issue #94: trajectory, verdict, market-direction ─────────────────────────
 
 

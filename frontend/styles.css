@@ -287,7 +287,44 @@ ol, ul { list-style: none; }
   .panel { opacity: 1; animation: none; }
 }
 
-/* ─── 14. A11y ─── */
+/* ─── 14. Hero summary ─── */
+.hero-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-md) 0;
+}
+.hero-card {
+  background: var(--color-cream-mid);
+  border: var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-md);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.hero-card__title {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--color-brown-light);
+  margin-bottom: var(--space-xs);
+}
+.hero-card p { margin: 0 0 var(--space-xs); }
+.hero-card p:last-child { margin-bottom: 0; }
+.hero-card__sub { font-size: 0.8rem; color: var(--color-brown-light); }
+.hero-card__fallback { color: var(--color-brown-light); font-style: italic; margin: 0; }
+.hero-card__arrow { font-weight: 700; margin-right: var(--space-xs); }
+.hero-card__arrow--down  { color: var(--color-green-ahead); }
+.hero-card__arrow--up    { color: var(--color-red); }
+.hero-card__arrow--stable { color: var(--color-brown-light); }
+@media (min-width: 640px) {
+  .hero-summary { flex-direction: row; }
+  .hero-card { flex: 1; }
+}
+
+/* ─── 15. A11y ─── */
 .calendar__cell:focus-visible,
 .flight-row:focus-visible,
 .filter-chip:focus-visible { outline: 3px solid var(--color-orange); outline-offset: 2px; }
