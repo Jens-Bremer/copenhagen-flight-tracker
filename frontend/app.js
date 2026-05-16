@@ -576,12 +576,15 @@
             title: { display: true, text: `${route} — price distribution (€5 bins)` },
             legend: { position: 'right' },
             tooltip: {
-              callbacks: { label: (c) => `${c.dataset.label}: ${c.parsed.y} obs` },
+              callbacks: {
+                label:  (c)     => `${c.dataset.label}: ${c.parsed.y} obs`,
+                footer: (items) => `Total: ${items.reduce((s, i) => s + i.parsed.y, 0)} obs`,
+              },
             },
           },
           scales: {
-            x: { stacked: false, title: { display: true, text: 'Price bin' } },
-            y: { beginAtZero: true, title: { display: true, text: 'Observation count' } },
+            x: { stacked: true, title: { display: true, text: 'Price bin' } },
+            y: { stacked: true, beginAtZero: true, title: { display: true, text: 'Observation count' } },
           },
         },
       });

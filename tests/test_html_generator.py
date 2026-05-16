@@ -313,6 +313,42 @@ def test_format_price_uses_whole_euros_not_decimal():
     )
 
 
+def test_histograms_use_stacked_bars_with_airline_segments():
+    """Price-distribution histograms must stack per-airline bars within each bin.
+
+    Chart.js requires stacked: true on both the x and y scale axes.  The
+    previous (broken) state used stacked: false, which produced grouped
+    side-by-side bars per airline instead of one stacked bar per bin.
+
+    The tooltip must also include a footer callback that shows the bin total
+    so users can see both the airline's contribution and the aggregate count.
+    """
+    import re
+
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    # app.js is always the last <script> tag in the template.
+    all_scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+    assert all_scripts, "No <script> blocks found in rendered HTML"
+    app_js = all_scripts[-1]
+
+    # Grouped mode (old behaviour) must be absent.
+    assert 'stacked: false' not in app_js, (
+        "Found 'stacked: false' in app.js — histogram bars must use stacked: true "
+        "so that per-airline segments stack into a single bar per price bin"
+    )
+    # Both x and y axes of the histogram chart must opt into stacking.
+    stacked_true_count = app_js.count('stacked: true')
+    assert stacked_true_count >= 2, (
+        f"Expected at least 2 occurrences of 'stacked: true' (one per axis) "
+        f"in renderHistograms, found {stacked_true_count}"
+    )
+    # A tooltip footer callback must exist to show the bin total.
+    assert 'footer:' in app_js, (
+        "renderHistograms tooltip must include a 'footer:' callback "
+        "showing the aggregate observation count for the hovered bin"
+    )
+
+
 def test_render_html_inlines_escapeHtml_helper():
     """app.js must inline an escapeHtml helper so attacker-controlled airline
     names cannot inject HTML via innerHTML/insertAdjacentHTML."""
