@@ -85,7 +85,110 @@
     }
   }
 
-  function renderCalendar()       { /* Task 15 */ }
+  /** Returns { min, max } across all cells the user is currently allowed to see. */
+  function calendarPriceRange() {
+    let min = Infinity, max = -Infinity;
+    activeRoutes().forEach((route) => {
+      const cells = DATA.calendar[route] || {};
+      for (const date in cells) {
+        const v = cells[date].min_cents;
+        if (v < min) min = v;
+        if (v > max) max = v;
+      }
+    });
+    if (!isFinite(min)) return null;
+    return { min, max };
+  }
+
+  /** Linear green→amber→red interpolation across [min, max], returned as CSS rgb. */
+  function priceTint(cents, range) {
+    if (!range || range.max === range.min) return 'rgba(241, 196, 15, 0.35)';
+    const t = (cents - range.min) / (range.max - range.min);     // 0 = cheap, 1 = expensive
+    // 0=#3d7a3d green, 0.5=#e67e22 orange, 1=#c0392b red
+    const lerp = (a, b, k) => Math.round(a + (b - a) * k);
+    let r, g, b;
+    if (t < 0.5) {
+      const k = t * 2;
+      r = lerp(61, 230, k); g = lerp(122, 126, k); b = lerp(61, 34, k);
+    } else {
+      const k = (t - 0.5) * 2;
+      r = lerp(230, 192, k); g = lerp(126, 57, k); b = lerp(34, 43, k);
+    }
+    return `rgba(${r}, ${g}, ${b}, 0.32)`;
+  }
+
+  function renderCalendar() {
+    const root = $('calendar');
+    root.innerHTML = '';
+    root.className = 'calendar';
+
+    const range = calendarPriceRange();
+    if (!range) {
+      root.outerHTML = `<div id="calendar" class="empty-state">No flights match the current filters.</div>`;
+      return;
+    }
+
+    // Weekday header row
+    ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach((w) => {
+      const el = document.createElement('div');
+      el.className = 'calendar__weekday';
+      el.textContent = w;
+      root.appendChild(el);
+    });
+
+    // Build the chronological grid from the metadata's date_range, padded so
+    // the first row aligns to Monday.
+    const fromIso = DATA.metadata.date_range.from;
+    const toIso   = DATA.metadata.date_range.to;
+    if (!fromIso || !toIso) return;
+    const [fy, fm, fd] = fromIso.split('-').map(Number);
+    const [ty, tm, td] = toIso.split('-').map(Number);
+    let cursor = new Date(fy, fm - 1, fd);
+    const end = new Date(ty, tm - 1, td);
+    const padDays = (cursor.getDay() + 6) % 7;                   // 0=Mon...6=Sun
+    cursor.setDate(cursor.getDate() - padDays);
+
+    // Cheapest across active routes for cell rendering
+    function cellPrice(iso) {
+      let cheapest = Infinity;
+      activeRoutes().forEach((route) => {
+        const v = (DATA.calendar[route] || {})[iso];
+        if (v && v.min_cents < cheapest) cheapest = v.min_cents;
+      });
+      return isFinite(cheapest) ? cheapest : null;
+    }
+
+    while (cursor <= end || ((cursor.getDay() + 6) % 7) !== 0) {
+      const iso = cursor.toISOString().slice(0, 10);
+      const cell = document.createElement('div');
+      const price = cellPrice(iso);
+      cell.className = 'calendar__cell' + (price === null ? ' is-empty' : '');
+      cell.dataset.date = iso;
+      cell.innerHTML = `
+        <span class="calendar__cell__day">${cursor.getDate()}</span>
+        <span class="calendar__cell__price">${price !== null ? formatPrice(price) : '—'}</span>
+      `;
+      if (price !== null) {
+        cell.style.background = priceTint(price, range);
+        cell.tabIndex = 0;
+        cell.setAttribute('role', 'button');
+        cell.setAttribute('aria-label', `${iso}, cheapest ${formatPrice(price)}`);
+        if (state.selectedDate === iso) cell.classList.add('is-selected');
+        cell.addEventListener('click', () => {
+          state.selectedDate = iso;
+          state.selectedFlight = null;
+          renderAll();
+          $('drilldown-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+        cell.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cell.click(); }
+        });
+      }
+      root.appendChild(cell);
+      cursor.setDate(cursor.getDate() + 1);
+      if (cursor > end && ((cursor.getDay() + 6) % 7) === 0) break;
+    }
+  }
   function renderDrilldown()      { /* Task 16 */ }
   function renderTrends()         { /* Task 17 */ }
   function renderHistograms()     { /* Task 18 */ }
