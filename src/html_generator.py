@@ -63,3 +63,32 @@ def load_rows(path: str) -> list[dict[str, Any]]:
                 "price_currency": raw["price_currency"],
             })
     return rows
+
+
+def _format_minute_z(dt: datetime) -> str:
+    """Render '2026-05-15T23:47Z' — Z suffix, minute resolution."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
+
+
+def build_metadata(rows: list[dict[str, Any]], generated_at: datetime) -> dict[str, Any]:
+    """Top-level metadata: generation timestamp, date range, route + airline lists."""
+    if not rows:
+        return {
+            "generated_at": _format_minute_z(generated_at),
+            "date_range": {"from": None, "to": None},
+            "total_rows": 0,
+            "routes": [],
+            "airlines": [],
+        }
+    dates = sorted({r["departure_date"] for r in rows})
+    routes = sorted({f"{r['origin']}-{r['destination']}" for r in rows})
+    airlines = sorted({r["airline"] for r in rows})
+    return {
+        "generated_at": _format_minute_z(generated_at),
+        "date_range": {"from": dates[0], "to": dates[-1]},
+        "total_rows": len(rows),
+        "routes": routes,
+        "airlines": airlines,
+    }

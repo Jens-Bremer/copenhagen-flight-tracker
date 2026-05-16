@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
-from src.html_generator import load_rows
+from src.html_generator import build_metadata, load_rows
 
 FIXTURE = Path(__file__).parent / "fixtures" / "flights_frontend_sample.csv"
 
@@ -48,3 +48,22 @@ def test_load_rows_skips_blank_lines(tmp_path):
 def test_load_rows_raises_on_missing_file(tmp_path):
     with pytest.raises(FileNotFoundError):
         load_rows(str(tmp_path / "nope.csv"))
+
+
+def test_build_metadata_summarises_input_rows():
+    rows = load_rows(str(FIXTURE))
+    meta = build_metadata(rows, generated_at=datetime(2026, 5, 15, 23, 47, tzinfo=timezone.utc))
+    assert meta["generated_at"] == "2026-05-15T23:47Z"
+    assert meta["total_rows"] == len(rows)
+    assert meta["date_range"]["from"] <= meta["date_range"]["to"]
+    assert "CPH-AMS" in meta["routes"]
+    assert "AMS-CPH" in meta["routes"]
+    assert "easyJet" in meta["airlines"]
+
+
+def test_build_metadata_handles_empty_input():
+    meta = build_metadata([], generated_at=datetime(2026, 5, 15, 23, 47, tzinfo=timezone.utc))
+    assert meta["total_rows"] == 0
+    assert meta["date_range"] == {"from": None, "to": None}
+    assert meta["routes"] == []
+    assert meta["airlines"] == []
