@@ -186,6 +186,17 @@ ol, ul { list-style: none; }
   border: 1px solid var(--color-brown);
 }
 
+/* ─── 7c. Calendar navigation ─── */
+.calendar-nav {
+  display: flex; align-items: center; gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+.calendar-nav__label {
+  flex: 1; text-align: center;
+  font-family: var(--font-display); color: var(--color-brown); font-size: 1.1rem;
+}
+.calendar-nav button:disabled { opacity: 0.35; cursor: default; }
+
 /* ─── 8. Drill-down ─── */
 .flight-list { display: grid; gap: var(--space-sm); }
 .flight-row {
@@ -203,6 +214,13 @@ ol, ul { list-style: none; }
 .flight-row__time { font-variant-numeric: tabular-nums; }
 .flight-row__overnight { font-size: 0.7rem; padding: 2px 6px; border-radius: 999px;
                          background: var(--color-orange); color: var(--color-cream); }
+
+/* ─── 8b. Time-of-day heatmap ─── */
+.timeheat-wrap {
+  display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg);
+}
+.timeheat-wrap canvas { width: 100%; display: block; }
+@media (max-width: 768px) { .timeheat-wrap { grid-template-columns: 1fr; } }
 
 /* ─── 9. Chart wraps ─── */
 .chart-wrap { position: relative; aspect-ratio: 16 / 9; }

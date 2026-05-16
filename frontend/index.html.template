@@ -37,6 +37,11 @@
     <!-- 2. Calendar -->
     <section class="panel" aria-label="Calendar">
       <h2 class="panel__heading">Calendar — cheapest observed price per day</h2>
+      <div class="calendar-nav">
+        <button id="cal-prev" class="filter-chip" aria-label="Previous month">← Prev</button>
+        <span id="cal-month-label" class="calendar-nav__label"></span>
+        <button id="cal-next" class="filter-chip" aria-label="Next month">Next →</button>
+      </div>
       <div id="calendar"></div>
     </section>
 
@@ -80,6 +85,23 @@
       <div class="trends-grid">
         <div class="chart-wrap"><canvas id="dow-chart" role="img"></canvas></div>
         <div class="chart-wrap"><canvas id="month-chart" role="img"></canvas></div>
+      </div>
+    </section>
+
+    <!-- 8. Time-of-day price heatmap -->
+    <section class="panel" aria-labelledby="timeheat-heading">
+      <h2 class="panel__heading" id="timeheat-heading">Price by time of day</h2>
+      <div class="timeheat-wrap">
+        <canvas id="timeheat-out" aria-label="CPH-AMS price heatmap by time of day"></canvas>
+        <canvas id="timeheat-back" aria-label="AMS-CPH price heatmap by time of day"></canvas>
+      </div>
+    </section>
+
+    <!-- 9. Normalised price progression -->
+    <section class="panel" aria-labelledby="normprog-heading">
+      <h2 class="panel__heading" id="normprog-heading">Normalised price progression</h2>
+      <div class="chart-wrap">
+        <canvas id="normprog-chart" aria-label="Normalised price change by days before departure" role="img"></canvas>
       </div>
     </section>
   </main>

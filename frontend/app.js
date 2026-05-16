@@ -34,6 +34,7 @@
   // ───── State (single source of truth) ──────────────────────────────────────
   const state = {
     route: 'CPH-AMS',        // 'CPH-AMS' | 'AMS-CPH' | 'both'
+    calendarMonth: null,     // 'YYYY-MM' — currently displayed month
     selectedDate: null,      // 'YYYY-MM-DD' | null
     selectedFlight: null,    // { airline, dep_time } | null
     airlineFilter: new Set() // empty Set = all airlines visible
@@ -51,6 +52,9 @@
     histogramBack: null,
     dow: null,
     month: null,
+    timeheatOut: null,
+    timeheatBack: null,
+    normProg: null,
   };
   function destroyChart(slot) {
     if (charts[slot]) { charts[slot].destroy(); charts[slot] = null; }
@@ -78,8 +82,7 @@
 
   // ───── Tiny helpers ────────────────────────────────────────────────────────
   function $(id) { return document.getElementById(id); }
-  function formatPrice(cents) { return '€' + (cents / 100).toFixed(2); }
-  function formatPriceShort(cents) { return '€' + Math.round(cents / 100); }
+  function formatPrice(cents) { return '€' + Math.round(cents / 100); }
 
   /** HTML-escape *s* for safe interpolation into `innerHTML`. Defends against
    *  attacker-controlled airline names from the upstream scraper. */
@@ -110,12 +113,15 @@
   const REQUIRED_DOM_IDS = [
     'header-range', 'header-generated', 'footer-generated',
     'route-toggle', 'airline-filter',
+    'cal-prev', 'cal-month-label', 'cal-next',
     'calendar', 'drilldown-panel', 'drilldown-title', 'drilldown',
     'price-history-wrap', 'price-history-chart',
     'market-trend-chart', 'leadtime-chart', 'sweet-spot-headline',
     'histogram-out', 'histogram-back',
     'weekend-pairs',
     'dow-chart', 'month-chart',
+    'timeheat-out', 'timeheat-back',
+    'normprog-chart',
   ];
   function assertRequiredDomIds() {
     const missing = REQUIRED_DOM_IDS.filter((id) => !$(id));
@@ -219,14 +225,30 @@
     return bestAirline ? airlineColor(bestAirline) : null;
   }
 
+  /** Sorted list of 'YYYY-MM' strings covering the full data date range. */
+  function availableMonths() {
+    const dr = DATA.metadata.date_range || {};
+    if (!dr.from || !dr.to) return [];
+    const months = [];
+    let [y, m] = dr.from.split('-').map(Number);
+    const [ty, tm] = dr.to.split('-').map(Number);
+    while (y < ty || (y === ty && m <= tm)) {
+      months.push(`${y}-${String(m).padStart(2, '0')}`);
+      m++;
+      if (m > 12) { m = 1; y++; }
+    }
+    return months;
+  }
+
   function renderCalendar() {
     const root = $('calendar');
     root.innerHTML = '';
     root.className = 'calendar';
-    // CHANGE (UX): legend lives in a sibling node next to the grid; remove any
-    // stale legend before re-rendering.
     const oldLegend = root.parentElement && root.parentElement.querySelector('.calendar-legend');
     if (oldLegend) oldLegend.remove();
+
+    // Guard: calendarMonth must be set before rendering.
+    if (!state.calendarMonth) return;
 
     const range = calendarPriceRange();
     if (!range) {
@@ -234,7 +256,17 @@
       return;
     }
 
-    // Weekday header row
+    // Update nav label and button states.
+    const months = availableMonths();
+    const monthIdx = months.indexOf(state.calendarMonth);
+    const [cy, cm] = state.calendarMonth.split('-').map(Number);
+    const labelEl = $('cal-month-label');
+    if (labelEl) labelEl.textContent = formatMonth(new Date(cy, cm - 1, 1));
+    const prevBtn = $('cal-prev'), nextBtn = $('cal-next');
+    if (prevBtn) prevBtn.disabled = (monthIdx <= 0);
+    if (nextBtn) nextBtn.disabled = (monthIdx >= months.length - 1);
+
+    // Weekday header row.
     ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach((w) => {
       const el = document.createElement('div');
       el.className = 'calendar__weekday';
@@ -242,19 +274,12 @@
       root.appendChild(el);
     });
 
-    // Build the chronological grid from the metadata's date_range, padded so
-    // the first row aligns to Monday.
-    const fromIso = DATA.metadata.date_range.from;
-    const toIso   = DATA.metadata.date_range.to;
-    if (!fromIso || !toIso) return;
-    const [fy, fm, fd] = fromIso.split('-').map(Number);
-    const [ty, tm, td] = toIso.split('-').map(Number);
-    let cursor = new Date(fy, fm - 1, fd);
-    const end = new Date(ty, tm - 1, td);
-    const padDays = (cursor.getDay() + 6) % 7;                   // 0=Mon...6=Sun
+    // Grid for this month only. Pad start to Monday, complete last week to Sunday.
+    let cursor = new Date(cy, cm - 1, 1);
+    const end = new Date(cy, cm, 0);                              // last day of month
+    const padDays = (cursor.getDay() + 6) % 7;                   // 0=Mon…6=Sun
     cursor.setDate(cursor.getDate() - padDays);
 
-    // Cheapest across active routes for cell rendering
     function cellPrice(iso) {
       let cheapest = Infinity;
       activeRoutes().forEach((route) => {
@@ -264,24 +289,12 @@
       return isFinite(cheapest) ? cheapest : null;
     }
 
-    // CHANGE (UX): month-divider tracking — emit a serif label + rule whenever
-    // a new month starts on a Monday (column 1). Skip the very first row.
-    let lastMonth = -1;
-    let firstRow = true;
     const todayStr = todayIso();
 
     while (cursor <= end || ((cursor.getDay() + 6) % 7) !== 0) {
-      const iso = cursor.toISOString().slice(0, 10);
-      const month = cursor.getMonth();
-
-      if (((cursor.getDay() + 6) % 7) === 0 && month !== lastMonth && !firstRow) {
-        const divider = document.createElement('div');
-        divider.className = 'calendar__month-row';
-        divider.textContent = formatMonth(cursor);
-        root.appendChild(divider);
-      }
-      lastMonth = month;
-      firstRow = false;
+      // Use local date components — toISOString() converts to UTC and shifts
+      // dates in timezones east of UTC (e.g. CEST: local midnight → prev UTC day).
+      const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
 
       const cell = document.createElement('div');
       const price = cellPrice(iso);
@@ -299,7 +312,6 @@
         cell.setAttribute('aria-label', `${iso}, cheapest ${formatPrice(price)}`);
         if (state.selectedDate === iso) cell.classList.add('is-selected');
 
-        // CHANGE (UX): airline-colour dot in the top-right of every tinted cell.
         const dotColor = cheapestAirlineColor(iso);
         if (dotColor) {
           const dot = document.createElement('span');
@@ -324,17 +336,29 @@
       if (cursor > end && ((cursor.getDay() + 6) % 7) === 0) break;
     }
 
-    // CHANGE (UX): min/max price legend under the grid. Inserted after the grid
-    // so layout reflow is cheap.
     const legend = document.createElement('div');
     legend.className = 'calendar-legend';
     legend.setAttribute('aria-hidden', 'true');
     legend.innerHTML = `
-      <span>${formatPriceShort(range.min)}</span>
+      <span>${formatPrice(range.min)}</span>
       <div class="calendar-legend__bar"></div>
-      <span>${formatPriceShort(range.max)}</span>
+      <span>${formatPrice(range.max)}</span>
     `;
     root.insertAdjacentElement('afterend', legend);
+  }
+
+  function wireCalendarNav() {
+    const months = availableMonths();
+    const prev = $('cal-prev'), next = $('cal-next');
+    if (!prev || !next) return;
+    prev.addEventListener('click', () => {
+      const idx = months.indexOf(state.calendarMonth);
+      if (idx > 0) { state.calendarMonth = months[idx - 1]; renderCalendar(); }
+    });
+    next.addEventListener('click', () => {
+      const idx = months.indexOf(state.calendarMonth);
+      if (idx < months.length - 1) { state.calendarMonth = months[idx + 1]; renderCalendar(); }
+    });
   }
 
   function flightsForSelectedDate() {
@@ -445,7 +469,7 @@
           legend: { display: false },
           tooltip: {
             callbacks: {
-              label: (ctx) => `€${ctx.parsed.y.toFixed(2)} (${flight.history[ctx.dataIndex].days_before} days before)`,
+              label: (ctx) => `€${Math.round(ctx.parsed.y)} (${flight.history[ctx.dataIndex].days_before} days before)`,
             },
           },
         },
@@ -458,7 +482,7 @@
     chartA11ySummary(ctx, flight.history.map((h) => ({
       'observation date': h.obs_date,
       'days before': h.days_before,
-      'price (EUR)': (h.price_cents / 100).toFixed(2),
+      'price (EUR)': Math.round(h.price_cents / 100),
     })));
   }
 
@@ -496,22 +520,45 @@
         responsive: true, maintainAspectRatio: false,
         plugins: {
           title: { display: true, text: 'Market trend — cheapest seen on each scrape day' },
-          tooltip: { callbacks: { label: (c) => `${c.dataset.label}: €${c.parsed.y.toFixed(2)}` } },
+          tooltip: { callbacks: { label: (c) => `${c.dataset.label}: €${Math.round(c.parsed.y)}` } },
         },
         scales: { y: { title: { display: true, text: 'Price (€)' } } },
       },
     });
 
-    const leadDatasets = routes.map((r) => {
+    // Three datasets per route: Q1 boundary, Q3 boundary (filled back to Q1 = IQR band), mean line.
+    const leadDatasets = routes.flatMap((r) => {
       const curve = DATA.analysis[r].lead_time_curve || [];
-      return {
-        label: r,
-        data: curve.map((c) => ({ x: c.days_before, y: c.mean_cents / 100 })),
-        borderColor: r === 'CPH-AMS' ? 'var(--color-red)' : 'var(--color-brown)',
-        spanGaps: false,
-        borderWidth: 2,
-        pointRadius: 2,
-      };
+      const bandAlpha = r === 'CPH-AMS' ? 'rgba(192,57,43,' : 'rgba(107,62,38,';
+      return [
+        {
+          label: `${r} Q1`,
+          data: curve.map((c) => ({ x: c.days_before, y: c.q1_cents / 100 })),
+          borderColor: bandAlpha + '0)',
+          backgroundColor: bandAlpha + '0)',
+          fill: false,
+          pointRadius: 0,
+          spanGaps: false,
+        },
+        {
+          label: `${r} IQR`,
+          data: curve.map((c) => ({ x: c.days_before, y: c.q3_cents / 100 })),
+          borderColor: bandAlpha + '0)',
+          backgroundColor: bandAlpha + '0.15)',
+          fill: '-1',
+          pointRadius: 0,
+          spanGaps: false,
+        },
+        {
+          label: r,
+          data: curve.map((c) => ({ x: c.days_before, y: c.mean_cents / 100 })),
+          borderColor: r === 'CPH-AMS' ? 'var(--color-red)' : 'var(--color-brown)',
+          fill: false,
+          spanGaps: false,
+          borderWidth: 2,
+          pointRadius: 2,
+        },
+      ];
     });
     charts.leadtime = new Chart($('leadtime-chart'), {
       type: 'line',
@@ -520,6 +567,11 @@
         responsive: true, maintainAspectRatio: false,
         plugins: {
           title: { display: true, text: 'Mean price by days-before-departure (descriptive history; not a prediction)' },
+          legend: {
+            labels: {
+              filter: (item) => !item.text.endsWith(' Q1') && !item.text.endsWith(' IQR'),
+            },
+          },
         },
         scales: {
           x: { type: 'linear', reverse: true, title: { display: true, text: 'Days before departure' } },
@@ -577,12 +629,15 @@
             title: { display: true, text: `${route} — price distribution (€5 bins)` },
             legend: { position: 'right' },
             tooltip: {
-              callbacks: { label: (c) => `${c.dataset.label}: ${c.parsed.y} obs` },
+              callbacks: {
+                label:  (c)     => `${c.dataset.label}: ${c.parsed.y} obs`,
+                footer: (items) => `Total: ${items.reduce((s, i) => s + i.parsed.y, 0)} obs`,
+              },
             },
           },
           scales: {
-            x: { stacked: false, title: { display: true, text: 'Price bin' } },
-            y: { beginAtZero: true, title: { display: true, text: 'Observation count' } },
+            x: { stacked: true, title: { display: true, text: 'Price bin' } },
+            y: { stacked: true, beginAtZero: true, title: { display: true, text: 'Observation count' } },
           },
         },
       });
@@ -653,51 +708,243 @@
     const routes = activeRoutes().filter((r) => DATA.analysis[r]);
     if (routes.length === 0) return;
 
-    function aggregate(field, keyField) {
-      const grouped = {};
-      routes.forEach((r) => {
-        (DATA.analysis[r][field] || []).forEach((e) => {
-          const k = e[keyField];
-          grouped[k] = grouped[k] || { values: [], label: e.label };
-          grouped[k].values.push(e.mean_cents);
-        });
-      });
-      const keys = Object.keys(grouped).map(Number).sort((a, b) => a - b);
-      return keys.map((k) => ({
-        key: k,
-        label: grouped[k].label,
-        mean_cents: Math.round(grouped[k].values.reduce((a, b) => a + b, 0) / grouped[k].values.length),
-      }));
-    }
-    const dow = aggregate('day_of_week', 'dow');
-    const month = aggregate('month', 'month');
+    const ROUTE_COLORS = {
+      'CPH-AMS': 'rgba(192,57,43,0.65)',
+      'AMS-CPH': 'rgba(107,62,38,0.65)',
+    };
 
-    function makeBarChart(canvas, data, title) {
-      const minV = data.length ? Math.min(...data.map((d) => d.mean_cents)) : 0;
+    function makeGroupedChart(canvas, field, keyField, title) {
+      const allKeys = Array.from(new Set(
+        routes.flatMap((r) => (DATA.analysis[r][field] || []).map((e) => e[keyField]))
+      )).sort((a, b) => a - b);
+
+      const labels = allKeys.map((k) => {
+        for (const r of routes) {
+          const entry = (DATA.analysis[r][field] || []).find((e) => e[keyField] === k);
+          if (entry) return entry.label;
+        }
+        return String(k);
+      });
+
+      const datasets = routes.map((r) => {
+        const byKey = Object.fromEntries(
+          (DATA.analysis[r][field] || []).map((e) => [e[keyField], e.mean_cents])
+        );
+        return {
+          label: r,
+          data: allKeys.map((k) => byKey[k] != null ? byKey[k] / 100 : null),
+          backgroundColor: ROUTE_COLORS[r] || 'rgba(107,62,38,0.5)',
+          borderColor: 'rgba(107,62,38,0.4)',
+          borderWidth: 1,
+        };
+      });
+
       return new Chart(canvas, {
         type: 'bar',
-        data: {
-          labels: data.map((d) => d.label),
-          datasets: [{
-            label: 'Mean cheapest (€)',
-            // CHANGE (UX): minimum-cost bar takes the green-ahead colour so
-            // the cheapest DOW / month reads at a glance without needing the
-            // headline beneath.
-            data: data.map((d) => d.mean_cents / 100),
-            backgroundColor: data.map((d) => d.mean_cents === minV ? 'var(--color-green-ahead)' : 'var(--color-orange)'),
-            borderColor: 'var(--color-brown)',
-            borderWidth: 1,
-          }],
-        },
+        data: { labels, datasets },
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false }, title: { display: true, text: title } },
+          plugins: {
+            legend: { display: true, position: 'top' },
+            title: { display: true, text: title },
+            tooltip: {
+              callbacks: { label: (c) => `${c.dataset.label}: €${Math.round(c.parsed.y)}` },
+            },
+          },
           scales: { y: { beginAtZero: false, title: { display: true, text: 'Mean price (€)' } } },
         },
       });
     }
-    charts.dow   = makeBarChart($('dow-chart'),   dow,   'Cheapest day of week (mean over departures)');
-    charts.month = makeBarChart($('month-chart'), month, 'Cheapest month of year (mean over departures)');
+
+    charts.dow   = makeGroupedChart($('dow-chart'),   'day_of_week', 'dow',   'Mean price by day of week');
+    charts.month = makeGroupedChart($('month-chart'), 'month',       'month', 'Mean price by month');
+  }
+
+  const _DOW_LABELS_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  function renderTimeheat() {
+    const pairs = [
+      { route: 'CPH-AMS', slot: 'timeheatOut', canvasId: 'timeheat-out' },
+      { route: 'AMS-CPH', slot: 'timeheatBack', canvasId: 'timeheat-back' },
+    ];
+
+    pairs.forEach(({ route, slot, canvasId }) => {
+      // Clear any previous draw state stored on the canvas element.
+      const canvas = $(canvasId);
+      if (!canvas) return;
+      if (charts[slot]) { charts[slot] = null; }
+      canvas._heatCells = null;
+
+      const routeData = DATA.analysis[route];
+      const matrix = routeData ? (routeData.time_of_day_matrix || []) : [];
+
+      // Filter to active airline set — we have no per-cell airline info here,
+      // so always show the matrix regardless of airline filter.
+      const visible = activeRoutes().includes(route) ? matrix : [];
+
+      if (!visible.length) {
+        const ctx = canvas.getContext('2d');
+        const W = canvas.offsetWidth || 360;
+        canvas.width = W; canvas.height = 80;
+        ctx.clearRect(0, 0, W, 80);
+        ctx.fillStyle = 'rgba(107,62,38,0.4)';
+        ctx.font = '13px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`No data for ${route}`, W / 2, 44);
+        return;
+      }
+
+      // Determine axis ranges.
+      const hours = Array.from(new Set(visible.map((e) => e.hour))).sort((a, b) => a - b);
+      const dows = [0, 1, 2, 3, 4, 5, 6];
+      const allCents = visible.map((e) => e.mean_cents);
+      const priceRange = { min: Math.min(...allCents), max: Math.max(...allCents) };
+
+      // Layout constants.
+      const PAD_LEFT = 36, PAD_TOP = 18, PAD_BOTTOM = 24, PAD_RIGHT = 8;
+      const CELL_H = 24;
+      const totalH = PAD_TOP + dows.length * CELL_H + PAD_BOTTOM;
+      const W = Math.max(canvas.offsetWidth || 480, 280);
+      const gridW = W - PAD_LEFT - PAD_RIGHT;
+      const CELL_W = Math.floor(gridW / hours.length);
+      canvas.width = W;
+      canvas.height = totalH;
+
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, W, totalH);
+
+      // Build a lookup for fast cell access.
+      const lookup = new Map();
+      visible.forEach((e) => lookup.set(`${e.dow}_${e.hour}`, e));
+
+      // Store cell rectangles for hover detection.
+      const cells = [];
+
+      dows.forEach((dow, ri) => {
+        const y = PAD_TOP + ri * CELL_H;
+        hours.forEach((hour, ci) => {
+          const x = PAD_LEFT + ci * CELL_W;
+          const entry = lookup.get(`${dow}_${hour}`);
+          if (entry) {
+            ctx.fillStyle = priceTint(entry.mean_cents, priceRange);
+            ctx.fillRect(x, y, CELL_W - 1, CELL_H - 1);
+            cells.push({ x, y, w: CELL_W - 1, h: CELL_H - 1, dow, hour, mean_cents: entry.mean_cents });
+          } else {
+            ctx.fillStyle = 'rgba(200,200,200,0.12)';
+            ctx.fillRect(x, y, CELL_W - 1, CELL_H - 1);
+          }
+        });
+        // Row label (day name).
+        ctx.fillStyle = 'rgba(107,62,38,0.8)';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(_DOW_LABELS_SHORT[dow], PAD_LEFT - 4, y + CELL_H / 2);
+      });
+
+      // Column labels (hours).
+      ctx.fillStyle = 'rgba(107,62,38,0.8)';
+      ctx.font = '10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      hours.forEach((hour, ci) => {
+        if (ci % 2 === 0 || hours.length <= 8) {
+          const x = PAD_LEFT + ci * CELL_W + CELL_W / 2;
+          ctx.fillText(`${String(hour).padStart(2, '0')}h`, x, PAD_TOP + dows.length * CELL_H + 4);
+        }
+      });
+
+      // Route label at top.
+      ctx.fillStyle = 'rgba(107,62,38,0.6)';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(route, PAD_LEFT, 3);
+
+      // Store cells for hover tooltip.
+      canvas._heatCells = cells;
+      charts[slot] = true;  // mark as drawn
+
+      // Wire hover tooltip (idempotent — remove any previous listener first).
+      if (canvas._heatMouseHandler) canvas.removeEventListener('mousemove', canvas._heatMouseHandler);
+      if (canvas._heatLeaveHandler) canvas.removeEventListener('mouseleave', canvas._heatLeaveHandler);
+
+      let tooltip = canvas._heatTooltip;
+      if (!tooltip) {
+        tooltip = document.createElement('div');
+        tooltip.style.cssText = (
+          'position:fixed;pointer-events:none;display:none;' +
+          'background:rgba(43,26,16,0.9);color:#f3e7c9;' +
+          'font-size:12px;padding:6px 10px;border-radius:4px;z-index:100;'
+        );
+        document.body.appendChild(tooltip);
+        canvas._heatTooltip = tooltip;
+      }
+
+      canvas._heatMouseHandler = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+        const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+        const hit = cells.find((c) => mx >= c.x && mx < c.x + c.w && my >= c.y && my < c.y + c.h);
+        if (hit) {
+          tooltip.textContent = `${_DOW_LABELS_SHORT[hit.dow]} ${String(hit.hour).padStart(2,'0')}:00–${String(hit.hour+1).padStart(2,'0')}:00 · €${Math.round(hit.mean_cents / 100)}`;
+          tooltip.style.display = 'block';
+          tooltip.style.left = `${e.clientX + 12}px`;
+          tooltip.style.top  = `${e.clientY - 8}px`;
+        } else {
+          tooltip.style.display = 'none';
+        }
+      };
+      canvas._heatLeaveHandler = () => { tooltip.style.display = 'none'; };
+      canvas.addEventListener('mousemove', canvas._heatMouseHandler);
+      canvas.addEventListener('mouseleave', canvas._heatLeaveHandler);
+    });
+  }
+
+  function renderNormProgress() {
+    destroyChart('normProg');
+    const routes = activeRoutes().filter((r) => DATA.analysis[r]);
+    if (routes.length === 0) return;
+
+    const datasets = routes.map((r) => {
+      const prog = DATA.analysis[r].normalized_price_progression || [];
+      return {
+        label: r,
+        data: prog.map((e) => ({ x: e.days_before, y: e.mean_pct_change })),
+        borderColor: r === 'CPH-AMS' ? 'var(--color-red)' : 'var(--color-brown)',
+        backgroundColor: 'transparent',
+        spanGaps: false,
+        borderWidth: 2,
+        pointRadius: 2,
+        fill: false,
+      };
+    });
+
+    charts.normProg = new Chart($('normprog-chart'), {
+      type: 'line',
+      data: { datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          title: { display: true, text: '% price change vs. earliest observation (0% = no change from baseline)' },
+          tooltip: {
+            callbacks: {
+              label: (c) => `${c.dataset.label}: ${c.parsed.y >= 0 ? '+' : ''}${c.parsed.y.toFixed(1)}% vs earliest`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            type: 'linear', reverse: true,
+            title: { display: true, text: 'Days before departure' },
+          },
+          y: {
+            title: { display: true, text: '% change vs. earliest observation' },
+            ticks: { callback: (v) => `${v >= 0 ? '+' : ''}${v}%` },
+          },
+        },
+      },
+    });
   }
 
   function renderAll() {
@@ -708,6 +955,8 @@
     renderHistograms();
     renderWeekendPairs();
     renderFooterCharts();
+    renderTimeheat();
+    renderNormProgress();
   }
 
   // ───── Filter wiring ───────────────────────────────────────────────────────
@@ -801,7 +1050,12 @@
       return;
     }
 
+    // Initialise calendarMonth to the first month in the data range.
+    const firstMonth = (DATA.metadata.date_range || {}).from;
+    state.calendarMonth = firstMonth ? firstMonth.slice(0, 7) : null;
+
     wireFilters();
+    wireCalendarNav();
     renderAll();
     // Expose for debugging (read-only in spirit; do not write from outside)
     window.__tracker = { state, DATA };

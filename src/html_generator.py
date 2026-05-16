@@ -227,6 +227,12 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     cheapest_per_dep: dict[tuple[str, str], int] = {}
     # Group cheapest-per-obs-date by (route, obs_date)
     cheapest_per_obs: dict[tuple[str, str], int] = {}
+    # Group prices by (route, dow, hour) for the time-of-day heatmap
+    by_time: dict[tuple[str, int, int], list[int]] = defaultdict(list)
+    # Group prices by (route, dep_date, airline, dep_time, days_before) for normalised progression
+    by_flight: dict[tuple[str, str, str, str], dict[int, list[int]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
 
     for row in rows:
         route = _route_key(row)
@@ -237,6 +243,13 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         if days_before < 0:
             continue
         by_lead[(route, days_before)].append(row["price_cents"])
+        by_time[
+            (route, row["departure_at"].weekday(), row["departure_at"].hour)
+        ].append(row["price_cents"])
+        dep_time = _hhmm(row["departure_at"])
+        by_flight[(route, row["departure_date"], row["airline"], dep_time)][
+            days_before
+        ].append(row["price_cents"])
 
         key_dep = (route, row["departure_date"])
         prev_dep = cheapest_per_dep.get(key_dep)
@@ -248,24 +261,52 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         if prev_obs is None or row["price_cents"] < prev_obs:
             cheapest_per_obs[key_obs] = row["price_cents"]
 
+    # Normalised progression: per flight, express each obs as % change from the
+    # oldest observation; aggregate across all flights per (route, days_before).
+    pct_by_days: dict[tuple[str, int], list[float]] = defaultdict(list)
+    for (route, _dep, _air, _time), obs_by_days in by_flight.items():
+        if len(obs_by_days) < 2:
+            continue
+        sorted_days = sorted(
+            obs_by_days.keys(), reverse=True
+        )  # oldest = highest days_before
+        base = _mean(obs_by_days[sorted_days[0]])
+        if base == 0:
+            continue
+        for db in sorted_days:
+            pct = (_mean(obs_by_days[db]) - base) / base * 100
+            pct_by_days[(route, db)].append(pct)
+
     # Build lead-time curve per route, sorted by days_before
     routes = sorted({k[0] for k in by_lead})
     out: dict[str, dict[str, Any]] = {}
+
+    def _quartiles(prices: list[int]) -> tuple[int, int, int, int, int]:
+        s = sorted(prices)
+        n = len(s)
+        return s[0], s[n // 4], s[n // 2], s[(3 * n) // 4], s[-1]
 
     for route in routes:
         curve_entries = sorted(
             ((db, prices) for (r, db), prices in by_lead.items() if r == route),
             key=lambda x: x[0],
         )
-        curve = [
-            {
-                "days_before": db,
-                "mean_cents": _mean(prices),
-                "min_cents": min(prices),
-                "obs_count": len(prices),
-            }
-            for db, prices in curve_entries
-        ]
+
+        curve = []
+        for db, prices in curve_entries:
+            mn, q1, med, q3, mx = _quartiles(prices)
+            curve.append(
+                {
+                    "days_before": db,
+                    "min_cents": mn,
+                    "q1_cents": q1,
+                    "median_cents": med,
+                    "mean_cents": _mean(prices),
+                    "q3_cents": q3,
+                    "max_cents": mx,
+                    "obs_count": len(prices),
+                }
+            )
         sweet_spot = min(curve, key=lambda e: e["mean_cents"])["days_before"]
 
         # day_of_week aggregates the per-departure cheapest
@@ -296,12 +337,32 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             key=lambda e: e["obs_date"],
         )
 
+        time_matrix = sorted(
+            (
+                {"dow": dow, "hour": hour, "mean_cents": _mean(prices)}
+                for (r, dow, hour), prices in by_time.items()
+                if r == route
+            ),
+            key=lambda e: (e["dow"], e["hour"]),
+        )
+
+        norm_prog = sorted(
+            (
+                {"days_before": db, "mean_pct_change": round(sum(v) / len(v), 2)}
+                for (r, db), v in pct_by_days.items()
+                if r == route
+            ),
+            key=lambda e: e["days_before"],
+        )
+
         out[route] = {
             "lead_time_curve": curve,
             "sweet_spot_days": sweet_spot,
             "day_of_week": dow_entries,
             "month": month_entries,
             "market_trend": trend_entries,
+            "time_of_day_matrix": time_matrix,
+            "normalized_price_progression": norm_prog,
         }
     return out
 
@@ -358,40 +419,37 @@ def build_summary(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             bins.sort(key=lambda b: b["bin_low"])
         out[route] = {"histogram": histogram, "weekend_pairs": []}
 
-    # Weekend pairs: only meaningful for the outbound direction.
-    # Fri outbound = CPH-AMS Friday departure; Sun inbound = AMS-CPH on Fri+2.
-    fri_outbound_route = "CPH-AMS"
-    sun_inbound_route = "AMS-CPH"
-    pairs: list[dict[str, Any]] = []
-    for (route, dep_iso), fri in cheapest_dep.items():
-        if route != fri_outbound_route:
-            continue
-        dep_date = date_type.fromisoformat(dep_iso)
-        if dep_date.weekday() != 4:  # 4 = Friday
-            continue
-        sun_iso = (dep_date + timedelta(days=2)).isoformat()
-        sun = cheapest_dep.get((sun_inbound_route, sun_iso))
-        if sun is None:
-            continue
-        pairs.append(
-            {
-                "fri_date": dep_iso,
-                "fri_airline": fri["airline"],
-                "fri_dep": fri["dep_time"],
-                "fri_cents": fri["price_cents"],
-                "sun_date": sun_iso,
-                "sun_airline": sun["airline"],
-                "sun_dep": sun["dep_time"],
-                "sun_cents": sun["price_cents"],
-                "total_cents": fri["price_cents"] + sun["price_cents"],
-            }
-        )
-    pairs.sort(key=lambda p: p["total_cents"])
-    if fri_outbound_route in out:
-        out[fri_outbound_route]["weekend_pairs"] = pairs[:WEEKEND_PAIRS_TOP_N]
-    # AMS-CPH stays in the output for symmetry but has no outbound-Friday pairs.
-    if sun_inbound_route in out:
-        out[sun_inbound_route].setdefault("weekend_pairs", [])
+    # Weekend pairs for both travel directions:
+    # CPH-AMS (Fri) + AMS-CPH (Sun) for the Copenhagen-resident traveller, and
+    # AMS-CPH (Fri) + CPH-AMS (Sun) for the Amsterdam-resident traveller.
+    for fri_route, sun_route in [("CPH-AMS", "AMS-CPH"), ("AMS-CPH", "CPH-AMS")]:
+        pairs: list[dict[str, Any]] = []
+        for (route, dep_iso), fri in cheapest_dep.items():
+            if route != fri_route:
+                continue
+            dep_date = date_type.fromisoformat(dep_iso)
+            if dep_date.weekday() != 4:  # 4 = Friday
+                continue
+            sun_iso = (dep_date + timedelta(days=2)).isoformat()
+            sun = cheapest_dep.get((sun_route, sun_iso))
+            if sun is None:
+                continue
+            pairs.append(
+                {
+                    "fri_date": dep_iso,
+                    "fri_airline": fri["airline"],
+                    "fri_dep": fri["dep_time"],
+                    "fri_cents": fri["price_cents"],
+                    "sun_date": sun_iso,
+                    "sun_airline": sun["airline"],
+                    "sun_dep": sun["dep_time"],
+                    "sun_cents": sun["price_cents"],
+                    "total_cents": fri["price_cents"] + sun["price_cents"],
+                }
+            )
+        pairs.sort(key=lambda p: p["total_cents"])
+        if fri_route in out:
+            out[fri_route]["weekend_pairs"] = pairs[:WEEKEND_PAIRS_TOP_N]
     return out
 
 
