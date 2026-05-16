@@ -96,6 +96,14 @@
         <canvas id="timeheat-back" aria-label="AMS-CPH price heatmap by time of day"></canvas>
       </div>
     </section>
+
+    <!-- 9. Normalised price progression -->
+    <section class="panel" aria-labelledby="normprog-heading">
+      <h2 class="panel__heading" id="normprog-heading">Normalised price progression</h2>
+      <div class="chart-wrap">
+        <canvas id="normprog-chart" aria-label="Normalised price change by days before departure" role="img"></canvas>
+      </div>
+    </section>
   </main>
 
   <footer class="page-footer">

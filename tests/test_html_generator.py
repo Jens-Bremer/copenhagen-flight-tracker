@@ -264,6 +264,53 @@ def test_build_analysis_time_of_day_matrix_has_correct_shape():
         assert entry["mean_cents"] > 0, f"mean_cents must be positive: {entry}"
 
 
+def test_build_analysis_normalized_price_progression():
+    """build_analysis must include normalized_price_progression per route.
+
+    Each entry is a {days_before, mean_pct_change} dict. The aggregate baseline
+    (highest days_before per flight) anchors at 0%, so mean_pct_change at the
+    oldest observation window should be close to 0. Flights with only one
+    observation are excluded.
+    """
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    assert "normalized_price_progression" in analysis["CPH-AMS"], (
+        "build_analysis must add normalized_price_progression to each route's dict"
+    )
+    prog = analysis["CPH-AMS"]["normalized_price_progression"]
+    assert len(prog) > 0, "normalized_price_progression must be non-empty for CPH-AMS"
+    for entry in prog:
+        assert {"days_before", "mean_pct_change"} <= entry.keys(), (
+            f"normalized_price_progression entry missing required keys: {entry}"
+        )
+        assert entry["days_before"] >= 0, f"days_before must be non-negative: {entry}"
+        assert isinstance(entry["mean_pct_change"], float), (
+            f"mean_pct_change must be a float: {entry}"
+        )
+    # Sorted ascending by days_before
+    days = [e["days_before"] for e in prog]
+    assert days == sorted(days), "normalized_price_progression must be sorted by days_before"
+
+
+def test_normprog_panel_rendered_in_html():
+    """The rendered HTML must contain the normalised-progression canvas and the
+    JS must reference normalized_price_progression to build the chart."""
+    import re
+
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    all_scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+    assert all_scripts
+    app_js = all_scripts[-1]
+
+    assert 'id="normprog-chart"' in html, (
+        "HTML template must include <canvas id=\"normprog-chart\"> for the "
+        "normalised price progression panel"
+    )
+    assert 'normalized_price_progression' in app_js, (
+        "app.js must reference normalized_price_progression to render the chart"
+    )
+
+
 def test_timeheat_panel_rendered_in_html():
     """The rendered HTML must contain two heatmap canvas elements and the
     JS must reference time_of_day_matrix to populate them."""

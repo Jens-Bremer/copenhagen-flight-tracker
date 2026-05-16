@@ -229,6 +229,10 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     cheapest_per_obs: dict[tuple[str, str], int] = {}
     # Group prices by (route, dow, hour) for the time-of-day heatmap
     by_time: dict[tuple[str, int, int], list[int]] = defaultdict(list)
+    # Group prices by (route, dep_date, airline, dep_time, days_before) for normalised progression
+    by_flight: dict[tuple[str, str, str, str], dict[int, list[int]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
 
     for row in rows:
         route = _route_key(row)
@@ -242,6 +246,10 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         by_time[(route, row["departure_at"].weekday(), row["departure_at"].hour)].append(
             row["price_cents"]
         )
+        dep_time = _hhmm(row["departure_at"])
+        by_flight[(route, row["departure_date"], row["airline"], dep_time)][days_before].append(
+            row["price_cents"]
+        )
 
         key_dep = (route, row["departure_date"])
         prev_dep = cheapest_per_dep.get(key_dep)
@@ -252,6 +260,20 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         prev_obs = cheapest_per_obs.get(key_obs)
         if prev_obs is None or row["price_cents"] < prev_obs:
             cheapest_per_obs[key_obs] = row["price_cents"]
+
+    # Normalised progression: per flight, express each obs as % change from the
+    # oldest observation; aggregate across all flights per (route, days_before).
+    pct_by_days: dict[tuple[str, int], list[float]] = defaultdict(list)
+    for (route, _dep, _air, _time), obs_by_days in by_flight.items():
+        if len(obs_by_days) < 2:
+            continue
+        sorted_days = sorted(obs_by_days.keys(), reverse=True)  # oldest = highest days_before
+        base = _mean(obs_by_days[sorted_days[0]])
+        if base == 0:
+            continue
+        for db in sorted_days:
+            pct = (_mean(obs_by_days[db]) - base) / base * 100
+            pct_by_days[(route, db)].append(pct)
 
     # Build lead-time curve per route, sorted by days_before
     routes = sorted({k[0] for k in by_lead})
@@ -322,6 +344,15 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             key=lambda e: (e["dow"], e["hour"]),
         )
 
+        norm_prog = sorted(
+            (
+                {"days_before": db, "mean_pct_change": round(sum(v) / len(v), 2)}
+                for (r, db), v in pct_by_days.items()
+                if r == route
+            ),
+            key=lambda e: e["days_before"],
+        )
+
         out[route] = {
             "lead_time_curve": curve,
             "sweet_spot_days": sweet_spot,
@@ -329,6 +360,7 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             "month": month_entries,
             "market_trend": trend_entries,
             "time_of_day_matrix": time_matrix,
+            "normalized_price_progression": norm_prog,
         }
     return out
 

@@ -54,6 +54,7 @@
     month: null,
     timeheatOut: null,
     timeheatBack: null,
+    normProg: null,
   };
   function destroyChart(slot) {
     if (charts[slot]) { charts[slot].destroy(); charts[slot] = null; }
@@ -120,6 +121,7 @@
     'weekend-pairs',
     'dow-chart', 'month-chart',
     'timeheat-out', 'timeheat-back',
+    'normprog-chart',
   ];
   function assertRequiredDomIds() {
     const missing = REQUIRED_DOM_IDS.filter((id) => !$(id));
@@ -899,6 +901,52 @@
     });
   }
 
+  function renderNormProgress() {
+    destroyChart('normProg');
+    const routes = activeRoutes().filter((r) => DATA.analysis[r]);
+    if (routes.length === 0) return;
+
+    const datasets = routes.map((r) => {
+      const prog = DATA.analysis[r].normalized_price_progression || [];
+      return {
+        label: r,
+        data: prog.map((e) => ({ x: e.days_before, y: e.mean_pct_change })),
+        borderColor: r === 'CPH-AMS' ? 'var(--color-red)' : 'var(--color-brown)',
+        backgroundColor: 'transparent',
+        spanGaps: false,
+        borderWidth: 2,
+        pointRadius: 2,
+        fill: false,
+      };
+    });
+
+    charts.normProg = new Chart($('normprog-chart'), {
+      type: 'line',
+      data: { datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          title: { display: true, text: '% price change vs. earliest observation (0% = no change from baseline)' },
+          tooltip: {
+            callbacks: {
+              label: (c) => `${c.dataset.label}: ${c.parsed.y >= 0 ? '+' : ''}${c.parsed.y.toFixed(1)}% vs earliest`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            type: 'linear', reverse: true,
+            title: { display: true, text: 'Days before departure' },
+          },
+          y: {
+            title: { display: true, text: '% change vs. earliest observation' },
+            ticks: { callback: (v) => `${v >= 0 ? '+' : ''}${v}%` },
+          },
+        },
+      },
+    });
+  }
+
   function renderAll() {
     renderHeader();
     renderCalendar();
@@ -908,6 +956,7 @@
     renderWeekendPairs();
     renderFooterCharts();
     renderTimeheat();
+    renderNormProgress();
   }
 
   // ───── Filter wiring ───────────────────────────────────────────────────────
