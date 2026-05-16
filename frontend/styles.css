@@ -357,7 +357,15 @@ ol, ul { list-style: none; }
 .verdict-card__verdict.is-fair { color: var(--color-brown-light); }
 .verdict-card__verdict.is-bad  { color: var(--color-red); }
 
-/* ─── 16. A11y ─── */
+/* ─── 16. Panel subtitle ─── */
+.panel__subtitle {
+  margin: -6px 0 var(--space-md);
+  font-size: 0.8rem;
+  color: var(--color-brown-light);
+  line-height: 1.4;
+}
+
+/* ─── 17. A11y ─── */
 .calendar__cell:focus-visible,
 .flight-row:focus-visible,
 .filter-chip:focus-visible { outline: 3px solid var(--color-orange); outline-offset: 2px; }

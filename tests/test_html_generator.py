@@ -845,6 +845,52 @@ def test_hero_shows_fallback_when_no_analysis_data():
     )
 
 
+# ─── Issue #98: panel heading + subtitle cleanup ──────────────────────────────
+
+
+def test_panel_subtitles_present_in_rendered_html():
+    """All 6 panels must include a .panel__subtitle paragraph."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert "panel__subtitle" in html, ".panel__subtitle not found in rendered HTML"
+    # Check that all 6 subtitles from the spec are present
+    assert "How prices have changed over time" in html
+    assert "each bar is one 5 euro bin" in html or "5 euro bin" in html
+    assert "Cheapest Friday to Sunday" in html
+    assert "averaged per day or month" in html
+    assert "Cheapest hours to fly" in html
+    assert "whether prices tend to rise or fall" in html
+
+
+def test_panel_subtitle_css_in_styles():
+    """styles.css must define .panel__subtitle."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert ".panel__subtitle" in html
+
+
+def test_weekend_pairs_heading_updated():
+    """Weekend pairs panel heading must use the friendlier 'Weekend trips' label."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert "Weekend trips" in html
+
+
+def test_cheapness_panel_heading_updated():
+    """Cheapness panel heading must be updated to 'Cheapest days and months to fly'."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert "Cheapest days and months to fly" in html
+
+
+def test_heatmap_heading_updated():
+    """Heatmap panel heading must use 'Prices by departure time'."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert "Prices by departure time" in html
+
+
+def test_normprog_heading_updated():
+    """Normalised progression panel must use the plain-English heading."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert "How prices change as departure approaches" in html
+
+
 # ─── Issue #97: price verdict card ───────────────────────────────────────────
 
 

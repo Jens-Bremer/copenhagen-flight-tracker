@@ -66,6 +66,7 @@
     <!-- 4. Price trends -->
     <section class="panel" aria-label="Price trends">
       <h2 class="panel__heading">Price trends</h2>
+      <p class="panel__subtitle">How prices have changed over time, and when they are typically cheapest</p>
       <div class="trends-grid">
         <div class="chart-wrap"><canvas id="market-trend-chart" role="img"></canvas></div>
         <div class="chart-wrap"><canvas id="leadtime-chart" role="img"></canvas></div>
@@ -76,6 +77,7 @@
     <!-- 5. Airline histograms -->
     <section class="panel" aria-label="Airline price distributions">
       <h2 class="panel__heading">Price distribution by airline</h2>
+      <p class="panel__subtitle">Where prices typically fall — each bar is one 5 euro bin</p>
       <div class="trends-grid">
         <div class="chart-wrap"><canvas id="histogram-out" role="img"></canvas></div>
         <div class="chart-wrap"><canvas id="histogram-back" role="img"></canvas></div>
@@ -84,13 +86,15 @@
 
     <!-- 6. Weekend pairs -->
     <section class="panel" aria-label="Cheapest weekend pairs">
-      <h2 class="panel__heading">Top 5 weekend pairs (Fri + Sun)</h2>
+      <h2 class="panel__heading">Weekend trips</h2>
+      <p class="panel__subtitle">Cheapest Friday to Sunday round-trip combinations</p>
       <div id="weekend-pairs"></div>
     </section>
 
     <!-- 7. Cheapness footer (dow + month) -->
     <section class="panel" aria-label="Cheapest day of week and month">
-      <h2 class="panel__heading">Cheapness overview</h2>
+      <h2 class="panel__heading">Cheapest days and months to fly</h2>
+      <p class="panel__subtitle">Based on all observed prices, averaged per day or month</p>
       <div class="trends-grid">
         <div class="chart-wrap"><canvas id="dow-chart" role="img"></canvas></div>
         <div class="chart-wrap"><canvas id="month-chart" role="img"></canvas></div>
@@ -99,16 +103,18 @@
 
     <!-- 8. Time-of-day price heatmap -->
     <section class="panel" aria-labelledby="timeheat-heading">
-      <h2 class="panel__heading" id="timeheat-heading">Price by time of day</h2>
+      <h2 class="panel__heading" id="timeheat-heading">Prices by departure time</h2>
+      <p class="panel__subtitle">Cheapest hours to fly, by day of week</p>
       <div class="timeheat-wrap">
         <canvas id="timeheat-out" aria-label="CPH-AMS price heatmap by time of day"></canvas>
         <canvas id="timeheat-back" aria-label="AMS-CPH price heatmap by time of day"></canvas>
       </div>
     </section>
 
-    <!-- 9. Normalised price progression -->
+    <!-- 9. How prices change as departure approaches -->
     <section class="panel" aria-labelledby="normprog-heading">
-      <h2 class="panel__heading" id="normprog-heading">Normalised price progression</h2>
+      <h2 class="panel__heading" id="normprog-heading">How prices change as departure approaches</h2>
+      <p class="panel__subtitle">0% equals first time we saw this flight. Shows whether prices tend to rise or fall over time</p>
       <div class="chart-wrap">
         <canvas id="normprog-chart" aria-label="Normalised price change by days before departure" role="img"></canvas>
       </div>
