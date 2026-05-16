@@ -14,6 +14,8 @@ import re
 from datetime import datetime, timezone
 from typing import Optional
 
+import config
+
 logger = logging.getLogger(__name__)
 
 REQUIRED_INPUT_COLUMNS = [
@@ -202,6 +204,8 @@ def slim_row(raw_row: dict) -> Optional[dict]:
     duration = compute_duration_minutes(departure_at, arrival_at)
     if duration <= 0:
         return None
+    if duration > config.FRONTEND_MAX_DURATION_MINUTES:
+        return None
 
     return {
         "retrieved_at": _format_retrieved_at(retrieved_at),
@@ -248,6 +252,19 @@ def _drop_reason(raw: dict) -> str:
     return "unparseable departure_time or arrival_time"
 
 
+def dedupe_rows(rows: list) -> list:
+    """Drop rows that are identical across all output columns."""
+    seen = set()
+    deduped = []
+    for row in rows:
+        key = tuple(row.get(col, "") for col in OUTPUT_COLUMNS)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(row)
+    return deduped
+
+
 def build(input_path: str, output_path: str) -> tuple:
     """Read input CSV, transform, sort, write output CSV.
 
@@ -268,17 +285,30 @@ def build(input_path: str, output_path: str) -> tuple:
         input_rows = list(reader)
 
     transformed = []
+    missing_time_count = 0
+    total_rows = len(input_rows)
     for index, raw in enumerate(input_rows, start=1):
+        if not raw.get("departure_time") or not raw.get("arrival_time"):
+            missing_time_count += 1
+            continue
         slim = slim_row(raw)
         if slim is None:
             logger.warning("row %d skipped: %s", index, _drop_reason(raw))
             continue
         transformed.append(slim)
 
+    if missing_time_count:
+        logger.info(
+            "%d out of %d rows discarded due to missing time",
+            missing_time_count,
+            total_rows,
+        )
+
     if input_rows and not transformed:
         logger.error("all %d input rows were unparseable", len(input_rows))
         return (0, BUILD_ALL_UNPARSEABLE)
 
+    transformed = dedupe_rows(transformed)
     transformed = sort_rows(transformed)
 
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)

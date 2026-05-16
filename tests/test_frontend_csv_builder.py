@@ -184,13 +184,12 @@ def test_slim_row_overnight_finnair():
         _input_row(
             airline="Finnair",
             departure_time="5:00 PM on Fri, Jun 19",
-            arrival_time="9:45 AM on Sat, Jun 20",
+            arrival_time="6:45 PM on Fri, Jun 19",
             price_amount="13400",
         )
     )
-    # See compute_duration_minutes overnight test for the 1005 vs 945 note.
-    assert out["arrival_at"] == "2026-06-20T09:45:00"
-    assert out["duration_minutes"] == 1005
+    assert out["arrival_at"] == "2026-06-19T18:45:00"
+    assert out["duration_minutes"] == 105
 
 
 def test_slim_row_cross_year_rollover():
@@ -204,6 +203,59 @@ def test_slim_row_cross_year_rollover():
     # Arrival rolls into 2027.
     assert out["arrival_at"] == "2027-01-01T01:00:00"
     assert out["duration_minutes"] == 90
+
+
+def test_slim_row_drops_duration_over_2_hours():
+    out = slim_row(
+        _input_row(
+            departure_time="7:00 PM on Fri, Jun 19",
+            arrival_time="9:01 PM on Fri, Jun 19",
+        )
+    )
+    assert out is None
+
+
+def test_slim_row_keeps_duration_equal_2_hours():
+    out = slim_row(
+        _input_row(
+            departure_time="7:00 PM on Fri, Jun 19",
+            arrival_time="9:00 PM on Fri, Jun 19",
+        )
+    )
+    assert out is not None
+    assert out["duration_minutes"] == 120
+
+
+def test_build_dedupes_identical_rows(tmp_path):
+    src_path = str(tmp_path / "in.csv")
+    out = str(tmp_path / "out.csv")
+    duplicate = _input_csv_row()
+    _write_input(src_path, [duplicate, duplicate])
+    written, status = build(src_path, out)
+    assert status == BUILD_OK
+    assert written == 1
+    rows = _read_output(out)
+    assert len(rows) == 1
+
+
+def test_build_logs_missing_time_summary_once(tmp_path, caplog):
+    src_path = str(tmp_path / "in.csv")
+    out = str(tmp_path / "out.csv")
+    _write_input(
+        src_path,
+        [
+            _input_csv_row(departure_time="", arrival_time=""),
+            _input_csv_row(),
+        ],
+    )
+    with caplog.at_level(logging.INFO, logger="src.frontend_csv_builder"):
+        written, status = build(src_path, out)
+    assert status == BUILD_OK
+    assert written == 1
+    assert any("discarded due to missing time" in rec.message for rec in caplog.records)
+    assert not any(
+        "row 1" in rec.message and "skipped" in rec.message for rec in caplog.records
+    )
 
 
 def test_slim_row_drops_empty_departure_time():
@@ -487,13 +539,25 @@ def test_build_sort_order_across_mixed_input(tmp_path):
         src_path,
         [
             _input_csv_row(
-                departure_date="2026-06-20", airline="X", price_amount="9000"
+                departure_date="2026-06-20",
+                airline="X",
+                price_amount="9000",
+                departure_time="7:00 PM on Sat, Jun 20",
+                arrival_time="8:30 PM on Sat, Jun 20",
             ),
             _input_csv_row(
-                departure_date="2026-06-19", airline="Z", price_amount="9000"
+                departure_date="2026-06-19",
+                airline="Z",
+                price_amount="9000",
+                departure_time="7:00 PM on Fri, Jun 19",
+                arrival_time="8:30 PM on Fri, Jun 19",
             ),
             _input_csv_row(
-                departure_date="2026-06-19", airline="A", price_amount="8000"
+                departure_date="2026-06-19",
+                airline="A",
+                price_amount="8000",
+                departure_time="7:00 PM on Fri, Jun 19",
+                arrival_time="8:30 PM on Fri, Jun 19",
             ),
         ],
     )
@@ -543,7 +607,7 @@ def test_build_large_input_completes(tmp_path):
     _write_input(src_path, [_input_csv_row() for _ in range(1000)])
     written, status = build(src_path, out)
     assert status == BUILD_OK
-    assert written == 1000
+    assert written == 1
 
 
 # --- CLI tests ---
