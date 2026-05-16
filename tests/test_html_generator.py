@@ -885,7 +885,10 @@ def test_hero_both_route_averages_sweet_spot_days():
     # The hero function must reference more than activeRoutes()[0] for sweet_spot_days
     # i.e. it must iterate or reduce over activeRoutes()
     patterns = [
-        "activeRoutes().length", "routes.length", "routes.forEach", "routes.map"
+        "activeRoutes().length",
+        "routes.length",
+        "routes.forEach",
+        "routes.map",
     ]
     assert any(p in js for p in patterns), (
         "renderHero must iterate over all active routes to aggregate data for 'both'"
@@ -999,8 +1002,10 @@ def test_data_flights_blob_contains_trajectory_percentile_mean():
         for date, flights in dates.items():
             for f in flights:
                 required = (
-                    "trajectory", "trajectory_pct",
-                    "percentile", "historical_mean_cents",
+                    "trajectory",
+                    "trajectory_pct",
+                    "percentile",
+                    "historical_mean_cents",
                 )
                 for field in required:
                     assert field in f, (
@@ -1121,9 +1126,7 @@ def test_drilldown_trajectory_arrow_rendered_when_not_null():
     assert "flight-row__trajectory" in js, (
         "renderDrilldown must include .flight-row__trajectory for trajectory arrows"
     )
-    assert "trajectory" in js, (
-        "renderDrilldown must read trajectory from flight data"
-    )
+    assert "trajectory" in js, "renderDrilldown must read trajectory from flight data"
 
 
 def test_drilldown_trajectory_arrow_skipped_when_null():
@@ -1142,9 +1145,7 @@ def test_drilldown_trajectory_arrow_has_aria_label():
     """Each trajectory arrow span must carry an aria-label for screen readers."""
     html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
     js = _app_js(html)
-    assert "aria-label" in js, (
-        "trajectory arrow span must have an aria-label attribute"
-    )
+    assert "aria-label" in js, "trajectory arrow span must have an aria-label attribute"
 
 
 def test_drilldown_trajectory_arrow_colors_all_directions():

@@ -456,9 +456,7 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
 
         # market_direction: compare cheapest-per-obs price across recent vs older dates
         obs_prices_for_route = {
-            od: cents
-            for (r, od), cents in cheapest_per_obs.items()
-            if r == route
+            od: cents for (r, od), cents in cheapest_per_obs.items() if r == route
         }
         market_direction = _compute_market_direction(obs_prices_for_route)
 
