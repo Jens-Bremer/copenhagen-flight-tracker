@@ -616,13 +616,43 @@
         },
       ];
     });
+    const youAreHerePlugin = {
+      id: 'youAreHere',
+      afterDraw(chart) {
+        if (!state.selectedDate) return;
+        const todayMs = new Date().setHours(0, 0, 0, 0);
+        const depMs   = new Date(state.selectedDate).setHours(0, 0, 0, 0);
+        const daysUntilDep = Math.round((depMs - todayMs) / 86400000);
+        if (daysUntilDep < 0) return;
+        const { ctx, chartArea, scales } = chart;
+        const xPx = scales.x.getPixelForValue(daysUntilDep);
+        if (xPx < chartArea.left || xPx > chartArea.right) return;
+        ctx.save();
+        ctx.setLineDash([5, 3]);
+        ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(xPx, chartArea.top);
+        ctx.lineTo(xPx, chartArea.bottom);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = '11px sans-serif';
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillText('You are here', xPx + 4, chartArea.top + 14);
+        ctx.restore();
+      },
+    };
     charts.leadtime = new Chart($('leadtime-chart'), {
       type: 'line',
       data: { datasets: leadDatasets },
+      plugins: [youAreHerePlugin],
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: {
-          title: { display: true, text: 'Mean price by days-before-departure (descriptive history; not a prediction)' },
+          title: {
+            display: true,
+            text: 'Mean price by days-before-departure (descriptive history; not a prediction)',
+          },
           legend: {
             labels: {
               filter: (item) => !item.text.endsWith(' Q1') && !item.text.endsWith(' IQR'),
@@ -630,7 +660,10 @@
           },
         },
         scales: {
-          x: { type: 'linear', reverse: true, title: { display: true, text: 'Days before departure' } },
+          x: {
+            type: 'linear', reverse: true,
+            title: { display: true, text: 'Days before departure' },
+          },
           y: { title: { display: true, text: 'Mean price (€)' } },
         },
       },

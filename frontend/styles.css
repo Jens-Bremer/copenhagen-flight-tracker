@@ -220,7 +220,6 @@ ol, ul { list-style: none; }
 .flight-row__trajectory--down   { color: var(--color-green-ahead); }
 .flight-row__trajectory--up     { color: var(--color-red); }
 .flight-row__trajectory--stable { color: #999; }
-.calendar__cell { position: relative; }
 .calendar__cell__trajectory {
   position: absolute;
   top: 4px;

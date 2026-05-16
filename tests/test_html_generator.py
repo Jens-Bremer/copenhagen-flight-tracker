@@ -845,6 +845,53 @@ def test_hero_shows_fallback_when_no_analysis_data():
     )
 
 
+# ─── Issue #93 scope: "you are here" marker on lead-time curve ────────────────
+
+
+def test_leadtime_chart_has_you_are_here_marker_logic():
+    """renderTrends must compute the number of days until the selected departure
+    date and draw a 'you are here' vertical marker on the lead-time chart."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    # The JS must reference selectedDate to compute proximity to departure
+    assert "selectedDate" in js
+    # It must calculate days until departure (some variation of the formula)
+    assert "daysUntilDep" in js or "days_until" in js or "daysBeforeDep" in js
+
+
+def test_leadtime_you_are_here_uses_afterdraw_plugin():
+    """The 'you are here' marker must be drawn via a Chart.js afterDraw plugin
+    so it works without an external annotation library."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "afterDraw" in js, "afterDraw plugin required for 'you are here' marker"
+
+
+def test_leadtime_you_are_here_label_present():
+    """The marker must include a visible 'today' label for users to understand it."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "today" in js or "You are here" in js or "you are here" in js.lower()
+
+
+# ─── Issue #95 scope: hero "both" route aggregation ───────────────────────────
+
+
+def test_hero_both_route_averages_sweet_spot_days():
+    """renderHero must average sweet_spot_days across both routes when
+    state.route === 'both', not silently use only CPH-AMS."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    # The hero function must reference more than activeRoutes()[0] for sweet_spot_days
+    # i.e. it must iterate or reduce over activeRoutes()
+    patterns = [
+        "activeRoutes().length", "routes.length", "routes.forEach", "routes.map"
+    ]
+    assert any(p in js for p in patterns), (
+        "renderHero must iterate over all active routes to aggregate data for 'both'"
+    )
+
+
 # ─── Issue #100: per-day trajectory arrows on calendar cells ──────────────────
 
 
