@@ -1,8 +1,9 @@
 from datetime import date
+
 from dateutil.relativedelta import relativedelta
 
-from src.date_generator import generate_target_dates
 import config
+from src.date_generator import generate_target_dates
 
 
 def test_returns_only_departure_weekdays():

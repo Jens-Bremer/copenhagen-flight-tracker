@@ -2,7 +2,6 @@ from datetime import date
 
 from src.route_expander import expand_jobs
 
-
 ROUTES = [("CPH", "AMS"), ("AMS", "CPH")]
 DATES = [date(2025, 9, 5), date(2025, 9, 6), date(2025, 9, 7)]
 

@@ -26,7 +26,7 @@ def _route_threshold(threshold: dict, origin: str, destination: str) -> int:
 def find_cheap_flights(
     db_path: str, threshold: _THRESHOLD_TYPE, run_date: Optional[str] = None
 ) -> list:
-    """Return today's observed flights where price_amount <= threshold (per-route if dict), ordered by price."""
+    """Return flights with price_amount <= threshold, ordered by ascending price."""
     if run_date is None:
         run_date = date.today().isoformat()
     conn = sqlite3.connect(db_path)
@@ -82,7 +82,8 @@ def format_alert_message(
                 percentile_text += ")"
         lines.append(
             f"  {f['origin']}→{f['destination']}  {f['departure_date']}"
-            f"  {f['airline']}  {f['departure_time']}  {amount} {currency}{percentile_text}"
+            f"  {f['airline']}  {f['departure_time']}"
+            f"  {amount} {currency}{percentile_text}"
         )
     return "\n".join(lines)
 
@@ -92,7 +93,10 @@ def check_and_alert_cheap_flights(
     threshold: _THRESHOLD_TYPE,
     run_date: Optional[str] = None,
 ) -> bool:
-    """Find cheap flights and send an alert if any exist. Returns True if alert was sent."""
+    """Find cheap flights and send an alert if any exist.
+
+    Returns True if alert was sent.
+    """
     flights = find_cheap_flights(db_path, threshold, run_date)
     if not flights:
         logger.info("No flights below threshold today")

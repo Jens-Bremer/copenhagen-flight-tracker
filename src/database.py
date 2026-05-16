@@ -53,7 +53,10 @@ def initialize_database(db_path: str) -> None:
 
 
 def insert_observations(db_path: str, observations: list) -> int:
-    """Insert a batch of observation dicts in a single transaction. Returns row count inserted."""
+    """Insert a batch of observation dicts in a single transaction.
+
+    Returns row count inserted.
+    """
     if not observations:
         return 0
     conn = sqlite3.connect(db_path)

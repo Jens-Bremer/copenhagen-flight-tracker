@@ -601,7 +601,7 @@ def test_build_uses_lf_line_endings(tmp_path):
 
 
 def test_build_large_input_completes(tmp_path):
-    """Modest scale (1k rows) — full perf is left to manual runs against the live file."""
+    """Modest scale (1k rows) — full perf left to manual runs against the live file."""
     src_path = str(tmp_path / "in.csv")
     out = str(tmp_path / "out.csv")
     _write_input(src_path, [_input_csv_row() for _ in range(1000)])

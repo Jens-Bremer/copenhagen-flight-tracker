@@ -10,7 +10,10 @@ _NTFY_TIMEOUT_SECONDS = 10
 
 
 def send_alert(title: str, message: str, priority: str = "default") -> bool:
-    """POST an alert to ntfy.sh. Returns True on success, False on failure. Never raises."""
+    """POST an alert to ntfy.sh. Returns True on success, False on failure.
+
+    Never raises.
+    """
     if not config.NTFY_TOPIC:
         return True
     url = f"{config.NTFY_URL}/{config.NTFY_TOPIC}"

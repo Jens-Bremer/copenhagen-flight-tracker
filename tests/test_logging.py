@@ -13,8 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scripts.run_daily import run_collection
 from src.database import initialize_database
-from src.log_config import LOG_FORMAT, LOG_DATEFMT, setup_logging
-
+from src.log_config import LOG_DATEFMT, LOG_FORMAT, setup_logging
 
 # --- setup_logging ---
 

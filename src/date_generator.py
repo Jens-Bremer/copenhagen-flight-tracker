@@ -6,7 +6,7 @@ import config
 
 
 def generate_target_dates(today: date) -> list[date]:
-    """Return sorted list of dates from today through MAX_MONTHS_AHEAD that fall on DEPARTURE_WEEKDAYS."""
+    """Return dates falling on DEPARTURE_WEEKDAYS up to MAX_MONTHS_AHEAD, sorted."""
     cutoff = today + relativedelta(months=config.MAX_MONTHS_AHEAD)
     results = []
     current = today

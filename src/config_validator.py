@@ -1,5 +1,8 @@
 def validate_config(cfg: dict) -> None:
-    """Validate all tuneable config values. Raises ValueError with a clear message on any problem."""
+    """Validate all tuneable config values.
+
+    Raises ValueError with a clear message on any problem.
+    """
     _check_routes(cfg.get("ROUTES"))
     _check_departure_weekdays(cfg.get("DEPARTURE_WEEKDAYS"))
     _check_max_months_ahead(cfg.get("MAX_MONTHS_AHEAD"))
@@ -71,7 +74,8 @@ def _check_window_hours(start, end) -> None:
             raise ValueError(f"{name} must be an integer between 0 and 23, got {val!r}")
     if start >= end:
         raise ValueError(
-            f"DAILY_WINDOW_START_HOUR ({start}) must be less than DAILY_WINDOW_END_HOUR ({end})"
+            f"DAILY_WINDOW_START_HOUR ({start}) must be less than "
+            f"DAILY_WINDOW_END_HOUR ({end})"
         )
 
 
@@ -113,7 +117,8 @@ def _check_price_alert_threshold(value) -> None:
     if isinstance(value, dict):
         if "_default" not in value:
             raise ValueError(
-                "PRICE_ALERT_THRESHOLD dict must include a '_default' key as a fallback threshold"
+                "PRICE_ALERT_THRESHOLD dict must include a '_default' key "
+                "as a fallback threshold"
             )
         for key, threshold in value.items():
             if (

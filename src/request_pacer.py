@@ -9,7 +9,7 @@ def compute_sleep_intervals(
     window_start_hour: int,
     window_end_hour: int,
 ) -> list:
-    """Return num_requests-1 sleep durations (seconds) that evenly space requests across the window.
+    """Return num_requests-1 sleep durations (in seconds) spread across the window.
 
     Each interval has ±10% random jitter applied.
     If the current time is inside the window, computes the remaining time.
@@ -36,7 +36,7 @@ def compute_sleep_intervals(
 
 
 def seconds_until_window_start(window_start_hour: int) -> float:
-    """Return seconds from now until the window opens. Returns 0.0 if already inside the window."""
+    """Return seconds until the window opens, or 0.0 if already inside."""
     now = datetime.now()
     window_open = now.replace(hour=window_start_hour, minute=0, second=0, microsecond=0)
     if now >= window_open:

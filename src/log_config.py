@@ -5,5 +5,5 @@ LOG_DATEFMT = "%Y-%m-%d %H:%M:%S"
 
 
 def setup_logging(level: int = logging.INFO) -> None:
-    """Configure root logger. Safe to call multiple times — basicConfig is a no-op if already set."""
+    """Configure root logger. Idempotent — basicConfig no-ops if already called."""
     logging.basicConfig(level=level, format=LOG_FORMAT, datefmt=LOG_DATEFMT)

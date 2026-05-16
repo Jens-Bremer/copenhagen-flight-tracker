@@ -9,18 +9,18 @@ import schedule
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
+from scripts.backup_db import backup_database
+from scripts.export_csv import export_to_csv
+from scripts.run_daily import run_collection
 from src.config_validator import validate_config
 from src.date_generator import generate_target_dates
+from src.frontend_csv_builder import build as build_frontend_csv
 from src.health_checker import run_health_check
+from src.html_generator import generate as generate_html
 from src.log_config import setup_logging
 from src.notifier import send_alert
 from src.request_pacer import compute_sleep_intervals
 from src.route_expander import expand_jobs
-from scripts.backup_db import backup_database
-from scripts.export_csv import export_to_csv
-from src.frontend_csv_builder import build as build_frontend_csv
-from src.html_generator import generate as generate_html
-from scripts.run_daily import run_collection
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -134,7 +134,10 @@ def _generate_html_job() -> None:
 
 
 def _health_check_job() -> None:
-    """Run the health check and alert if problems found. Called by the scheduler at 23:30."""
+    """Run the health check and alert if problems found.
+
+    Called by the scheduler at 23:30.
+    """
     logger.info("Scheduler: running health check")
     problems = run_health_check(config.DATABASE_PATH)
     if not problems:
@@ -176,7 +179,8 @@ def main() -> None:
     now = datetime.now()
     if config.DAILY_WINDOW_START_HOUR <= now.hour < config.DAILY_WINDOW_END_HOUR:
         logger.info(
-            "Started within the operating window. Executing immediate collection with compressed intervals."
+            "Started within the operating window. "
+            "Executing immediate collection with compressed intervals."
         )
         _daily_job()
 

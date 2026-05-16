@@ -4,11 +4,10 @@ import pytest
 
 from src.database import initialize_database, insert_observations
 from src.price_alerter import (
+    check_and_alert_cheap_flights,
     find_cheap_flights,
     format_alert_message,
-    check_and_alert_cheap_flights,
 )
-
 
 TODAY = date.today().isoformat()
 THRESHOLD = 5000  # €50

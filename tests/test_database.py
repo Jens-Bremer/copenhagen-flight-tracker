@@ -4,7 +4,6 @@ import pytest
 
 from src.database import initialize_database, insert_observations, query_price_history
 
-
 SAMPLE = {
     "retrieved_at": "2025-09-05T06:00:00+00:00",
     "departure_date": "2025-09-05",
