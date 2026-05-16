@@ -372,6 +372,17 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _safe_json(obj: Any) -> str:
+    """Serialise *obj* for embedding inside <script type="application/json">.
+
+    Defeats a `</script>` injection in any string field by replacing the byte
+    sequence `</` with `<\\/`, which JSON still parses identically. Without
+    this an attacker-controlled airline name could break out of the JSON
+    context and execute JS in the page.
+    """
+    return json.dumps(obj, separators=(",", ":")).replace("</", "<\\/")
+
+
 def render_html(
     metadata: dict[str, Any],
     calendar: dict[str, Any],
@@ -389,11 +400,11 @@ def render_html(
         INLINE_STYLES=styles,
         INLINE_CHART_JS=chart_js,
         INLINE_APP_JS=app_js,
-        DATA_METADATA=json.dumps(metadata, separators=(",", ":")),
-        DATA_CALENDAR=json.dumps(calendar, separators=(",", ":")),
-        DATA_FLIGHTS=json.dumps(flights, separators=(",", ":")),
-        DATA_ANALYSIS=json.dumps(analysis, separators=(",", ":")),
-        DATA_SUMMARY=json.dumps(summary, separators=(",", ":")),
+        DATA_METADATA=_safe_json(metadata),
+        DATA_CALENDAR=_safe_json(calendar),
+        DATA_FLIGHTS=_safe_json(flights),
+        DATA_ANALYSIS=_safe_json(analysis),
+        DATA_SUMMARY=_safe_json(summary),
     )
 
 

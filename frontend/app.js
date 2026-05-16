@@ -63,15 +63,27 @@
     }
     if (!rows.length) { table.innerHTML = ''; return; }
     table.innerHTML = `<table><thead><tr>${
-      Object.keys(rows[0]).map((k) => `<th>${k}</th>`).join('')
+      Object.keys(rows[0]).map((k) => `<th>${escapeHtml(k)}</th>`).join('')
     }</tr></thead><tbody>${
-      rows.map((r) => '<tr>' + Object.values(r).map((v) => `<td>${v}</td>`).join('') + '</tr>').join('')
+      rows.map((r) => '<tr>' + Object.values(r).map((v) => `<td>${escapeHtml(v)}</td>`).join('') + '</tr>').join('')
     }</tbody></table>`;
   }
 
   // ───── Tiny helpers ────────────────────────────────────────────────────────
   function $(id) { return document.getElementById(id); }
   function formatPrice(cents) { return '€' + (cents / 100).toFixed(2); }
+
+  /** HTML-escape *s* for safe interpolation into `innerHTML`. Defends against
+   *  attacker-controlled airline names from the upstream scraper. */
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function formatDate(iso) {
     const [y, m, d] = iso.split('-').map(Number);
     return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -291,11 +303,13 @@
         state.selectedFlight.route === f.route ? ' is-selected' : ''
       );
       const overnight = f.overnight ? `<span class="flight-row__overnight">+1</span>` : '';
+      // airlineColor() returns one of: a fixed hex/white/orange constant or a
+      // synthesised hsl(deg,70%,50%) — both safe inside a style attribute.
       row.innerHTML = `
         <span class="airline-swatch" style="background:${airlineColor(f.airline)};
               ${AIRLINE_OUTLINE.has(f.airline) ? 'border-color:var(--color-brown);' : ''}"></span>
-        <span>${f.airline} <small>(${f.route})</small></span>
-        <span class="flight-row__time">${f.dep_time} → ${f.arr_time} ${overnight}</span>
+        <span>${escapeHtml(f.airline)} <small>(${escapeHtml(f.route)})</small></span>
+        <span class="flight-row__time">${escapeHtml(f.dep_time)} → ${escapeHtml(f.arr_time)} ${overnight}</span>
         <span class="flight-row__time">${Math.floor(f.duration_minutes / 60)}h ${f.duration_minutes % 60}m</span>
         <span><strong>${formatPrice(f.latest_cents)}</strong></span>
       `;
@@ -526,8 +540,8 @@
     routesWithPairs.forEach((route) => {
       const pairs = DATA.summary[route].weekend_pairs;
       const tableHtml = `
-        <table class="pairs-table" aria-label="Cheapest weekend pairs for ${route}">
-          <caption>${route} weekend pairs (Fri outbound + Sun inbound)</caption>
+        <table class="pairs-table" aria-label="Cheapest weekend pairs for ${escapeHtml(route)}">
+          <caption>${escapeHtml(route)} weekend pairs (Fri outbound + Sun inbound)</caption>
           <thead>
             <tr>
               <th>Fri date</th><th>Out</th><th>Out time</th><th>Out €</th>
@@ -538,13 +552,13 @@
           <tbody>
             ${pairs.map((p) => `
               <tr>
-                <td>${formatDate(p.fri_date)}</td>
-                <td>${p.fri_airline}</td>
-                <td>${p.fri_dep}</td>
+                <td>${escapeHtml(formatDate(p.fri_date))}</td>
+                <td>${escapeHtml(p.fri_airline)}</td>
+                <td>${escapeHtml(p.fri_dep)}</td>
                 <td>${formatPrice(p.fri_cents)}</td>
-                <td>${formatDate(p.sun_date)}</td>
-                <td>${p.sun_airline}</td>
-                <td>${p.sun_dep}</td>
+                <td>${escapeHtml(formatDate(p.sun_date))}</td>
+                <td>${escapeHtml(p.sun_airline)}</td>
+                <td>${escapeHtml(p.sun_dep)}</td>
                 <td>${formatPrice(p.sun_cents)}</td>
                 <td><strong>${formatPrice(p.total_cents)}</strong></td>
               </tr>

@@ -268,6 +268,45 @@ def test_render_html_uses_safe_substitute_no_placeholder_leaks():
     assert "${DATA_METADATA}" not in html
 
 
+def test_render_html_inlines_escapeHtml_helper():
+    """app.js must inline an escapeHtml helper so attacker-controlled airline
+    names cannot inject HTML via innerHTML/insertAdjacentHTML."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert "function escapeHtml" in html
+    # And every site that interpolates an airline name should use it
+    assert "escapeHtml(f.airline)" in html
+    assert "escapeHtml(p.fri_airline)" in html
+    assert "escapeHtml(p.sun_airline)" in html
+
+
+def test_render_html_escapes_script_close_in_json_blobs():
+    """A `</script>` byte sequence inside a string field must not break the JSON
+    blob's enclosing <script> tag. The JSON serialiser substitutes `</` → `<\\/`,
+    which JSON parses identically."""
+    payload = {"airlines": ["KLM</script><script>alert(1)</script>"]}
+    html = render_html(
+        metadata=payload,
+        calendar={},
+        flights={},
+        analysis={},
+        summary={},
+    )
+    # Raw </script> must not appear inside the metadata blob
+    import re
+    m = re.search(
+        r'<script type="application/json" id="DATA_METADATA">(.*?)</script>',
+        html, re.S,
+    )
+    assert m, "DATA_METADATA blob not found"
+    raw = m.group(1)
+    # The dangerous byte sequence is the JSON-encoded literal `</`. After
+    # escaping it becomes `<\/`, which the browser parses as JSON identically.
+    assert "</script" not in raw
+    assert "<\\/script" in raw
+    # And the JSON still round-trips to the original payload
+    assert json.loads(raw) == payload
+
+
 def test_generate_writes_output_file(tmp_path):
     out_path = tmp_path / "index.html"
     n = generate(str(FIXTURE), str(out_path))
