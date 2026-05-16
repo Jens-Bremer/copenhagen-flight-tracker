@@ -268,6 +268,51 @@ def test_build_summary_weekend_pairs_join_fri_with_sun_plus_two():
     assert len(pairs) <= 5
 
 
+def test_build_summary_weekend_pairs_both_directions(tmp_path):
+    """build_summary must compute pairs for both travel directions:
+    CPH-AMS (Fri) + AMS-CPH (Sun) for the CPH-resident traveller, AND
+    AMS-CPH (Fri) + CPH-AMS (Sun) for the AMS-resident traveller.
+
+    Previously only Direction 1 was computed; Direction 2 pairs were silently
+    dropped, leaving AMS-CPH.weekend_pairs always empty.
+    """
+    csv_text = (
+        "retrieved_at,departure_date,origin,destination,airline,"
+        "departure_at,arrival_at,duration_minutes,price_cents,price_currency\n"
+        # Direction 1: CPH→AMS Friday outbound (2026-06-26 = Friday)
+        "2026-05-15T13:45Z,2026-06-26,CPH,AMS,easyJet,"
+        "2026-06-26T19:30:00,2026-06-26T21:00:00,90,8900,EUR\n"
+        # Direction 1: AMS→CPH Sunday inbound
+        "2026-05-15T13:45Z,2026-06-28,AMS,CPH,KLM,"
+        "2026-06-28T17:55:00,2026-06-28T19:25:00,90,10000,EUR\n"
+        # Direction 2: AMS→CPH Friday outbound (same Friday)
+        "2026-05-15T13:45Z,2026-06-26,AMS,CPH,Norwegian,"
+        "2026-06-26T18:00:00,2026-06-26T19:30:00,90,9500,EUR\n"
+        # Direction 2: CPH→AMS Sunday inbound
+        "2026-05-15T13:45Z,2026-06-28,CPH,AMS,Ryanair,"
+        "2026-06-28T09:00:00,2026-06-28T10:30:00,90,7800,EUR\n"
+    )
+    p = tmp_path / "x.csv"
+    p.write_text(csv_text)
+    rows = load_rows(str(p))
+    summary = build_summary(rows)
+
+    # Direction 1 (existing): CPH-AMS Fri + AMS-CPH Sun
+    pairs_out = summary["CPH-AMS"]["weekend_pairs"]
+    assert len(pairs_out) == 1
+    assert pairs_out[0]["fri_date"] == "2026-06-26"
+    assert pairs_out[0]["sun_date"] == "2026-06-28"
+
+    # Direction 2 (new): AMS-CPH Fri + CPH-AMS Sun
+    pairs_back = summary["AMS-CPH"]["weekend_pairs"]
+    assert len(pairs_back) == 1, (
+        "build_summary must also compute AMS-CPH Friday + CPH-AMS Sunday pairs "
+        "so Amsterdam-resident travellers see their weekend options"
+    )
+    assert pairs_back[0]["fri_date"] == "2026-06-26"
+    assert pairs_back[0]["sun_date"] == "2026-06-28"
+
+
 def test_build_summary_weekend_pairs_skip_when_inbound_missing(tmp_path):
     """No AMS-CPH observation for the joined Sunday → pair is dropped."""
     csv_text = (

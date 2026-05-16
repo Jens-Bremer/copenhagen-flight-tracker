@@ -370,40 +370,37 @@ def build_summary(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             bins.sort(key=lambda b: b["bin_low"])
         out[route] = {"histogram": histogram, "weekend_pairs": []}
 
-    # Weekend pairs: only meaningful for the outbound direction.
-    # Fri outbound = CPH-AMS Friday departure; Sun inbound = AMS-CPH on Fri+2.
-    fri_outbound_route = "CPH-AMS"
-    sun_inbound_route = "AMS-CPH"
-    pairs: list[dict[str, Any]] = []
-    for (route, dep_iso), fri in cheapest_dep.items():
-        if route != fri_outbound_route:
-            continue
-        dep_date = date_type.fromisoformat(dep_iso)
-        if dep_date.weekday() != 4:  # 4 = Friday
-            continue
-        sun_iso = (dep_date + timedelta(days=2)).isoformat()
-        sun = cheapest_dep.get((sun_inbound_route, sun_iso))
-        if sun is None:
-            continue
-        pairs.append(
-            {
-                "fri_date": dep_iso,
-                "fri_airline": fri["airline"],
-                "fri_dep": fri["dep_time"],
-                "fri_cents": fri["price_cents"],
-                "sun_date": sun_iso,
-                "sun_airline": sun["airline"],
-                "sun_dep": sun["dep_time"],
-                "sun_cents": sun["price_cents"],
-                "total_cents": fri["price_cents"] + sun["price_cents"],
-            }
-        )
-    pairs.sort(key=lambda p: p["total_cents"])
-    if fri_outbound_route in out:
-        out[fri_outbound_route]["weekend_pairs"] = pairs[:WEEKEND_PAIRS_TOP_N]
-    # AMS-CPH stays in the output for symmetry but has no outbound-Friday pairs.
-    if sun_inbound_route in out:
-        out[sun_inbound_route].setdefault("weekend_pairs", [])
+    # Weekend pairs for both travel directions:
+    # CPH-AMS (Fri) + AMS-CPH (Sun) for the Copenhagen-resident traveller, and
+    # AMS-CPH (Fri) + CPH-AMS (Sun) for the Amsterdam-resident traveller.
+    for fri_route, sun_route in [("CPH-AMS", "AMS-CPH"), ("AMS-CPH", "CPH-AMS")]:
+        pairs: list[dict[str, Any]] = []
+        for (route, dep_iso), fri in cheapest_dep.items():
+            if route != fri_route:
+                continue
+            dep_date = date_type.fromisoformat(dep_iso)
+            if dep_date.weekday() != 4:  # 4 = Friday
+                continue
+            sun_iso = (dep_date + timedelta(days=2)).isoformat()
+            sun = cheapest_dep.get((sun_route, sun_iso))
+            if sun is None:
+                continue
+            pairs.append(
+                {
+                    "fri_date": dep_iso,
+                    "fri_airline": fri["airline"],
+                    "fri_dep": fri["dep_time"],
+                    "fri_cents": fri["price_cents"],
+                    "sun_date": sun_iso,
+                    "sun_airline": sun["airline"],
+                    "sun_dep": sun["dep_time"],
+                    "sun_cents": sun["price_cents"],
+                    "total_cents": fri["price_cents"] + sun["price_cents"],
+                }
+            )
+        pairs.sort(key=lambda p: p["total_cents"])
+        if fri_route in out:
+            out[fri_route]["weekend_pairs"] = pairs[:WEEKEND_PAIRS_TOP_N]
     return out
 
 
