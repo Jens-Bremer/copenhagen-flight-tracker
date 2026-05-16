@@ -102,8 +102,61 @@
     renderFooterCharts();
   }
 
-  // ───── Filter wiring (Task 14) ─────────────────────────────────────────────
-  function wireFilters()          { /* Task 14 */ }
+  // ───── Filter wiring ───────────────────────────────────────────────────────
+  function wireFilters() {
+    // Route toggle
+    const routes = ['CPH-AMS', 'AMS-CPH', 'both'];
+    const routeContainer = $('route-toggle');
+    routeContainer.innerHTML = '';
+    routes.forEach((r) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'filter-chip' + (state.route === r ? ' is-active' : '');
+      chip.textContent = r === 'both' ? 'Both' : r;
+      chip.dataset.route = r;
+      chip.addEventListener('click', () => {
+        state.route = r;
+        state.selectedDate = null;
+        state.selectedFlight = null;
+        Array.from(routeContainer.children).forEach((c) => {
+          c.classList.toggle('is-active', c.dataset.route === r);
+        });
+        renderAll();
+      });
+      routeContainer.appendChild(chip);
+    });
+
+    // Airline filter — chips for every airline in metadata
+    const airlineContainer = $('airline-filter');
+    airlineContainer.innerHTML = '';
+    const airlines = (DATA.metadata.airlines || []).slice().sort();
+    airlines.forEach((a) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'filter-chip';
+      chip.style.borderLeft = `8px solid ${airlineColor(a)}`;
+      chip.textContent = a;
+      chip.dataset.airline = a;
+      chip.addEventListener('click', () => {
+        if (state.airlineFilter.has(a)) state.airlineFilter.delete(a);
+        else state.airlineFilter.add(a);
+        chip.classList.toggle('is-active', state.airlineFilter.has(a));
+        renderAll();
+      });
+      airlineContainer.appendChild(chip);
+    });
+  }
+
+  /** Active routes derived from state.route. */
+  function activeRoutes() {
+    if (state.route === 'both') return ['CPH-AMS', 'AMS-CPH'];
+    return [state.route];
+  }
+
+  /** True if a row's airline survives the current filter. Empty filter = all pass. */
+  function airlinePasses(airline) {
+    return state.airlineFilter.size === 0 || state.airlineFilter.has(airline);
+  }
 
   // ───── Boot ────────────────────────────────────────────────────────────────
   function main() {
