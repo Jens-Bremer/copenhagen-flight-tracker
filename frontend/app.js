@@ -503,8 +503,8 @@
       return {
         label: r,
         data: trend.map((t) => ({ x: t.obs_date, y: t.min_cents / 100 })),
-        borderColor: r === 'CPH-AMS' ? 'var(--color-red)' : 'var(--color-brown)',
-        backgroundColor: 'rgba(192, 57, 43, 0.10)',
+        borderColor: r === 'CPH-AMS' ? 'var(--color-red)' : 'var(--color-route-back)',
+        backgroundColor: r === 'CPH-AMS' ? 'rgba(192,57,43,0.10)' : 'rgba(41,128,185,0.10)',
         spanGaps: false,
         borderWidth: 2,
         pointRadius: 2,
@@ -529,7 +529,7 @@
     // Three datasets per route: Q1 boundary, Q3 boundary (filled back to Q1 = IQR band), mean line.
     const leadDatasets = routes.flatMap((r) => {
       const curve = DATA.analysis[r].lead_time_curve || [];
-      const bandAlpha = r === 'CPH-AMS' ? 'rgba(192,57,43,' : 'rgba(107,62,38,';
+      const bandAlpha = r === 'CPH-AMS' ? 'rgba(192,57,43,' : 'rgba(41,128,185,';
       return [
         {
           label: `${r} Q1`,
@@ -552,7 +552,7 @@
         {
           label: r,
           data: curve.map((c) => ({ x: c.days_before, y: c.mean_cents / 100 })),
-          borderColor: r === 'CPH-AMS' ? 'var(--color-red)' : 'var(--color-brown)',
+          borderColor: r === 'CPH-AMS' ? 'var(--color-red)' : 'var(--color-route-back)',
           fill: false,
           spanGaps: false,
           borderWidth: 2,
@@ -911,7 +911,7 @@
       return {
         label: r,
         data: prog.map((e) => ({ x: e.days_before, y: e.mean_pct_change })),
-        borderColor: r === 'CPH-AMS' ? 'var(--color-red)' : 'var(--color-brown)',
+        borderColor: r === 'CPH-AMS' ? 'var(--color-red)' : 'var(--color-route-back)',
         backgroundColor: 'transparent',
         spanGaps: false,
         borderWidth: 2,
