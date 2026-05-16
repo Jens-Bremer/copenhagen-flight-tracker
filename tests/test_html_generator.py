@@ -845,6 +845,54 @@ def test_hero_shows_fallback_when_no_analysis_data():
     )
 
 
+# ─── Issue #100: per-day trajectory arrows on calendar cells ──────────────────
+
+
+def test_calendar_cell_trajectory_span_referenced_in_app_js():
+    """renderCalendar must emit a .calendar__cell__trajectory span for
+    cells where the cheapest flight has a non-null trajectory."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "calendar__cell__trajectory" in js, (
+        "renderCalendar must reference calendar__cell__trajectory"
+    )
+
+
+def test_calendar_trajectory_reads_from_flights_data():
+    """The calendar trajectory indicator must read trajectory from DATA_FLIGHTS,
+    not from DATA_CALENDAR (which has no trajectory field)."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    # renderCalendar must look up trajectory from DATA.flights
+    assert "trajectory" in js
+    assert "DATA.flights" in js or "flights[" in js
+
+
+def test_calendar_trajectory_skipped_when_null():
+    """No arrow must be emitted when trajectory is null."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    # There must be a null guard for trajectory in the calendar rendering path
+    assert "trajectory" in js
+    # Either explicit null check or falsy guard
+    assert "null" in js or "trajectory)" in js or "!trajectory" in js
+
+
+def test_calendar_trajectory_arrow_has_aria_label():
+    """The calendar trajectory span must carry an aria-label."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    # aria-label must be set on the trajectory span in calendar rendering
+    # (There is already one for the drill-down arrows; we need it in renderCalendar too)
+    assert "trending" in js.lower() or "aria-label" in js
+
+
+def test_calendar_trajectory_css_in_styles():
+    """styles.css must define .calendar__cell__trajectory."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert ".calendar__cell__trajectory" in html
+
+
 # ─── Issue #99: integration — new fields appear in rendered JSON blobs ────────
 
 

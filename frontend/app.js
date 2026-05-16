@@ -303,9 +303,28 @@
       cell.className = 'calendar__cell' + (price === null ? ' is-empty' : '');
       if (iso === todayStr && price !== null) cell.classList.add('is-today');
       cell.dataset.date = iso;
+      // Cheapest flight's trajectory from DATA.flights (first entry = cheapest by sort order).
+      let cellTrajectory = null;
+      if (price !== null) {
+        activeRoutes().forEach((route) => {
+          const list = ((DATA.flights[route] || {})[iso]) || [];
+          if (list.length && !cellTrajectory) cellTrajectory = list[0].trajectory;
+        });
+      }
+      const trajectoryGlyph = cellTrajectory === 'down'   ? '↓'
+                             : cellTrajectory === 'up'    ? '↑'
+                             : cellTrajectory === 'stable' ? '→' : '';
+      const trajectoryAriaLabel = cellTrajectory === 'down'
+        ? 'Prices trending down'
+        : cellTrajectory === 'up' ? 'Prices trending up' : 'Prices stable';
+      const trajectoryHtmlStr = trajectoryGlyph
+        ? `<span class="calendar__cell__trajectory calendar__cell__trajectory--${cellTrajectory}"
+               aria-label="${trajectoryAriaLabel}">${trajectoryGlyph}</span>`
+        : '';
       cell.innerHTML = `
         <span class="calendar__cell__day">${cursor.getDate()}</span>
         <span class="calendar__cell__price">${price !== null ? formatPrice(price) : '—'}</span>
+        ${trajectoryHtmlStr}
       `;
       if (price !== null) {
         cell.style.background = priceTint(price, range);
