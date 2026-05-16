@@ -778,9 +778,8 @@
       const routeData = DATA.analysis[route];
       const matrix = routeData ? (routeData.time_of_day_matrix || []) : [];
 
-      // Filter to active airline set — we have no per-cell airline info here,
-      // so always show the matrix regardless of airline filter.
-      const visible = activeRoutes().includes(route) ? matrix : [];
+      // Always show both directions — this chart is exempt from the direction filter.
+      const visible = matrix;
 
       if (!visible.length) {
         const ctx = canvas.getContext('2d');
@@ -903,7 +902,8 @@
 
   function renderNormProgress() {
     destroyChart('normProg');
-    const routes = activeRoutes().filter((r) => DATA.analysis[r]);
+    // Always show both directions — this chart is exempt from the direction filter.
+    const routes = ['CPH-AMS', 'AMS-CPH'].filter((r) => DATA.analysis[r]);
     if (routes.length === 0) return;
 
     const datasets = routes.map((r) => {
