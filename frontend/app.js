@@ -320,7 +320,81 @@
       },
     });
   }
-  function renderTrends()         { /* Task 17 */ }
+  function renderTrends() {
+    destroyChart('marketTrend');
+    destroyChart('leadtime');
+
+    const headline = $('sweet-spot-headline');
+    const routes = activeRoutes().filter((r) => DATA.analysis[r]);
+    if (routes.length === 0) {
+      headline.textContent = '';
+      return;
+    }
+
+    // Market trend — one line per active route, X = obs_date, Y = min_cents/100
+    const marketDatasets = routes.map((r) => {
+      const trend = DATA.analysis[r].market_trend || [];
+      return {
+        label: r,
+        data: trend.map((t) => ({ x: t.obs_date, y: t.min_cents / 100 })),
+        borderColor: r === 'CPH-AMS' ? 'var(--color-red)' : 'var(--color-brown)',
+        backgroundColor: 'rgba(192, 57, 43, 0.10)',
+        spanGaps: false,
+        borderWidth: 2,
+        pointRadius: 2,
+      };
+    });
+    // Compute the union of obs_dates for shared labels
+    const allDates = Array.from(new Set(
+      routes.flatMap((r) => (DATA.analysis[r].market_trend || []).map((t) => t.obs_date))
+    )).sort();
+    charts.marketTrend = new Chart($('market-trend-chart'), {
+      type: 'line',
+      data: { labels: allDates, datasets: marketDatasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          title: { display: true, text: 'Market trend — cheapest seen on each scrape day' },
+          tooltip: { callbacks: { label: (c) => `${c.dataset.label}: €${c.parsed.y.toFixed(2)}` } },
+        },
+        scales: { y: { title: { display: true, text: 'Price (€)' } } },
+      },
+    });
+
+    // Lead-time curve
+    const leadDatasets = routes.map((r) => {
+      const curve = DATA.analysis[r].lead_time_curve || [];
+      return {
+        label: r,
+        data: curve.map((c) => ({ x: c.days_before, y: c.mean_cents / 100 })),
+        borderColor: r === 'CPH-AMS' ? 'var(--color-red)' : 'var(--color-brown)',
+        spanGaps: false,
+        borderWidth: 2,
+        pointRadius: 2,
+      };
+    });
+    charts.leadtime = new Chart($('leadtime-chart'), {
+      type: 'line',
+      data: { datasets: leadDatasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          title: { display: true, text: 'Mean price by days-before-departure (descriptive history; not a prediction)' },
+        },
+        scales: {
+          x: { type: 'linear', reverse: true, title: { display: true, text: 'Days before departure' } },
+          y: { title: { display: true, text: 'Mean price (€)' } },
+        },
+      },
+    });
+
+    // Headline: "Book ~N days ahead" per route
+    const lines = routes.map((r) => {
+      const days = DATA.analysis[r].sweet_spot_days;
+      return days !== undefined ? `${r}: cheapest mean at ~${days} days ahead` : '';
+    }).filter(Boolean);
+    headline.textContent = lines.join(' · ');
+  }
   function renderHistograms()     { /* Task 18 */ }
   function renderWeekendPairs()   { /* Task 19 */ }
   function renderFooterCharts()   { /* Task 20 */ }
