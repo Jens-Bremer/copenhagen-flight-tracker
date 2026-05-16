@@ -748,3 +748,307 @@ def test_cli_missing_input_exits_2(tmp_path):
         cwd=Path(__file__).resolve().parent.parent,
     )
     assert result.returncode == 2
+
+
+# ─── Issue #94: trajectory, verdict, market-direction ─────────────────────────
+
+
+def _make_rows(csv_text: str, tmp_path: Path) -> list:
+    p = tmp_path / "x.csv"
+    header = (
+        "retrieved_at,departure_date,origin,destination,airline,"
+        "departure_at,arrival_at,duration_minutes,price_cents,price_currency\n"
+    )
+    p.write_text(header + csv_text)
+    return load_rows(str(p))
+
+
+# ── build_analysis: market_direction ──────────────────────────────────────────
+
+
+def test_build_analysis_market_direction_present_for_each_route():
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    for route in analysis:
+        assert "market_direction" in analysis[route], (
+            f"market_direction missing from route {route}"
+        )
+        md = analysis[route]["market_direction"]
+        assert md["trend"] in ("up", "down", "stable"), f"invalid trend: {md['trend']}"
+        assert isinstance(md["pct_change"], float)
+        assert isinstance(md["label"], str)
+        assert len(md["label"]) > 0
+
+
+def test_build_analysis_market_direction_down_when_prices_falling(tmp_path):
+    # 4 obs dates: old pair avg 15000, new pair avg 10000 → -33% → "down"
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,15000,EUR\n"
+        "2026-04-02T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,14000,EUR\n"
+        "2026-04-10T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10000,EUR\n"
+        "2026-04-11T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,9000,EUR\n",
+        tmp_path,
+    )
+    analysis = build_analysis(rows)
+    md = analysis["CPH-AMS"]["market_direction"]
+    assert md["trend"] == "down"
+    assert md["pct_change"] < -3
+
+
+def test_build_analysis_market_direction_up_when_prices_rising(tmp_path):
+    # 4 obs dates: old pair avg 5000, new pair avg 8000 → +60% → "up"
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,5000,EUR\n"
+        "2026-04-02T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,5200,EUR\n"
+        "2026-04-10T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,8000,EUR\n"
+        "2026-04-11T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,8200,EUR\n",
+        tmp_path,
+    )
+    analysis = build_analysis(rows)
+    md = analysis["CPH-AMS"]["market_direction"]
+    assert md["trend"] == "up"
+    assert md["pct_change"] > 3
+
+
+def test_build_analysis_market_direction_stable_when_prices_flat(tmp_path):
+    # 4 obs dates: all near 10000 → pct_change within ±3% → "stable"
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10000,EUR\n"
+        "2026-04-02T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10100,EUR\n"
+        "2026-04-10T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10050,EUR\n"
+        "2026-04-11T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10200,EUR\n",
+        tmp_path,
+    )
+    analysis = build_analysis(rows)
+    md = analysis["CPH-AMS"]["market_direction"]
+    assert md["trend"] == "stable"
+    assert -3 <= md["pct_change"] <= 3
+
+
+def test_build_analysis_market_direction_with_only_two_obs_dates(tmp_path):
+    # Minimum case: 2 obs dates — must still produce a result
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10000,EUR\n"
+        "2026-04-10T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,8000,EUR\n",
+        tmp_path,
+    )
+    analysis = build_analysis(rows)
+    md = analysis["CPH-AMS"]["market_direction"]
+    assert md["trend"] in ("up", "down", "stable")
+    assert isinstance(md["pct_change"], float)
+
+
+def test_build_analysis_market_direction_stable_with_one_obs_date(tmp_path):
+    # Only 1 obs date — cannot compare, so trend must be "stable" with pct_change 0.0
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10000,EUR\n",
+        tmp_path,
+    )
+    analysis = build_analysis(rows)
+    md = analysis["CPH-AMS"]["market_direction"]
+    assert md["trend"] == "stable"
+    assert md["pct_change"] == 0.0
+
+
+# ── build_analysis: best_time_to_visit ────────────────────────────────────────
+
+
+def test_build_analysis_best_time_to_visit_present_for_each_route():
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    for route in analysis:
+        assert "best_time_to_visit" in analysis[route], (
+            f"best_time_to_visit missing from route {route}"
+        )
+        btv = analysis[route]["best_time_to_visit"]
+        assert "cheapest_month" in btv
+        assert "cheapest_dow" in btv
+        assert "lowest_ever" in btv
+
+
+def test_build_analysis_best_time_cheapest_month_matches_month_list():
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    cph = analysis["CPH-AMS"]
+    cheapest_month = cph["best_time_to_visit"]["cheapest_month"]
+    min_month = min(cph["month"], key=lambda m: m["mean_cents"])
+    assert cheapest_month["label"] == min_month["label"]
+    assert cheapest_month["mean_cents"] == min_month["mean_cents"]
+
+
+def test_build_analysis_best_time_cheapest_dow_matches_dow_list():
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    cph = analysis["CPH-AMS"]
+    cheapest_dow = cph["best_time_to_visit"]["cheapest_dow"]
+    min_dow = min(cph["day_of_week"], key=lambda d: d["mean_cents"])
+    assert cheapest_dow["label"] == min_dow["label"]
+    assert cheapest_dow["mean_cents"] == min_dow["mean_cents"]
+
+
+def test_build_analysis_best_time_lowest_ever_is_minimum_price_for_route():
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    cph = analysis["CPH-AMS"]
+    lowest_ever = cph["best_time_to_visit"]["lowest_ever"]
+    # Fixture: Ryanair 7800 on 2026-05-15 for CPH-AMS 2026-06-19 departure
+    assert lowest_ever["price_cents"] == 7800
+    assert lowest_ever["departure_date"] == "2026-06-19"
+    assert lowest_ever["airline"] == "Ryanair"
+    assert "route" in lowest_ever
+
+
+# ── build_flights: trajectory ─────────────────────────────────────────────────
+
+
+def test_build_flights_trajectory_null_when_fewer_than_six_obs():
+    rows = load_rows(str(FIXTURE))
+    flights = build_flights(rows)
+    # easyJet 19:30 CPH-AMS 2026-06-19 has 3 observations → trajectory must be null
+    easyjet = next(
+        f
+        for f in flights["CPH-AMS"]["2026-06-19"]
+        if f["airline"] == "easyJet" and f["dep_time"] == "19:30"
+    )
+    assert len(easyjet["history"]) == 3
+    assert easyjet["trajectory"] is None
+    assert easyjet["trajectory_pct"] is None
+
+
+def test_build_flights_trajectory_down_when_prices_falling(tmp_path):
+    # 6 obs: prev 3 avg 15000, recent 3 avg 10000 → -33% → "down"
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,15000,EUR\n"
+        "2026-04-02T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,15000,EUR\n"
+        "2026-04-03T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,15000,EUR\n"
+        "2026-04-10T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10000,EUR\n"
+        "2026-04-11T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10000,EUR\n"
+        "2026-04-12T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10000,EUR\n",
+        tmp_path,
+    )
+    flights = build_flights(rows)
+    easyjet = flights["CPH-AMS"]["2026-06-19"][0]
+    assert len(easyjet["history"]) == 6
+    assert easyjet["trajectory"] == "down"
+    assert easyjet["trajectory_pct"] is not None
+    assert easyjet["trajectory_pct"] < -3
+
+
+def test_build_flights_trajectory_up_when_prices_rising(tmp_path):
+    # 6 obs: prev 3 avg 5000, recent 3 avg 8000 → +60% → "up"
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,5000,EUR\n"
+        "2026-04-02T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,5000,EUR\n"
+        "2026-04-03T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,5000,EUR\n"
+        "2026-04-10T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,8000,EUR\n"
+        "2026-04-11T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,8000,EUR\n"
+        "2026-04-12T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,8000,EUR\n",
+        tmp_path,
+    )
+    flights = build_flights(rows)
+    easyjet = flights["CPH-AMS"]["2026-06-19"][0]
+    assert easyjet["trajectory"] == "up"
+    assert easyjet["trajectory_pct"] > 3
+
+
+def test_build_flights_trajectory_stable_when_prices_flat(tmp_path):
+    # 6 obs all at 10000 → 0% change → "stable"
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10000,EUR\n"
+        "2026-04-02T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10000,EUR\n"
+        "2026-04-03T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10000,EUR\n"
+        "2026-04-10T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10200,EUR\n"
+        "2026-04-11T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,9900,EUR\n"
+        "2026-04-12T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,10100,EUR\n",
+        tmp_path,
+    )
+    flights = build_flights(rows)
+    easyjet = flights["CPH-AMS"]["2026-06-19"][0]
+    assert easyjet["trajectory"] == "stable"
+    assert -3 <= easyjet["trajectory_pct"] <= 3
+
+
+# ── build_flights: historical_mean_cents ──────────────────────────────────────
+
+
+def test_build_flights_historical_mean_cents_is_mean_of_all_history_prices():
+    rows = load_rows(str(FIXTURE))
+    flights = build_flights(rows)
+    easyjet = next(
+        f
+        for f in flights["CPH-AMS"]["2026-06-19"]
+        if f["airline"] == "easyJet" and f["dep_time"] == "19:30"
+    )
+    # history prices: 11000, 9900, 9200
+    expected = round((11000 + 9900 + 9200) / 3)
+    assert easyjet["historical_mean_cents"] == expected
+
+
+# ── build_flights: percentile ─────────────────────────────────────────────────
+
+
+def test_build_flights_percentile_null_when_fewer_than_five_obs():
+    rows = load_rows(str(FIXTURE))
+    flights = build_flights(rows)
+    # easyJet 19:30 CPH-AMS 2026-06-19 has 3 observations → percentile must be null
+    easyjet = next(
+        f
+        for f in flights["CPH-AMS"]["2026-06-19"]
+        if f["airline"] == "easyJet" and f["dep_time"] == "19:30"
+    )
+    assert easyjet["percentile"] is None
+
+
+def test_build_flights_percentile_correct_when_five_or_more_obs(tmp_path):
+    # 5 observations: [5000, 6000, 7000, 8000, 9000], latest_cents=5000
+    # Sorted prices: [5000, 6000, 7000, 8000, 9000]
+    # latest_cents=5000 is the minimum → percentile=0.0
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,9000,EUR\n"
+        "2026-04-02T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,8000,EUR\n"
+        "2026-04-03T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,7000,EUR\n"
+        "2026-04-10T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,6000,EUR\n"
+        "2026-04-11T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,5000,EUR\n",
+        tmp_path,
+    )
+    flights = build_flights(rows)
+    easyjet = flights["CPH-AMS"]["2026-06-19"][0]
+    assert len(easyjet["history"]) == 5
+    # latest_cents = 5000 (most recent) = the minimum → 0th percentile
+    assert easyjet["latest_cents"] == 5000
+    assert easyjet["percentile"] == 0.0
+
+
+def test_build_flights_percentile_100_when_latest_is_max(tmp_path):
+    # 5 observations with latest being the highest price → 100th percentile
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,5000,EUR\n"
+        "2026-04-02T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,6000,EUR\n"
+        "2026-04-03T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,7000,EUR\n"
+        "2026-04-10T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,8000,EUR\n"
+        "2026-04-11T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,9000,EUR\n",
+        tmp_path,
+    )
+    flights = build_flights(rows)
+    easyjet = flights["CPH-AMS"]["2026-06-19"][0]
+    assert easyjet["latest_cents"] == 9000
+    assert easyjet["percentile"] == 100.0
+
+
+def test_build_flights_percentile_midpoint_for_median_price(tmp_path):
+    # 5 observations: [5000, 6000, 7000, 8000, 9000], latest=7000 (median)
+    rows = _make_rows(
+        "2026-04-01T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,5000,EUR\n"
+        "2026-04-02T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,6000,EUR\n"
+        "2026-04-03T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,8000,EUR\n"
+        "2026-04-10T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,9000,EUR\n"
+        "2026-04-11T23:46Z,2026-06-19,CPH,AMS,easyJet,2026-06-19T19:30:00,2026-06-19T21:00:00,90,7000,EUR\n",
+        tmp_path,
+    )
+    flights = build_flights(rows)
+    easyjet = flights["CPH-AMS"]["2026-06-19"][0]
+    # latest_cents = 7000 (obs_date 2026-04-11, sorted last)
+    assert easyjet["latest_cents"] == 7000
+    # prices sorted: [5000, 6000, 7000, 8000, 9000]
+    # 7000 is at index 2 → percentile = 2/4 * 100 = 50.0
+    assert easyjet["percentile"] == 50.0

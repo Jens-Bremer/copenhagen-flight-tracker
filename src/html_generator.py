@@ -13,6 +13,7 @@ Imports only config + stdlib + json (per CLAUDE.md module contract).
 
 from __future__ import annotations
 
+import bisect
 import csv
 import json
 import string
@@ -137,6 +138,92 @@ def build_calendar(rows: list[dict[str, Any]]) -> dict[str, dict[str, dict[str, 
     return out
 
 
+def _percentile_from_history(latest_cents: int, history: list[dict]) -> float | None:
+    """Rank latest_cents among all history prices using the midpoint-tie algorithm.
+
+    Returns None when fewer than 5 observations exist.
+    """
+    prices = sorted(h["price_cents"] for h in history)
+    n = len(prices)
+    if n < 5:
+        return None
+    if latest_cents <= prices[0]:
+        return 0.0
+    if latest_cents >= prices[-1]:
+        return 100.0
+    lower = bisect.bisect_left(prices, latest_cents)
+    upper = bisect.bisect_right(prices, latest_cents)
+    rank: float = lower
+    if upper > lower:
+        rank = (lower + upper - 1) / 2
+    return (rank / (n - 1)) * 100.0
+
+
+def _trajectory_from_history(
+    history: list[dict],
+) -> tuple[str | None, float | None]:
+    """Compute price trajectory from a flight's observation history.
+
+    Compares mean of last 3 observations vs mean of the 3 before that.
+    Returns (None, None) when fewer than 6 observations exist.
+    """
+    if len(history) < 6:
+        return None, None
+    sorted_h = sorted(history, key=lambda h: h["obs_date"])
+    prices = [h["price_cents"] for h in sorted_h]
+    prev_mean = sum(prices[-6:-3]) / 3
+    recent_mean = sum(prices[-3:]) / 3
+    if prev_mean == 0:
+        return "stable", 0.0
+    pct = round((recent_mean - prev_mean) / prev_mean * 100, 2)
+    if pct < -3:
+        return "down", pct
+    if pct > 3:
+        return "up", pct
+    return "stable", pct
+
+
+def _compute_market_direction(obs_prices: dict[str, int]) -> dict[str, Any]:
+    """Compute market direction from cheapest-per-obs-date prices.
+
+    Compares the mean of the recent half (or last 7) vs the older half (or prev 7).
+    Returns stable/0.0 when fewer than 2 obs dates exist.
+    """
+    sorted_dates = sorted(obs_prices)
+    n = len(sorted_dates)
+    if n < 2:
+        return {
+            "trend": "stable",
+            "pct_change": 0.0,
+            "label": "Prices stable this week",
+        }
+
+    if n >= 14:
+        prev_dates = sorted_dates[-14:-7]
+        recent_dates = sorted_dates[-7:]
+    else:
+        mid = n // 2
+        prev_dates = sorted_dates[:mid]
+        recent_dates = sorted_dates[mid:]
+
+    prev_mean = sum(obs_prices[d] for d in prev_dates) / len(prev_dates)
+    recent_mean = sum(obs_prices[d] for d in recent_dates) / len(recent_dates)
+
+    pct = round((recent_mean - prev_mean) / prev_mean * 100, 2) if prev_mean else 0.0
+
+    if pct < -3:
+        trend = "down"
+        label = f"Prices trending down {abs(pct):.1f}% this week"
+    elif pct > 3:
+        trend = "up"
+        label = f"Prices trending up {pct:.1f}% this week"
+    else:
+        trend = "stable"
+        label = "Prices stable this week"
+
+    return {"trend": trend, "pct_change": pct, "label": label}
+
+
 def _flight_id(row: dict[str, Any]) -> tuple[str, str]:
     return (row["airline"], row["departure_at"].strftime("%H:%M"))
 
@@ -186,6 +273,14 @@ def build_flights(
         bucket["_obs"].sort(key=lambda o: o["obs_date"])
         bucket["history"] = bucket.pop("_obs")
         bucket["latest_cents"] = bucket["history"][-1]["price_cents"]
+        trajectory, trajectory_pct = _trajectory_from_history(bucket["history"])
+        bucket["trajectory"] = trajectory
+        bucket["trajectory_pct"] = trajectory_pct
+        bucket["percentile"] = _percentile_from_history(
+            bucket["latest_cents"], bucket["history"]
+        )
+        prices = [h["price_cents"] for h in bucket["history"]]
+        bucket["historical_mean_cents"] = _mean(prices)
         out.setdefault(route, {}).setdefault(date, []).append(bucket)
 
     # Stable presentation order: cheapest-latest first
@@ -234,9 +329,12 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     by_flight: dict[tuple[str, str, str, str], dict[int, list[int]]] = defaultdict(
         lambda: defaultdict(list)
     )
+    # All rows per route (for lowest_ever scan)
+    rows_by_route: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
     for row in rows:
         route = _route_key(row)
+        rows_by_route[route].append(row)
         dep_date = date_type.fromisoformat(row["departure_date"])
         obs_date = row["retrieved_at"].date().isoformat()
         days_before = (dep_date - row["retrieved_at"].date()).days
@@ -356,6 +454,44 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             key=lambda e: e["days_before"],
         )
 
+        # market_direction: compare cheapest-per-obs price across recent vs older dates
+        obs_prices_for_route = {
+            od: cents
+            for (r, od), cents in cheapest_per_obs.items()
+            if r == route
+        }
+        market_direction = _compute_market_direction(obs_prices_for_route)
+
+        # best_time_to_visit: cheapest month/dow from aggregates + lowest ever price
+        cheapest_month = (
+            min(month_entries, key=lambda m: m["mean_cents"]) if month_entries else {}
+        )
+        cheapest_dow = (
+            min(dow_entries, key=lambda d: d["mean_cents"]) if dow_entries else {}
+        )
+        route_rows = rows_by_route.get(route, [])
+        if route_rows:
+            min_row = min(route_rows, key=lambda r: r["price_cents"])
+            lowest_ever: dict[str, Any] = {
+                "price_cents": min_row["price_cents"],
+                "route": route,
+                "departure_date": min_row["departure_date"],
+                "airline": min_row["airline"],
+            }
+        else:
+            lowest_ever = {}
+        best_time_to_visit = {
+            "cheapest_month": {
+                "label": cheapest_month.get("label", ""),
+                "mean_cents": cheapest_month.get("mean_cents", 0),
+            },
+            "cheapest_dow": {
+                "label": cheapest_dow.get("label", ""),
+                "mean_cents": cheapest_dow.get("mean_cents", 0),
+            },
+            "lowest_ever": lowest_ever,
+        }
+
         out[route] = {
             "lead_time_curve": curve,
             "sweet_spot_days": sweet_spot,
@@ -364,6 +500,8 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             "market_trend": trend_entries,
             "time_of_day_matrix": time_matrix,
             "normalized_price_progression": norm_prog,
+            "market_direction": market_direction,
+            "best_time_to_visit": best_time_to_visit,
         }
     return out
 
