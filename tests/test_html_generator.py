@@ -845,6 +845,74 @@ def test_hero_shows_fallback_when_no_analysis_data():
     )
 
 
+# ─── Issue #99: integration — new fields appear in rendered JSON blobs ────────
+
+
+def test_data_analysis_blob_contains_market_direction_and_best_time():
+    """DATA_ANALYSIS JSON blob in the rendered HTML must contain market_direction
+    and best_time_to_visit for every route in the fixture data."""
+    import re
+
+    rows = load_rows(str(FIXTURE))
+    now = datetime(2026, 5, 15, 23, 47, tzinfo=timezone.utc)
+    analysis = build_analysis(rows)
+    html = render_html(
+        metadata=build_metadata(rows, now),
+        calendar=build_calendar(rows),
+        flights=build_flights(rows),
+        analysis=analysis,
+        summary=build_summary(rows),
+    )
+    m = re.search(
+        r'<script type="application/json" id="DATA_ANALYSIS">(.*?)</script>',
+        html,
+        re.S,
+    )
+    assert m, "DATA_ANALYSIS blob not found"
+    blob = json.loads(m.group(1))
+    for route in blob:
+        assert "market_direction" in blob[route], (
+            f"market_direction missing from DATA_ANALYSIS[{route}]"
+        )
+        assert "best_time_to_visit" in blob[route], (
+            f"best_time_to_visit missing from DATA_ANALYSIS[{route}]"
+        )
+
+
+def test_data_flights_blob_contains_trajectory_percentile_mean():
+    """DATA_FLIGHTS JSON blob must carry trajectory, trajectory_pct, percentile,
+    and historical_mean_cents on every flight entry."""
+    import re
+
+    rows = load_rows(str(FIXTURE))
+    now = datetime(2026, 5, 15, 23, 47, tzinfo=timezone.utc)
+    html = render_html(
+        metadata=build_metadata(rows, now),
+        calendar=build_calendar(rows),
+        flights=build_flights(rows),
+        analysis=build_analysis(rows),
+        summary=build_summary(rows),
+    )
+    m = re.search(
+        r'<script type="application/json" id="DATA_FLIGHTS">(.*?)</script>',
+        html,
+        re.S,
+    )
+    assert m, "DATA_FLIGHTS blob not found"
+    blob = json.loads(m.group(1))
+    for route, dates in blob.items():
+        for date, flights in dates.items():
+            for f in flights:
+                required = (
+                    "trajectory", "trajectory_pct",
+                    "percentile", "historical_mean_cents",
+                )
+                for field in required:
+                    assert field in f, (
+                        f"{field} missing from DATA_FLIGHTS[{route}][{date}] entry"
+                    )
+
+
 # ─── Issue #98: panel heading + subtitle cleanup ──────────────────────────────
 
 
