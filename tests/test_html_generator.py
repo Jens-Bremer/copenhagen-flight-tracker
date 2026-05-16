@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from src.html_generator import build_metadata, load_rows
+from src.html_generator import build_calendar, build_metadata, load_rows
 
 FIXTURE = Path(__file__).parent / "fixtures" / "flights_frontend_sample.csv"
 
@@ -67,3 +67,29 @@ def test_build_metadata_handles_empty_input():
     assert meta["date_range"] == {"from": None, "to": None}
     assert meta["routes"] == []
     assert meta["airlines"] == []
+
+
+def test_build_calendar_min_price_per_route_per_date():
+    rows = load_rows(str(FIXTURE))
+    cal = build_calendar(rows)
+    # CPH-AMS 2026-06-19 has Ryanair at 7800 cents (cheapest)
+    assert cal["CPH-AMS"]["2026-06-19"]["min_cents"] == 7800
+    # flight_count = distinct (airline, dep_time) pairs across all retrieved_at
+    assert cal["CPH-AMS"]["2026-06-19"]["flight_count"] >= 5
+
+
+def test_build_calendar_empty_input():
+    assert build_calendar([]) == {}
+
+
+def test_build_calendar_separates_directions():
+    rows = load_rows(str(FIXTURE))
+    cal = build_calendar(rows)
+    assert "CPH-AMS" in cal and "AMS-CPH" in cal
+    # No CPH-AMS date should leak into AMS-CPH or vice versa
+    overlap = set(cal["CPH-AMS"].keys()) & set(cal["AMS-CPH"].keys())
+    # CPH-AMS dates and AMS-CPH dates are intentionally disjoint in the fixture
+    assert len(overlap) == 0 or all(
+        cal["CPH-AMS"][d]["min_cents"] != cal["AMS-CPH"][d]["min_cents"]
+        for d in overlap
+    )

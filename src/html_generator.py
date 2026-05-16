@@ -92,3 +92,31 @@ def build_metadata(rows: list[dict[str, Any]], generated_at: datetime) -> dict[s
         "routes": routes,
         "airlines": airlines,
     }
+
+
+def _route_key(row: dict[str, Any]) -> str:
+    return f"{row['origin']}-{row['destination']}"
+
+
+def build_calendar(rows: list[dict[str, Any]]) -> dict[str, dict[str, dict[str, int]]]:
+    """Per (route, departure_date): min observed price + distinct flight count.
+
+    Flight identity = (airline, dep_time_of_day). Multiple retrieved_at
+    snapshots for the same flight collapse into one for the count, but
+    every observation participates in the min.
+    """
+    out: dict[str, dict[str, dict[str, Any]]] = {}
+    for row in rows:
+        route = _route_key(row)
+        date = row["departure_date"]
+        flight_id = (row["airline"], row["departure_at"].time())
+        cell = out.setdefault(route, {}).setdefault(
+            date, {"min_cents": row["price_cents"], "_flights": set()}
+        )
+        cell["min_cents"] = min(cell["min_cents"], row["price_cents"])
+        cell["_flights"].add(flight_id)
+    # Materialise the count and drop the working set
+    for route_cells in out.values():
+        for cell in route_cells.values():
+            cell["flight_count"] = len(cell.pop("_flights"))
+    return out
