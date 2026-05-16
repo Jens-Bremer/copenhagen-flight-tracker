@@ -655,51 +655,56 @@
     const routes = activeRoutes().filter((r) => DATA.analysis[r]);
     if (routes.length === 0) return;
 
-    function aggregate(field, keyField) {
-      const grouped = {};
-      routes.forEach((r) => {
-        (DATA.analysis[r][field] || []).forEach((e) => {
-          const k = e[keyField];
-          grouped[k] = grouped[k] || { values: [], label: e.label };
-          grouped[k].values.push(e.mean_cents);
-        });
-      });
-      const keys = Object.keys(grouped).map(Number).sort((a, b) => a - b);
-      return keys.map((k) => ({
-        key: k,
-        label: grouped[k].label,
-        mean_cents: Math.round(grouped[k].values.reduce((a, b) => a + b, 0) / grouped[k].values.length),
-      }));
-    }
-    const dow = aggregate('day_of_week', 'dow');
-    const month = aggregate('month', 'month');
+    const ROUTE_COLORS = {
+      'CPH-AMS': 'rgba(192,57,43,0.65)',
+      'AMS-CPH': 'rgba(107,62,38,0.65)',
+    };
 
-    function makeBarChart(canvas, data, title) {
-      const values = data.map((d) => d.mean_cents);
-      const priceRange = data.length
-        ? { min: Math.min(...values), max: Math.max(...values) }
-        : null;
+    function makeGroupedChart(canvas, field, keyField, title) {
+      const allKeys = Array.from(new Set(
+        routes.flatMap((r) => (DATA.analysis[r][field] || []).map((e) => e[keyField]))
+      )).sort((a, b) => a - b);
+
+      const labels = allKeys.map((k) => {
+        for (const r of routes) {
+          const entry = (DATA.analysis[r][field] || []).find((e) => e[keyField] === k);
+          if (entry) return entry.label;
+        }
+        return String(k);
+      });
+
+      const datasets = routes.map((r) => {
+        const byKey = Object.fromEntries(
+          (DATA.analysis[r][field] || []).map((e) => [e[keyField], e.mean_cents])
+        );
+        return {
+          label: r,
+          data: allKeys.map((k) => byKey[k] != null ? byKey[k] / 100 : null),
+          backgroundColor: ROUTE_COLORS[r] || 'rgba(107,62,38,0.5)',
+          borderColor: 'rgba(107,62,38,0.4)',
+          borderWidth: 1,
+        };
+      });
+
       return new Chart(canvas, {
         type: 'bar',
-        data: {
-          labels: data.map((d) => d.label),
-          datasets: [{
-            label: 'Mean cheapest (€)',
-            data: data.map((d) => d.mean_cents / 100),
-            backgroundColor: data.map((d) => priceTint(d.mean_cents, priceRange)),
-            borderColor: 'rgba(107,62,38,0.4)',
-            borderWidth: 1,
-          }],
-        },
+        data: { labels, datasets },
         options: {
           responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false }, title: { display: true, text: title } },
+          plugins: {
+            legend: { display: true, position: 'top' },
+            title: { display: true, text: title },
+            tooltip: {
+              callbacks: { label: (c) => `${c.dataset.label}: €${Math.round(c.parsed.y)}` },
+            },
+          },
           scales: { y: { beginAtZero: false, title: { display: true, text: 'Mean price (€)' } } },
         },
       });
     }
-    charts.dow   = makeBarChart($('dow-chart'),   dow,   'Cheapest day of week (mean over departures)');
-    charts.month = makeBarChart($('month-chart'), month, 'Cheapest month of year (mean over departures)');
+
+    charts.dow   = makeGroupedChart($('dow-chart'),   'day_of_week', 'dow',   'Mean price by day of week');
+    charts.month = makeGroupedChart($('month-chart'), 'month',       'month', 'Mean price by month');
   }
 
   function renderAll() {

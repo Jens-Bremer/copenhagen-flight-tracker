@@ -382,6 +382,35 @@ def test_footer_charts_use_gentle_pricetint_palette():
     )
 
 
+def test_footer_charts_show_both_routes_as_grouped_bars():
+    """DOW and month charts must show one grouped bar per route per x-axis item,
+    not a single bar averaged across both routes.
+
+    Each route gets a distinct colour defined in ROUTE_COLORS and appears in
+    the chart legend so users can tell CPH-AMS from AMS-CPH at a glance.
+    The old aggregate() helper that averaged both routes is replaced by a
+    per-route dataset approach.
+    """
+    import re
+
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    all_scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+    assert all_scripts, "No <script> blocks found in rendered HTML"
+    app_js = all_scripts[-1]
+
+    # A ROUTE_COLORS map must exist to colour each route's bars distinctly.
+    assert 'ROUTE_COLORS' in app_js, (
+        "renderFooterCharts must define ROUTE_COLORS to assign a distinct "
+        "colour per route in the grouped bar charts"
+    )
+    # The old aggregate() implementation averaged both routes into one value
+    # per key — this must be gone, replaced by per-route datasets.
+    assert 'grouped[k].values.push' not in app_js, (
+        "The aggregate() helper in renderFooterCharts must be removed; "
+        "show one dataset per route instead of averaging them together"
+    )
+
+
 def test_render_html_inlines_escapeHtml_helper():
     """app.js must inline an escapeHtml helper so attacker-controlled airline
     names cannot inject HTML via innerHTML/insertAdjacentHTML."""
