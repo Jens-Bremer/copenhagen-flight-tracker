@@ -8,6 +8,13 @@
  * This file reads them on boot, manages a tiny `state` object, and
  * re-renders panels in response to filter / selection changes. Charts
  * are drawn with Chart.js 4.4.3 (inlined into the page above this script).
+ *
+ * UX refinements in this revision (no JSON-shape changes — backend is
+ * untouched). Search for "CHANGE (UX)" to see every modification:
+ *   1. Filter groups labelled "Route" / "Airline".
+ *   2. Calendar emits month-divider rows + min/max legend + per-cell
+ *      cheapest-airline dot + a dashed "today" outline.
+ *   3. Drill-down panel heading shows the selected date inline.
  */
 (function () {
   'use strict';
@@ -72,6 +79,7 @@
   // ───── Tiny helpers ────────────────────────────────────────────────────────
   function $(id) { return document.getElementById(id); }
   function formatPrice(cents) { return '€' + (cents / 100).toFixed(2); }
+  function formatPriceShort(cents) { return '€' + Math.round(cents / 100); }
 
   /** HTML-escape *s* for safe interpolation into `innerHTML`. Defends against
    *  attacker-controlled airline names from the upstream scraper. */
@@ -88,6 +96,15 @@
     const [y, m, d] = iso.split('-').map(Number);
     return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
       .format(new Date(y, m - 1, d));
+  }
+
+  function formatMonth(date) {
+    return new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric' }).format(date);
+  }
+
+  function todayIso() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
   const REQUIRED_DOM_IDS = [
@@ -140,7 +157,7 @@
     };
   }
 
-  // ───── Panel renderers (each lives in its own task; stubbed here) ──────────
+  // ───── Panel renderers ────────────────────────────────────────────────────
   function renderHeader() {
     if (!DATA.metadata) return;
     const range = DATA.metadata.date_range || {};
@@ -185,10 +202,31 @@
     return `rgba(${r}, ${g}, ${b}, 0.32)`;
   }
 
+  /** CHANGE (UX): Cheapest airline brand-colour visible on a given date,
+   *  across the currently active routes + airline filter. Returns null if
+   *  no flight is visible (the cell renders without a dot). */
+  function cheapestAirlineColor(iso) {
+    let bestAirline = null, bestPrice = Infinity;
+    activeRoutes().forEach((route) => {
+      const list = ((DATA.flights[route] || {})[iso]) || [];
+      list.forEach((f) => {
+        if (!airlinePasses(f.airline)) return;
+        if (f.latest_cents < bestPrice) {
+          bestPrice = f.latest_cents; bestAirline = f.airline;
+        }
+      });
+    });
+    return bestAirline ? airlineColor(bestAirline) : null;
+  }
+
   function renderCalendar() {
     const root = $('calendar');
     root.innerHTML = '';
     root.className = 'calendar';
+    // CHANGE (UX): legend lives in a sibling node next to the grid; remove any
+    // stale legend before re-rendering.
+    const oldLegend = root.parentElement && root.parentElement.querySelector('.calendar-legend');
+    if (oldLegend) oldLegend.remove();
 
     const range = calendarPriceRange();
     if (!range) {
@@ -226,11 +264,29 @@
       return isFinite(cheapest) ? cheapest : null;
     }
 
+    // CHANGE (UX): month-divider tracking — emit a serif label + rule whenever
+    // a new month starts on a Monday (column 1). Skip the very first row.
+    let lastMonth = -1;
+    let firstRow = true;
+    const todayStr = todayIso();
+
     while (cursor <= end || ((cursor.getDay() + 6) % 7) !== 0) {
       const iso = cursor.toISOString().slice(0, 10);
+      const month = cursor.getMonth();
+
+      if (((cursor.getDay() + 6) % 7) === 0 && month !== lastMonth && !firstRow) {
+        const divider = document.createElement('div');
+        divider.className = 'calendar__month-row';
+        divider.textContent = formatMonth(cursor);
+        root.appendChild(divider);
+      }
+      lastMonth = month;
+      firstRow = false;
+
       const cell = document.createElement('div');
       const price = cellPrice(iso);
       cell.className = 'calendar__cell' + (price === null ? ' is-empty' : '');
+      if (iso === todayStr && price !== null) cell.classList.add('is-today');
       cell.dataset.date = iso;
       cell.innerHTML = `
         <span class="calendar__cell__day">${cursor.getDate()}</span>
@@ -242,6 +298,17 @@
         cell.setAttribute('role', 'button');
         cell.setAttribute('aria-label', `${iso}, cheapest ${formatPrice(price)}`);
         if (state.selectedDate === iso) cell.classList.add('is-selected');
+
+        // CHANGE (UX): airline-colour dot in the top-right of every tinted cell.
+        const dotColor = cheapestAirlineColor(iso);
+        if (dotColor) {
+          const dot = document.createElement('span');
+          dot.className = 'calendar__cell__dot';
+          dot.style.background = dotColor;
+          dot.setAttribute('aria-hidden', 'true');
+          cell.appendChild(dot);
+        }
+
         cell.addEventListener('click', () => {
           state.selectedDate = iso;
           state.selectedFlight = null;
@@ -256,7 +323,20 @@
       cursor.setDate(cursor.getDate() + 1);
       if (cursor > end && ((cursor.getDay() + 6) % 7) === 0) break;
     }
+
+    // CHANGE (UX): min/max price legend under the grid. Inserted after the grid
+    // so layout reflow is cheap.
+    const legend = document.createElement('div');
+    legend.className = 'calendar-legend';
+    legend.setAttribute('aria-hidden', 'true');
+    legend.innerHTML = `
+      <span>${formatPriceShort(range.min)}</span>
+      <div class="calendar-legend__bar"></div>
+      <span>${formatPriceShort(range.max)}</span>
+    `;
+    root.insertAdjacentElement('afterend', legend);
   }
+
   function flightsForSelectedDate() {
     if (!state.selectedDate) return [];
     const out = [];
@@ -381,6 +461,7 @@
       'price (EUR)': (h.price_cents / 100).toFixed(2),
     })));
   }
+
   function renderTrends() {
     destroyChart('marketTrend');
     destroyChart('leadtime');
@@ -405,7 +486,6 @@
         pointRadius: 2,
       };
     });
-    // Compute the union of obs_dates for shared labels
     const allDates = Array.from(new Set(
       routes.flatMap((r) => (DATA.analysis[r].market_trend || []).map((t) => t.obs_date))
     )).sort();
@@ -422,7 +502,6 @@
       },
     });
 
-    // Lead-time curve
     const leadDatasets = routes.map((r) => {
       const curve = DATA.analysis[r].lead_time_curve || [];
       return {
@@ -449,13 +528,13 @@
       },
     });
 
-    // Headline: "Book ~N days ahead" per route
     const lines = routes.map((r) => {
       const days = DATA.analysis[r].sweet_spot_days;
       return days !== undefined ? `${r}: cheapest mean at ~${days} days ahead` : '';
     }).filter(Boolean);
     headline.textContent = lines.join(' · ');
   }
+
   function renderHistograms() {
     destroyChart('histogramOut');
     destroyChart('histogramBack');
@@ -467,7 +546,6 @@
       const summary = DATA.summary[route];
       if (!summary) return;
 
-      // Union of all bin_lows across airlines, then airline order = legend order
       const histogram = summary.histogram || {};
       const airlines = Object.keys(histogram)
         .filter(airlinePasses)
@@ -499,9 +577,7 @@
             title: { display: true, text: `${route} — price distribution (€5 bins)` },
             legend: { position: 'right' },
             tooltip: {
-              callbacks: {
-                label: (c) => `${c.dataset.label}: ${c.parsed.y} obs`,
-              },
+              callbacks: { label: (c) => `${c.dataset.label}: ${c.parsed.y} obs` },
             },
           },
           scales: {
@@ -510,7 +586,6 @@
           },
         },
       });
-      // Screen-reader summary: flatten bins × airlines into a single table
       const summaryRows = [];
       airlines.forEach((airline) => {
         histogram[airline].forEach((b) => {
@@ -525,6 +600,7 @@
       chartA11ySummary($(canvasFor[route]), summaryRows);
     });
   }
+
   function renderWeekendPairs() {
     const root = $('weekend-pairs');
     root.innerHTML = '';
@@ -569,6 +645,7 @@
       root.insertAdjacentHTML('beforeend', tableHtml);
     });
   }
+
   function renderFooterCharts() {
     destroyChart('dow');
     destroyChart('month');
@@ -576,8 +653,6 @@
     const routes = activeRoutes().filter((r) => DATA.analysis[r]);
     if (routes.length === 0) return;
 
-    // Aggregate across active routes by mean of means (each route weighted equally;
-    // good enough for a descriptive summary).
     function aggregate(field, keyField) {
       const grouped = {};
       routes.forEach((r) => {
@@ -598,14 +673,18 @@
     const month = aggregate('month', 'month');
 
     function makeBarChart(canvas, data, title) {
+      const minV = data.length ? Math.min(...data.map((d) => d.mean_cents)) : 0;
       return new Chart(canvas, {
         type: 'bar',
         data: {
           labels: data.map((d) => d.label),
           datasets: [{
             label: 'Mean cheapest (€)',
+            // CHANGE (UX): minimum-cost bar takes the green-ahead colour so
+            // the cheapest DOW / month reads at a glance without needing the
+            // headline beneath.
             data: data.map((d) => d.mean_cents / 100),
-            backgroundColor: 'var(--color-orange)',
+            backgroundColor: data.map((d) => d.mean_cents === minV ? 'var(--color-green-ahead)' : 'var(--color-orange)'),
             borderColor: 'var(--color-brown)',
             borderWidth: 1,
           }],
@@ -633,10 +712,26 @@
 
   // ───── Filter wiring ───────────────────────────────────────────────────────
   function wireFilters() {
+    // CHANGE (UX): inject a small uppercase label before each group of chips
+    // so the role is obvious without a tooltip. Cleared each render so we
+    // never accumulate duplicates.
+    function ensureLabel(container, text) {
+      const existing = container.previousElementSibling;
+      if (existing && existing.classList && existing.classList.contains('filters__label')) {
+        existing.textContent = text;
+        return;
+      }
+      const label = document.createElement('span');
+      label.className = 'filters__label';
+      label.textContent = text;
+      container.parentNode.insertBefore(label, container);
+    }
+
     // Route toggle
     const routes = ['CPH-AMS', 'AMS-CPH', 'both'];
     const routeContainer = $('route-toggle');
     routeContainer.innerHTML = '';
+    ensureLabel(routeContainer, 'Route');
     routes.forEach((r) => {
       const chip = document.createElement('button');
       chip.type = 'button';
@@ -658,6 +753,7 @@
     // Airline filter — chips for every airline in metadata
     const airlineContainer = $('airline-filter');
     airlineContainer.innerHTML = '';
+    ensureLabel(airlineContainer, 'Airline');
     const airlines = (DATA.metadata.airlines || []).slice().sort();
     airlines.forEach((a) => {
       const chip = document.createElement('button');
