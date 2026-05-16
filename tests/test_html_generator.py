@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -335,9 +336,6 @@ def test_generate_empty_input_writes_skeleton(tmp_path):
     assert "Copenhagen" in html
     # DATA_METADATA contains total_rows=0
     assert '"total_rows":0' in html.replace(" ", "")
-
-
-import subprocess
 
 
 def test_cli_smoke(tmp_path):
