@@ -7,7 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from src.html_generator import build_calendar, build_flights, build_metadata, load_rows
+from src.html_generator import (
+    build_analysis,
+    build_calendar,
+    build_flights,
+    build_metadata,
+    load_rows,
+)
 
 FIXTURE = Path(__file__).parent / "fixtures" / "flights_frontend_sample.csv"
 
@@ -133,3 +139,47 @@ def test_build_flights_days_before_per_observation():
 
 def test_build_flights_empty_input():
     assert build_flights([]) == {}
+
+
+def test_build_analysis_lead_time_curve_bins_by_days_before():
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    curve = analysis["CPH-AMS"]["lead_time_curve"]
+    # Every entry has the four required keys
+    for entry in curve:
+        assert {"days_before", "mean_cents", "min_cents", "obs_count"} <= entry.keys()
+    # Sorted by days_before ascending
+    assert [e["days_before"] for e in curve] == sorted(e["days_before"] for e in curve)
+
+
+def test_build_analysis_sweet_spot_is_bucket_with_lowest_mean():
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    cph_ams = analysis["CPH-AMS"]
+    curve = cph_ams["lead_time_curve"]
+    cheapest = min(curve, key=lambda e: e["mean_cents"])
+    assert cph_ams["sweet_spot_days"] == cheapest["days_before"]
+
+
+def test_build_analysis_day_of_week_has_seven_entries():
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    dow = analysis["CPH-AMS"]["day_of_week"]
+    # Only entries for days present in the data — but at least one
+    assert 1 <= len(dow) <= 7
+    for entry in dow:
+        assert 0 <= entry["dow"] <= 6
+        assert entry["label"] in {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
+
+
+def test_build_analysis_market_trend_is_sorted_by_obs_date():
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    trend = analysis["CPH-AMS"]["market_trend"]
+    dates = [t["obs_date"] for t in trend]
+    assert dates == sorted(dates)
+
+
+def test_build_analysis_empty_input():
+    out = build_analysis([])
+    assert out == {}

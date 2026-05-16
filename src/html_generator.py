@@ -13,6 +13,8 @@ Imports only config + stdlib + json (per CLAUDE.md module contract).
 from __future__ import annotations
 
 import csv
+from collections import defaultdict
+from datetime import date as date_type
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -172,4 +174,100 @@ def build_flights(
     for route_dates in out.values():
         for flight_list in route_dates.values():
             flight_list.sort(key=lambda f: (f["latest_cents"], f["dep_time"]))
+    return out
+
+
+_DOW_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+_MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def _mean(values: list[int]) -> int:
+    return round(sum(values) / len(values)) if values else 0
+
+
+def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Per route: lead-time curve, sweet spot, dow/month means, market trend."""
+    if not rows:
+        return {}
+
+    # Group prices by (route, days_before)
+    by_lead: dict[tuple[str, int], list[int]] = defaultdict(list)
+    # Group cheapest-per-departure by (route, dow) and (route, month)
+    cheapest_per_dep: dict[tuple[str, str], int] = {}
+    # Group cheapest-per-obs-date by (route, obs_date)
+    cheapest_per_obs: dict[tuple[str, str], int] = {}
+
+    for row in rows:
+        route = _route_key(row)
+        dep_date = date_type.fromisoformat(row["departure_date"])
+        obs_date = row["retrieved_at"].date().isoformat()
+        days_before = (dep_date - row["retrieved_at"].date()).days
+        # Skip implausible buckets defensively (should not occur post-#55)
+        if days_before < 0:
+            continue
+        by_lead[(route, days_before)].append(row["price_cents"])
+
+        key_dep = (route, row["departure_date"])
+        prev_dep = cheapest_per_dep.get(key_dep)
+        if prev_dep is None or row["price_cents"] < prev_dep:
+            cheapest_per_dep[key_dep] = row["price_cents"]
+
+        key_obs = (route, obs_date)
+        prev_obs = cheapest_per_obs.get(key_obs)
+        if prev_obs is None or row["price_cents"] < prev_obs:
+            cheapest_per_obs[key_obs] = row["price_cents"]
+
+    # Build lead-time curve per route, sorted by days_before
+    routes = sorted({k[0] for k in by_lead})
+    out: dict[str, dict[str, Any]] = {}
+
+    for route in routes:
+        curve_entries = sorted(
+            ((db, prices) for (r, db), prices in by_lead.items() if r == route),
+            key=lambda x: x[0],
+        )
+        curve = [
+            {
+                "days_before": db,
+                "mean_cents": _mean(prices),
+                "min_cents": min(prices),
+                "obs_count": len(prices),
+            }
+            for db, prices in curve_entries
+        ]
+        sweet_spot = min(curve, key=lambda e: e["mean_cents"])["days_before"]
+
+        # day_of_week aggregates the per-departure cheapest
+        by_dow: dict[int, list[int]] = defaultdict(list)
+        by_month: dict[int, list[int]] = defaultdict(list)
+        for (r, dep_iso), cents in cheapest_per_dep.items():
+            if r != route:
+                continue
+            d = date_type.fromisoformat(dep_iso)
+            by_dow[d.weekday()].append(cents)
+            by_month[d.month].append(cents)
+
+        dow_entries = [
+            {"dow": dow, "label": _DOW_LABELS[dow], "mean_cents": _mean(vals)}
+            for dow, vals in sorted(by_dow.items())
+        ]
+        month_entries = [
+            {"month": m, "label": _MONTH_LABELS[m - 1], "mean_cents": _mean(vals)}
+            for m, vals in sorted(by_month.items())
+        ]
+
+        trend_entries = sorted(
+            ({"obs_date": od, "min_cents": cents}
+             for (r, od), cents in cheapest_per_obs.items() if r == route),
+            key=lambda e: e["obs_date"],
+        )
+
+        out[route] = {
+            "lead_time_curve": curve,
+            "sweet_spot_days": sweet_spot,
+            "day_of_week": dow_entries,
+            "month": month_entries,
+            "market_trend": trend_entries,
+        }
     return out
