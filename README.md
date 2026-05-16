@@ -95,6 +95,44 @@ python scripts/export_csv.py
 python scripts/build_frontend_csv.py
 ```
 
+## Frontend
+
+A self-contained static dashboard is generated daily at 23:47 and written to `data/index.html`. Open it directly in a browser:
+
+```bash
+open data/index.html        # macOS
+xdg-open data/index.html    # Linux
+```
+
+The page works fully offline — Chart.js is committed under `frontend/vendor/` and inlined into the output by the generator. Only the DM Sans / DM Serif Display fonts are loaded from Google Fonts; system-font fallbacks kick in when offline.
+
+### Manual regeneration
+
+```bash
+python scripts/generate_html.py
+```
+
+Reads `data/flights_frontend.csv` and writes `data/index.html`. Use `--input` / `--output` to override.
+
+### Initial setup (one-time)
+
+```bash
+python scripts/fetch_vendor.py
+```
+
+Downloads Chart.js 4.4.3 into `frontend/vendor/chart.min.js`. Already done in a fresh clone — re-run only when bumping the Chart.js version.
+
+### What's in the dashboard
+
+- **Calendar** — every departure date in the data window, colour-tinted on a shared green→red scale by cheapest observed price.
+- **Drill-down** — click a date to see all flights that day; click a flight to see its price-over-time chart with gaps preserved.
+- **Price trends** — market trend (cheapest seen on each scrape day) and lead-time curve (mean price by days-before-departure) with a sweet-spot annotation.
+- **Airline histograms** — €5 bins, one bar per airline using brand colours.
+- **Weekend pairs** — top 5 Fri-out + Sun-back pairs sorted by total price.
+- **Cheapness footer** — cheapest day-of-week and cheapest month.
+
+All five panels react to the route toggle (CPH-AMS / AMS-CPH / both) and the airline filter chips above the calendar.
+
 ## Inspecting data
 
 ```bash
