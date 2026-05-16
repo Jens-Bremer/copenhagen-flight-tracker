@@ -214,3 +214,12 @@ ol, ul { list-style: none; }
 @media (prefers-reduced-motion: reduce) {
   .panel { opacity: 1; animation: none; }
 }
+
+/* ─── 14. A11y ─── */
+.calendar__cell:focus-visible,
+.flight-row:focus-visible,
+.filter-chip:focus-visible { outline: 3px solid var(--color-orange); outline-offset: 2px; }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}

@@ -49,6 +49,26 @@
     if (charts[slot]) { charts[slot].destroy(); charts[slot] = null; }
   }
 
+  /** Build a visually-hidden table next to a chart canvas so screen readers
+   *  can read the underlying data. `rows` is an array of objects whose keys
+   *  become column headers. */
+  function chartA11ySummary(parentCanvas, rows) {
+    const wrap = parentCanvas.parentElement;
+    if (!wrap) return;
+    let table = wrap.querySelector('.visually-hidden');
+    if (!table) {
+      table = document.createElement('div');
+      table.className = 'visually-hidden';
+      wrap.appendChild(table);
+    }
+    if (!rows.length) { table.innerHTML = ''; return; }
+    table.innerHTML = `<table><thead><tr>${
+      Object.keys(rows[0]).map((k) => `<th>${k}</th>`).join('')
+    }</tr></thead><tbody>${
+      rows.map((r) => '<tr>' + Object.values(r).map((v) => `<td>${v}</td>`).join('') + '</tr>').join('')
+    }</tbody></table>`;
+  }
+
   // ───── Tiny helpers ────────────────────────────────────────────────────────
   function $(id) { return document.getElementById(id); }
   function formatPrice(cents) { return '€' + (cents / 100).toFixed(2); }
@@ -341,6 +361,11 @@
         },
       },
     });
+    chartA11ySummary(ctx, flight.history.map((h) => ({
+      'observation date': h.obs_date,
+      'days before': h.days_before,
+      'price (EUR)': (h.price_cents / 100).toFixed(2),
+    })));
   }
   function renderTrends() {
     destroyChart('marketTrend');
@@ -471,6 +496,19 @@
           },
         },
       });
+      // Screen-reader summary: flatten bins × airlines into a single table
+      const summaryRows = [];
+      airlines.forEach((airline) => {
+        histogram[airline].forEach((b) => {
+          summaryRows.push({
+            route,
+            airline,
+            'price bin (EUR)': `${(b.bin_low / 100).toFixed(0)}–${((b.bin_low + 500) / 100).toFixed(0)}`,
+            count: b.count,
+          });
+        });
+      });
+      chartA11ySummary($(canvasFor[route]), summaryRows);
     });
   }
   function renderWeekendPairs() {
