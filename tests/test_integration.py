@@ -109,7 +109,7 @@ def test_partial_failure_counted_correctly(ctx):
 
 
 def test_retry_pass_recovers_failed_job(ctx):
-    """A job that raises in pass 1 but returns results in pass 2 is counted as success."""
+    """A job that raises in pass 1 but succeeds in pass 2 is counted as success."""
     db_path, heartbeat_path = ctx
     single_job = [("CPH", "AMS", date(2025, 9, 5))]
     results = [Exception("network error"), _make_result()]
@@ -138,7 +138,7 @@ def test_retry_pass_permanent_failure(ctx):
 
 
 def test_no_retry_when_all_succeed(ctx):
-    """When all jobs succeed, fetch is called exactly once per job with no retry pass."""
+    """When all jobs succeed, fetch is called exactly once per job (no retry pass)."""
     db_path, heartbeat_path = ctx
     with patch("fast_flights.get_flights", return_value=_make_result()) as mock_get:
         run_collection(JOBS, db_path, heartbeat_path, sleep_fn=lambda _: None)

@@ -1,0 +1,15 @@
+[project]
+name = "copenhagen-flight-tracker"
+version = "0.1.0"
+description = "Self-hosted flight price tracker for CPH-AMS routes"
+requires-python = ">=3.9"
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

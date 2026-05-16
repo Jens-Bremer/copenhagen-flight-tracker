@@ -6,7 +6,6 @@ import fast_flights
 
 from src.flight_fetcher import fetch_flights_for_date
 
-
 ORIGIN = "CPH"
 DESTINATION = "AMS"
 DEPARTURE = date(2025, 9, 5)

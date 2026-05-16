@@ -1,10 +1,10 @@
-import config
 import json
 import os
 from datetime import date
 
 import pytest
 
+import config
 from src.database import initialize_database, insert_observations
 from src.health_checker import (
     check_missing_routes,
@@ -12,7 +12,6 @@ from src.health_checker import (
     check_price_variance,
     run_health_check,
 )
-
 
 TODAY = date.today().isoformat()
 

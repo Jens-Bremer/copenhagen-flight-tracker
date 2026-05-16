@@ -4,20 +4,20 @@ import os
 import sys
 from unittest.mock import patch
 
-import schedule
 import pytest
+import schedule
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
 from scripts.run_scheduler import (
-    setup_schedule,
-    _daily_job,
-    _health_check_job,
-    _csv_export_job,
     _backup_job,
+    _csv_export_job,
+    _daily_job,
     _frontend_csv_job,
     _generate_html_job,
+    _health_check_job,
+    setup_schedule,
 )
 
 

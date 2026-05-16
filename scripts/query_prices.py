@@ -111,7 +111,8 @@ def cmd_stats() -> None:
         ).fetchone()[0]
         per_route = conn.execute(
             "SELECT origin, destination, COUNT(*) AS cnt "
-            "FROM flight_observations GROUP BY origin, destination ORDER BY origin, destination"
+            "FROM flight_observations "
+            "GROUP BY origin, destination ORDER BY origin, destination"
         ).fetchall()
     finally:
         conn.close()

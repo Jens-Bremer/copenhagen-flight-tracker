@@ -4,17 +4,17 @@ import os
 import sys
 import time
 from datetime import date, datetime, timezone
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
 from src.config_validator import validate_config
 from src.database import insert_observations
-from src.log_config import setup_logging
-from src.price_alerter import check_and_alert_cheap_flights
 from src.date_generator import generate_target_dates
 from src.flight_fetcher import fetch_flights_for_date
+from src.log_config import setup_logging
+from src.price_alerter import check_and_alert_cheap_flights
 from src.request_pacer import compute_sleep_intervals, seconds_until_window_start
 from src.response_parser import parse_flights
 from src.route_expander import expand_jobs
@@ -52,8 +52,11 @@ def run_collection(
     heartbeat_path: str,
     intervals: Optional[list] = None,
     sleep_fn: Callable = time.sleep,
-) -> Tuple[int, int]:
-    """Execute one full collection cycle. Returns (total_observations, failed_jobs_count)."""
+) -> tuple[int, int]:
+    """Execute one full collection cycle.
+
+    Returns (total_observations, failed_jobs_count).
+    """
     start_time = time.monotonic()
     run_date = date.today().isoformat()
     total_jobs = len(jobs)

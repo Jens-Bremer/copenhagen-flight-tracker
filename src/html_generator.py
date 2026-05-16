@@ -229,7 +229,8 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     cheapest_per_obs: dict[tuple[str, str], int] = {}
     # Group prices by (route, dow, hour) for the time-of-day heatmap
     by_time: dict[tuple[str, int, int], list[int]] = defaultdict(list)
-    # Group prices by (route, dep_date, airline, dep_time, days_before) for normalised progression
+    # Group prices by (route, dep_date, airline, dep_time, days_before)
+    # for normalised price progression
     by_flight: dict[tuple[str, str, str, str], dict[int, list[int]]] = defaultdict(
         lambda: defaultdict(list)
     )

@@ -339,8 +339,8 @@ def test_timeheat_panel_rendered_in_html():
 def test_build_summary_histogram_bin_width_500_cents():
     rows = load_rows(str(FIXTURE))
     summary = build_summary(rows)
-    for route, blob in summary.items():
-        for airline, bins in blob["histogram"].items():
+    for _route, blob in summary.items():
+        for _airline, bins in blob["histogram"].items():
             for b in bins:
                 assert b["bin_high"] - b["bin_low"] == 500
                 assert b["bin_low"] % 500 == 0

@@ -29,7 +29,7 @@ def test_returns_n_minus_one_intervals(mock_dt):
 @patch("src.request_pacer.datetime")
 def test_base_interval_is_window_divided_by_gaps(mock_dt):
     mock_dt.now.return_value = FAKE_NOW_OUTSIDE
-    # With jitter removed (seed for reproducibility), intervals should cluster near base.
+    # With jitter removed (reproducible seed), intervals should cluster near base.
     base = WINDOW_SECONDS / 9  # ~6400s for 10 requests over 16 hours
     intervals = compute_sleep_intervals(10, WINDOW_START, WINDOW_END)
     for interval in intervals:

@@ -3,9 +3,8 @@ import os
 
 import pytest
 
-from src.database import initialize_database, insert_observations
 from scripts.export_csv import export_to_csv
-
+from src.database import initialize_database, insert_observations
 
 COLUMNS = [
     "retrieved_at",
