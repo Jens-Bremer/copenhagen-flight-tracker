@@ -473,6 +473,7 @@
       row.addEventListener('click', () => {
         state.selectedFlight = { airline: f.airline, dep_time: f.dep_time, route: f.route };
         renderDrilldown();
+        if (charts.leadtime) charts.leadtime.update();
       });
       root.appendChild(row);
     });
@@ -639,6 +640,23 @@
         ctx.font = '11px sans-serif';
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
         ctx.fillText('You are here', xPx + 4, chartArea.top + 14);
+        if (state.selectedFlight) {
+          const sf = state.selectedFlight;
+          const dfl = ((DATA.flights || {})[sf.route] || {})[state.selectedDate] || [];
+          const chosen = dfl.find(
+            (f) => f.airline === sf.airline && f.dep_time === sf.dep_time
+          );
+          if (chosen && chosen.latest_cents) {
+            const yPx = scales.y.getPixelForValue(chosen.latest_cents / 100);
+            ctx.beginPath();
+            ctx.arc(xPx, yPx, 6, 0, 2 * Math.PI);
+            ctx.fillStyle = 'rgba(192,57,43,0.9)';
+            ctx.fill();
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+          }
+        }
         ctx.restore();
       },
     };

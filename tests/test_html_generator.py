@@ -1471,3 +1471,54 @@ def test_build_flights_percentile_midpoint_for_median_price(tmp_path):
     # prices sorted: [5000, 6000, 7000, 8000, 9000]
     # 7000 is at index 2 → percentile = 2/4 * 100 = 50.0
     assert easyjet["percentile"] == 50.0
+
+
+# ─── Issue #101: selected-flight marker on lead-time chart ────────────────────
+
+
+def test_leadtime_selected_flight_dot_uses_arc():
+    """When a flight is selected the afterDraw plugin must draw a dot
+    (canvas arc) at the flight's price level on the lead-time chart."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "arc(" in js, (
+        "afterDraw plugin must call ctx.arc() to draw a dot for the selected flight"
+    )
+
+
+def test_leadtime_selected_flight_chart_update_called():
+    """Clicking a flight row must call charts.leadtime.update() so the
+    afterDraw plugin re-runs and the marker moves to the new flight."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "leadtime.update" in js, (
+        "flight row click handler must call charts.leadtime.update()"
+    )
+
+
+def test_leadtime_selected_flight_reads_selectedflight_in_afterdraw():
+    """The afterDraw plugin must reference state.selectedFlight to find the
+    selected flight and draw the dot at its price position."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "selectedFlight" in js
+    assert "afterDraw" in js
+
+
+def test_leadtime_selected_flight_dot_disappears_when_none():
+    """When state.selectedFlight is null the dot must not be drawn.
+    The afterDraw plugin must guard against a null selectedFlight."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    # afterDraw block must check selectedFlight before drawing dot
+    assert "selectedFlight" in js
+    # guard must be present — either explicit null check or if-block
+    assert "if (state.selectedFlight)" in js or "selectedFlight &&" in js
+
+
+def test_leadtime_selected_flight_css_dot_colour():
+    """The dot for the selected flight must use the site red colour
+    (rgba(192,57,43,...) or var(--color-red)) for visual consistency."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "192,57,43" in js or "color-red" in js
