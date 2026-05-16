@@ -178,20 +178,24 @@ def check_observation_count(db_path: str, run_date: str, expected_min: int) -> L
     return []
 
 
-def run_health_check(db_path: str, heartbeat_path: Optional[str] = None) -> list:
+def run_health_check(db_path: str, heartbeat_path: Optional[str] = None, run_date: Optional[str] = None) -> list:
     """Run all health checks and return a list of problem descriptions (empty = healthy)."""
     if heartbeat_path is None:
         heartbeat_path = os.path.join(
             os.path.dirname(os.path.abspath(db_path)), "last_run.json"
         )
-    checks = [
+    if run_date is None:
+        run_date = date.today().isoformat()
+    single_checks = [
         _check_heartbeat_stale(heartbeat_path),
         _check_high_failure_rate(heartbeat_path),
         _check_zero_observations_today(db_path),
         _check_observation_count_drop(db_path),
         _check_currency_inconsistency(db_path),
     ]
-    problems = [c for c in checks if c is not None]
+    problems = [c for c in single_checks if c is not None]
+    problems.extend(check_missing_routes(db_path, run_date, config.ROUTES))
+    problems.extend(check_price_variance(db_path, run_date))
     for p in problems:
         logger.warning("Health check problem: %s", p)
     return problems

@@ -64,7 +64,11 @@ def ctx(tmp_path):
 def test_no_problems_when_all_healthy(ctx):
     db_path, heartbeat_path = ctx
     _make_heartbeat(heartbeat_path)
-    insert_observations(db_path, [_obs()])
+    obs = []
+    for origin, dest in config.ROUTES:
+        for price in [4500, 5500, 6500, 7500]:
+            obs.append(_obs(origin=origin, destination=dest, price_amount=price))
+    insert_observations(db_path, obs)
     problems = run_health_check(db_path, heartbeat_path=heartbeat_path)
     assert problems == []
 
@@ -258,3 +262,16 @@ def test_check_observation_count_empty_on_empty_db(ctx):
     db_path, _ = ctx
     problems = check_observation_count(db_path, TODAY, expected_min=50)
     assert problems == []
+
+
+# --- run_health_check integration: new checks ---
+
+
+def test_run_health_check_surfaces_missing_route_and_price_variance(ctx):
+    db_path, heartbeat_path = ctx
+    _make_heartbeat(heartbeat_path)
+    # Only CPH→AMS with uniform price — AMS→CPH is missing, CPH→AMS has no variance
+    insert_observations(db_path, [_obs(origin="CPH", destination="AMS", price_amount=5000) for _ in range(5)])
+    problems = run_health_check(db_path, heartbeat_path=heartbeat_path, run_date=TODAY)
+    assert any("Missing route" in p for p in problems)
+    assert any("Price variance" in p for p in problems)
