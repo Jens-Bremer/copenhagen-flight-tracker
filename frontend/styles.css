@@ -199,6 +199,7 @@ ol, ul { list-style: none; }
 .calendar-nav button:disabled { opacity: 0.35; cursor: default; }
 
 /* ─── 8. Drill-down ─── */
+.drilldown-sort { display: flex; gap: var(--space-sm); margin-bottom: var(--space-sm); }
 .flight-list { display: grid; gap: var(--space-sm); }
 .flight-row {
   display: grid; grid-template-columns: auto 1fr auto auto auto;

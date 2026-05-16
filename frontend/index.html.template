@@ -48,6 +48,7 @@
     <!-- 3. Drill-down (active when a date is selected) -->
     <section class="panel" id="drilldown-panel" aria-label="Flights for selected date">
       <h2 class="panel__heading"><span id="drilldown-title">Pick a day in the calendar</span></h2>
+      <div id="drilldown-sort" class="drilldown-sort"></div>
       <div id="drilldown"></div>
       <div id="price-history-wrap" class="chart-wrap is-hidden">
         <canvas id="price-history-chart" aria-label="Price over time" role="img"></canvas>

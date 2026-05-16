@@ -37,7 +37,8 @@
     calendarMonth: null,     // 'YYYY-MM' — currently displayed month
     selectedDate: null,      // 'YYYY-MM-DD' | null
     selectedFlight: null,    // { airline, dep_time } | null
-    airlineFilter: new Set() // empty Set = all airlines visible
+    airlineFilter: new Set(), // empty Set = all airlines visible
+    drilldownSort: 'price',  // 'price' | 'time'
   };
 
   // ───── Data (populated once on boot) ───────────────────────────────────────
@@ -114,7 +115,7 @@
     'header-range', 'header-generated', 'footer-generated',
     'route-toggle', 'airline-filter',
     'cal-prev', 'cal-month-label', 'cal-next',
-    'calendar', 'drilldown-panel', 'drilldown-title', 'drilldown',
+    'calendar', 'drilldown-panel', 'drilldown-title', 'drilldown-sort', 'drilldown',
     'price-history-wrap', 'price-history-chart',
     'market-trend-chart', 'leadtime-chart', 'sweet-spot-headline',
     'histogram-out', 'histogram-back',
@@ -376,10 +377,12 @@
   function renderDrilldown() {
     const title = $('drilldown-title');
     const root = $('drilldown');
+    const sortBar = $('drilldown-sort');
     const historyWrap = $('price-history-wrap');
 
     if (!state.selectedDate) {
       title.textContent = 'Pick a day in the calendar';
+      sortBar.innerHTML = '';
       root.innerHTML = '';
       historyWrap.classList.add('is-hidden');
       destroyChart('priceHistory');
@@ -389,10 +392,29 @@
     title.textContent = `Flights on ${formatDate(state.selectedDate)}`;
     const flights = flightsForSelectedDate();
     if (flights.length === 0) {
+      sortBar.innerHTML = '';
       root.innerHTML = `<div class="empty-state">No flights match the current filters on this day.</div>`;
       historyWrap.classList.add('is-hidden');
       destroyChart('priceHistory');
       return;
+    }
+
+    // Sort pills
+    sortBar.innerHTML = '';
+    [['price', 'Sort by price'], ['time', 'Sort by dep. time']].forEach(([mode, label]) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'filter-chip' + (state.drilldownSort === mode ? ' is-active' : '');
+      btn.textContent = label;
+      btn.addEventListener('click', () => { state.drilldownSort = mode; renderDrilldown(); });
+      sortBar.appendChild(btn);
+    });
+
+    // Sort flights
+    if (state.drilldownSort === 'price') {
+      flights.sort((a, b) => a.latest_cents - b.latest_cents);
+    } else {
+      flights.sort((a, b) => a.dep_time.localeCompare(b.dep_time));
     }
 
     root.className = 'flight-list';
