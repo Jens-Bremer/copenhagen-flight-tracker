@@ -229,7 +229,7 @@ ol, ul { list-style: none; }
 
 /* ─── 10. Weekend pairs tables ─── */
 .pairs-tables { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); }
-.pairs-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.pairs-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
 .pairs-table caption {
   text-align: left; padding-bottom: var(--space-sm);
   font-family: var(--font-display); color: var(--color-brown);
@@ -239,7 +239,8 @@ ol, ul { list-style: none; }
 }
 .pairs-table th { font-weight: 600; color: var(--color-brown-light);
                   text-transform: uppercase; font-size: 0.7rem; letter-spacing: 0.06em; }
-.pairs-table tbody tr:hover { background: var(--color-cream); }
+.pairs-table tbody tr:nth-child(even) { background: var(--color-cream); }
+.pairs-table tbody tr:hover { background: var(--color-cream-dark); }
 
 /* ─── 11. Empty / error states ─── */
 /* CHANGE (UX): dashed border on empty state makes it read as a placeholder
