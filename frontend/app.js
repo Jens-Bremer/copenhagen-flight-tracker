@@ -675,19 +675,19 @@
     const month = aggregate('month', 'month');
 
     function makeBarChart(canvas, data, title) {
-      const minV = data.length ? Math.min(...data.map((d) => d.mean_cents)) : 0;
+      const values = data.map((d) => d.mean_cents);
+      const priceRange = data.length
+        ? { min: Math.min(...values), max: Math.max(...values) }
+        : null;
       return new Chart(canvas, {
         type: 'bar',
         data: {
           labels: data.map((d) => d.label),
           datasets: [{
             label: 'Mean cheapest (€)',
-            // CHANGE (UX): minimum-cost bar takes the green-ahead colour so
-            // the cheapest DOW / month reads at a glance without needing the
-            // headline beneath.
             data: data.map((d) => d.mean_cents / 100),
-            backgroundColor: data.map((d) => d.mean_cents === minV ? 'var(--color-green-ahead)' : 'var(--color-orange)'),
-            borderColor: 'var(--color-brown)',
+            backgroundColor: data.map((d) => priceTint(d.mean_cents, priceRange)),
+            borderColor: 'rgba(107,62,38,0.4)',
             borderWidth: 1,
           }],
         },

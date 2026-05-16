@@ -349,6 +349,39 @@ def test_histograms_use_stacked_bars_with_airline_segments():
     )
 
 
+def test_footer_charts_use_gentle_pricetint_palette():
+    """DOW and month bar charts must colour bars with priceTint() (soft
+    green→red alpha scale) rather than the hard-coded --color-green-ahead /
+    --color-orange pair, which renders as harsh dark/solid fills.
+
+    priceTint() returns rgba values at 0.32 alpha, matching the calendar
+    heatmap's visual language and avoiding the near-black appearance of the
+    dark-green CSS variable on some displays.
+    """
+    import re
+
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    all_scripts = re.findall(r'<script[^>]*>(.*?)</script>', html, re.S)
+    assert all_scripts, "No <script> blocks found in rendered HTML"
+    app_js = all_scripts[-1]
+
+    # Old hard-coded colours must be gone from bar chart backgroundColor.
+    assert "'var(--color-green-ahead)'" not in app_js, (
+        "makeBarChart must not use --color-green-ahead as a bar colour; "
+        "use priceTint() for a consistent, gentle green-to-red scale"
+    )
+    assert "'var(--color-orange)'" not in app_js, (
+        "makeBarChart must not use --color-orange as a bar colour; "
+        "use priceTint() for a consistent palette"
+    )
+    # priceTint() must now be called inside renderFooterCharts/makeBarChart as
+    # well as in renderCalendar — so it appears at least twice in the source.
+    assert app_js.count('priceTint(') >= 2, (
+        "Expected priceTint() to appear at least twice — once in renderCalendar "
+        "and once inside renderFooterCharts/makeBarChart"
+    )
+
+
 def test_render_html_inlines_escapeHtml_helper():
     """app.js must inline an escapeHtml helper so attacker-controlled airline
     names cannot inject HTML via innerHTML/insertAdjacentHTML."""
