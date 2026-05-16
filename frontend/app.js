@@ -37,7 +37,8 @@
     calendarMonth: null,     // 'YYYY-MM' — currently displayed month
     selectedDate: null,      // 'YYYY-MM-DD' | null
     selectedFlight: null,    // { airline, dep_time } | null
-    airlineFilter: new Set() // empty Set = all airlines visible
+    airlineFilter: new Set(), // empty Set = all airlines visible
+    drilldownSort: 'price',  // 'price' | 'time'
   };
 
   // ───── Data (populated once on boot) ───────────────────────────────────────
@@ -114,7 +115,7 @@
     'header-range', 'header-generated', 'footer-generated',
     'route-toggle', 'airline-filter',
     'cal-prev', 'cal-month-label', 'cal-next',
-    'calendar', 'drilldown-panel', 'drilldown-title', 'drilldown',
+    'calendar', 'drilldown-panel', 'drilldown-title', 'drilldown-sort', 'drilldown',
     'price-history-wrap', 'price-history-chart',
     'market-trend-chart', 'leadtime-chart', 'sweet-spot-headline',
     'histogram-out', 'histogram-back',
@@ -376,10 +377,12 @@
   function renderDrilldown() {
     const title = $('drilldown-title');
     const root = $('drilldown');
+    const sortBar = $('drilldown-sort');
     const historyWrap = $('price-history-wrap');
 
     if (!state.selectedDate) {
       title.textContent = 'Pick a day in the calendar';
+      sortBar.innerHTML = '';
       root.innerHTML = '';
       historyWrap.classList.add('is-hidden');
       destroyChart('priceHistory');
@@ -389,10 +392,29 @@
     title.textContent = `Flights on ${formatDate(state.selectedDate)}`;
     const flights = flightsForSelectedDate();
     if (flights.length === 0) {
+      sortBar.innerHTML = '';
       root.innerHTML = `<div class="empty-state">No flights match the current filters on this day.</div>`;
       historyWrap.classList.add('is-hidden');
       destroyChart('priceHistory');
       return;
+    }
+
+    // Sort pills
+    sortBar.innerHTML = '';
+    [['price', 'Sort by price'], ['time', 'Sort by dep. time']].forEach(([mode, label]) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'filter-chip' + (state.drilldownSort === mode ? ' is-active' : '');
+      btn.textContent = label;
+      btn.addEventListener('click', () => { state.drilldownSort = mode; renderDrilldown(); });
+      sortBar.appendChild(btn);
+    });
+
+    // Sort flights
+    if (state.drilldownSort === 'price') {
+      flights.sort((a, b) => a.latest_cents - b.latest_cents);
+    } else {
+      flights.sort((a, b) => a.dep_time.localeCompare(b.dep_time));
     }
 
     root.className = 'flight-list';
@@ -503,8 +525,8 @@
       return {
         label: r,
         data: trend.map((t) => ({ x: t.obs_date, y: t.min_cents / 100 })),
-        borderColor: r === 'CPH-AMS' ? 'var(--color-red)' : 'var(--color-brown)',
-        backgroundColor: 'rgba(192, 57, 43, 0.10)',
+        borderColor: r === 'CPH-AMS' ? 'var(--color-red)' : 'var(--color-route-back)',
+        backgroundColor: r === 'CPH-AMS' ? 'rgba(192,57,43,0.10)' : 'rgba(41,128,185,0.10)',
         spanGaps: false,
         borderWidth: 2,
         pointRadius: 2,
@@ -529,7 +551,7 @@
     // Three datasets per route: Q1 boundary, Q3 boundary (filled back to Q1 = IQR band), mean line.
     const leadDatasets = routes.flatMap((r) => {
       const curve = DATA.analysis[r].lead_time_curve || [];
-      const bandAlpha = r === 'CPH-AMS' ? 'rgba(192,57,43,' : 'rgba(107,62,38,';
+      const bandAlpha = r === 'CPH-AMS' ? 'rgba(192,57,43,' : 'rgba(41,128,185,';
       return [
         {
           label: `${r} Q1`,
@@ -552,7 +574,7 @@
         {
           label: r,
           data: curve.map((c) => ({ x: c.days_before, y: c.mean_cents / 100 })),
-          borderColor: r === 'CPH-AMS' ? 'var(--color-red)' : 'var(--color-brown)',
+          borderColor: r === 'CPH-AMS' ? 'var(--color-red)' : 'var(--color-route-back)',
           fill: false,
           spanGaps: false,
           borderWidth: 2,
@@ -620,7 +642,7 @@
       charts[slotFor[route]] = new Chart($(canvasFor[route]), {
         type: 'bar',
         data: {
-          labels: allBins.map((bl) => `€${(bl / 100).toFixed(0)}–€${((bl + 500) / 100).toFixed(0)}`),
+          labels: allBins.map((bl) => `€${(bl / 100).toFixed(0)}`),
           datasets,
         },
         options: {
@@ -778,9 +800,8 @@
       const routeData = DATA.analysis[route];
       const matrix = routeData ? (routeData.time_of_day_matrix || []) : [];
 
-      // Filter to active airline set — we have no per-cell airline info here,
-      // so always show the matrix regardless of airline filter.
-      const visible = activeRoutes().includes(route) ? matrix : [];
+      // Always show both directions — this chart is exempt from the direction filter.
+      const visible = matrix;
 
       if (!visible.length) {
         const ctx = canvas.getContext('2d');
@@ -903,7 +924,8 @@
 
   function renderNormProgress() {
     destroyChart('normProg');
-    const routes = activeRoutes().filter((r) => DATA.analysis[r]);
+    // Always show both directions — this chart is exempt from the direction filter.
+    const routes = ['CPH-AMS', 'AMS-CPH'].filter((r) => DATA.analysis[r]);
     if (routes.length === 0) return;
 
     const datasets = routes.map((r) => {
@@ -911,7 +933,7 @@
       return {
         label: r,
         data: prog.map((e) => ({ x: e.days_before, y: e.mean_pct_change })),
-        borderColor: r === 'CPH-AMS' ? 'var(--color-red)' : 'var(--color-brown)',
+        borderColor: r === 'CPH-AMS' ? 'var(--color-red)' : 'var(--color-route-back)',
         backgroundColor: 'transparent',
         spanGaps: false,
         borderWidth: 2,
