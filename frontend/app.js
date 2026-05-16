@@ -58,6 +58,28 @@
       .format(new Date(y, m - 1, d));
   }
 
+  const REQUIRED_DOM_IDS = [
+    'header-range', 'header-generated', 'footer-generated',
+    'route-toggle', 'airline-filter',
+    'calendar', 'drilldown-panel', 'drilldown-title', 'drilldown',
+    'price-history-wrap', 'price-history-chart',
+    'market-trend-chart', 'leadtime-chart', 'sweet-spot-headline',
+    'histogram-out', 'histogram-back',
+    'weekend-pairs',
+    'dow-chart', 'month-chart',
+  ];
+  function assertRequiredDomIds() {
+    const missing = REQUIRED_DOM_IDS.filter((id) => !$(id));
+    if (missing.length) throw new Error('Missing DOM IDs: ' + missing.join(', '));
+  }
+  function fatalBanner(msg) {
+    const banner = document.createElement('div');
+    banner.className = 'error-banner';
+    banner.role = 'alert';
+    banner.textContent = msg;
+    document.body.insertBefore(banner, document.body.firstChild);
+  }
+
   /** Deterministic warm-arc hue (0–60° ∪ 350–360°) for unknown airlines. */
   function airlineColor(airline) {
     if (AIRLINE_COLORS[airline]) return AIRLINE_COLORS[airline];
@@ -615,10 +637,22 @@
 
   // ───── Boot ────────────────────────────────────────────────────────────────
   function main() {
+    try { assertRequiredDomIds(); }
+    catch (e) { fatalBanner(e.message); console.error(e); return; }
+
     DATA = loadData();
     if (typeof window.Chart === 'undefined') {
-      console.error('Chart.js failed to load — charts will be missing.');
+      fatalBanner('Chart.js failed to load — re-run scripts/fetch_vendor.py.');
+      return;
     }
+
+    if (!DATA.metadata || (DATA.metadata.total_rows ?? 0) === 0) {
+      document.querySelector('main').innerHTML =
+        '<div class="empty-state">No flight observations available. ' +
+        'Re-run the scheduler or the CSV builder to generate data.</div>';
+      return;
+    }
+
     wireFilters();
     renderAll();
     // Expose for debugging (read-only in spirit; do not write from outside)
