@@ -41,6 +41,9 @@ FLIGHT_TRACKER_PLAN.md
 *.swp
 *.swo
 
+# Worktrees
+.worktrees/
+
 # pytest
 .pytest_cache/
 .coverage
