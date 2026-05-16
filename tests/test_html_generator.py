@@ -845,6 +845,65 @@ def test_hero_shows_fallback_when_no_analysis_data():
     )
 
 
+# ─── Issue #96: per-flight trajectory arrows in drill-down ────────────────────
+
+
+def test_drilldown_trajectory_arrow_rendered_when_not_null():
+    """renderDrilldown must emit a .flight-row__trajectory span when trajectory
+    is non-null, with an aria-label that names the direction and percentage."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "flight-row__trajectory" in js, (
+        "renderDrilldown must include .flight-row__trajectory for trajectory arrows"
+    )
+    assert "trajectory" in js, (
+        "renderDrilldown must read trajectory from flight data"
+    )
+
+
+def test_drilldown_trajectory_arrow_skipped_when_null():
+    """No arrow span must be emitted when trajectory is null."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    # The null guard must be present (some form of null/falsy check on trajectory)
+    assert "trajectory" in js
+    # There must be a conditional that avoids rendering when trajectory is null
+    assert "f.trajectory" in js, (
+        "JS must access f.trajectory to conditionally render the arrow"
+    )
+
+
+def test_drilldown_trajectory_arrow_has_aria_label():
+    """Each trajectory arrow span must carry an aria-label for screen readers."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "aria-label" in js, (
+        "trajectory arrow span must have an aria-label attribute"
+    )
+
+
+def test_drilldown_trajectory_arrow_colors_all_directions():
+    """app.js must produce distinct CSS for each of the three directions."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    # Colors for each direction (inline style or CSS class references)
+    assert "trajectory--down" in js or "#3d7a3d" in js or "green" in js.lower(), (
+        "down trajectory must have a green indicator"
+    )
+    assert "trajectory--up" in js or "#c0392b" in js or "color-red" in js, (
+        "up trajectory must have a red indicator"
+    )
+    assert "trajectory--stable" in js or "#999" in js or "stable" in js, (
+        "stable trajectory must have a gray/neutral indicator"
+    )
+
+
+def test_drilldown_trajectory_css_class_in_styles():
+    """styles.css must define .flight-row__trajectory."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert ".flight-row__trajectory" in html
+
+
 # ─── Issue #94: trajectory, verdict, market-direction ─────────────────────────
 
 

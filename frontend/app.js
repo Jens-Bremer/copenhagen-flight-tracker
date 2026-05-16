@@ -430,6 +430,17 @@
         state.selectedFlight.route === f.route ? ' is-selected' : ''
       );
       const overnight = f.overnight ? `<span class="flight-row__overnight">+1</span>` : '';
+      // Trajectory arrow: green ↓ for down, red ↑ for up, gray → for stable, none for null.
+      let trajectoryHtml = '';
+      if (f.trajectory === 'down') {
+        const pct = f.trajectory_pct !== null ? Math.abs(Math.round(f.trajectory_pct)) + '%' : '';
+        trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--down" aria-label="down ${pct}">↓</span>`;
+      } else if (f.trajectory === 'up') {
+        const pct = f.trajectory_pct !== null ? Math.abs(Math.round(f.trajectory_pct)) + '%' : '';
+        trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--up" aria-label="up ${pct}">↑</span>`;
+      } else if (f.trajectory === 'stable') {
+        trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--stable" aria-label="stable">→</span>`;
+      }
       // airlineColor() returns one of: a fixed hex/white/orange constant or a
       // synthesised hsl(deg,70%,50%) — both safe inside a style attribute.
       row.innerHTML = `
@@ -438,7 +449,7 @@
         <span>${escapeHtml(f.airline)} <small>(${escapeHtml(f.route)})</small></span>
         <span class="flight-row__time">${escapeHtml(f.dep_time)} → ${escapeHtml(f.arr_time)} ${overnight}</span>
         <span class="flight-row__time">${Math.floor(f.duration_minutes / 60)}h ${f.duration_minutes % 60}m</span>
-        <span><strong>${formatPrice(f.latest_cents)}</strong></span>
+        <span><strong>${formatPrice(f.latest_cents)}</strong>${trajectoryHtml}</span>
       `;
       row.addEventListener('click', () => {
         state.selectedFlight = { airline: f.airline, dep_time: f.dep_time, route: f.route };

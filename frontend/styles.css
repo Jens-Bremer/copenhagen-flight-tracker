@@ -216,6 +216,10 @@ ol, ul { list-style: none; }
 .flight-row__time { font-variant-numeric: tabular-nums; }
 .flight-row__overnight { font-size: 0.7rem; padding: 2px 6px; border-radius: 999px;
                          background: var(--color-orange); color: var(--color-cream); }
+.flight-row__trajectory { font-size: 13px; font-weight: 600; margin-left: 4px; }
+.flight-row__trajectory--down   { color: var(--color-green-ahead); }
+.flight-row__trajectory--up     { color: var(--color-red); }
+.flight-row__trajectory--stable { color: #999; }
 
 /* ─── 8b. Time-of-day heatmap ─── */
 .timeheat-wrap {
