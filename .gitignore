@@ -48,4 +48,3 @@ FLIGHT_TRACKER_PLAN.md
 .pytest_cache/
 .coverage
 htmlcov/
-config_local.py
