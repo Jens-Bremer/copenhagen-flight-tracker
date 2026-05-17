@@ -11,19 +11,41 @@ logger = logging.getLogger(__name__)
 
 
 def _check_heartbeat_stale(heartbeat_path: str) -> Optional[str]:
-    """Return a problem string if the heartbeat file is missing or not from today."""
+    """Return a problem string if the heartbeat file is missing, unparseable,
+    or not from today.
+
+    Operators need to distinguish three failure modes:
+    (a) file missing — daemon never wrote it (crashed before completion, or
+        not running at all),
+    (b) file present but unparseable — almost certainly a mid-write crash
+        before the atomic-rename fix landed, or disk corruption,
+    (c) file from a prior date — daemon ran on an earlier day but not today.
+    """
+    today = date.today().isoformat()
     if not os.path.exists(heartbeat_path):
-        return "[urgent] Heartbeat stale: last_run.json not found"
+        return (
+            f"[urgent] Heartbeat missing: {heartbeat_path} does not exist "
+            f"(daemon may not have run today, expected {today})"
+        )
     try:
         with open(heartbeat_path) as f:
             data = json.load(f)
-        if data.get("run_date") != date.today().isoformat():
-            return (
-                f"[urgent] Heartbeat stale: last run was {data.get('run_date')}, "
-                f"expected {date.today().isoformat()}"
-            )
+    except json.JSONDecodeError as exc:
+        return (
+            f"[urgent] Heartbeat unparseable: {heartbeat_path} is not valid "
+            f"JSON ({exc}); likely a mid-write crash or disk corruption"
+        )
     except Exception as exc:
-        return f"[urgent] Heartbeat stale: could not read last_run.json ({exc})"
+        return (
+            f"[urgent] Heartbeat unreadable: could not open {heartbeat_path} "
+            f"({exc})"
+        )
+    run_date = data.get("run_date")
+    if run_date != today:
+        return (
+            f"[urgent] Heartbeat outdated: last run was {run_date}, "
+            f"expected {today} (daemon did not complete a run today)"
+        )
     return None
 
 
@@ -44,8 +66,11 @@ def _check_high_failure_rate(heartbeat_path: str) -> Optional[str]:
                 f"[high] High failure rate: {failed}/{total_jobs} jobs failed "
                 f"({failed / total_jobs:.0%})"
             )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning(
+            "Could not read heartbeat for failure-rate check: %s", exc
+        )
+        return None
     return None
 
 
