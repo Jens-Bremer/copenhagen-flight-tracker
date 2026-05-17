@@ -209,12 +209,23 @@ def test_leadtime_chart_renders_iqr_band():
 
 
 def test_build_analysis_sweet_spot_is_bucket_with_lowest_mean():
+    """sweet_spot_days picks the cheapest *reliable* bucket (obs_count >= threshold).
+
+    The fixture has fewer than 10 observations in every bucket, so all are
+    filtered out and the result is None — which the frontend renders as the
+    'Not enough data yet' fallback.
+    """
     rows = load_rows(str(FIXTURE))
     analysis = build_analysis(rows)
     cph_ams = analysis["CPH-AMS"]
     curve = cph_ams["lead_time_curve"]
-    cheapest = min(curve, key=lambda e: e["mean_cents"])
-    assert cph_ams["sweet_spot_days"] == cheapest["days_before"]
+    import config
+    reliable = [e for e in curve if e["obs_count"] >= config.RELIABLE_MIN_OBSERVATIONS]
+    if reliable:
+        cheapest = min(reliable, key=lambda e: e["mean_cents"])
+        assert cph_ams["sweet_spot_days"] == cheapest["days_before"]
+    else:
+        assert cph_ams["sweet_spot_days"] is None
 
 
 def test_build_analysis_day_of_week_has_seven_entries():
@@ -1523,3 +1534,90 @@ def test_leadtime_selected_flight_css_dot_colour():
     html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
     js = _app_js(html)
     assert "192,57,43" in js or "color-red" in js
+
+
+# --- Sweet-spot minimum-observation threshold (issue #113) ---
+
+
+def _make_sweet_spot_rows(
+    days_before_prices: dict[int, list[int]], tmp_path
+) -> list[dict]:
+    """Build synthetic CSV rows and return them as parsed dicts.
+
+    days_before_prices maps days_before → list of price_cents.  The
+    departure date is fixed to 2026-09-01; retrieved_at is computed as
+    departure_date minus days_before days.
+    """
+    from datetime import date, timedelta
+
+    dep_date = date(2026, 9, 1)
+    lines = [
+        "retrieved_at,departure_date,origin,destination,airline,"
+        "departure_at,arrival_at,duration_minutes,price_cents,price_currency"
+    ]
+    for db, prices in days_before_prices.items():
+        ret_date = dep_date - timedelta(days=db)
+        ret_iso = f"{ret_date.isoformat()}T12:00Z"
+        for i, cents in enumerate(prices):
+            lines.append(
+                f"{ret_iso},2026-09-01,CPH,AMS,Airline{i},"
+                f"2026-09-01T10:00:00,2026-09-01T11:30:00,90,{cents},EUR"
+            )
+    p = tmp_path / "sweet_spot.csv"
+    p.write_text("\n".join(lines) + "\n")
+    return load_rows(str(p))
+
+
+def test_sweet_spot_all_buckets_reliable_picks_cheapest(tmp_path):
+    """With 200 observations evenly spread across 5 buckets (40 each), all
+    buckets exceed the threshold=10 floor.  The sweet_spot picks the bucket
+    with the lowest mean — here days_before=10 at 5000 cents, the rest at
+    10000 cents.
+    """
+    days_before_prices = {
+        3:  [10000] * 40,
+        5:  [10000] * 40,
+        10: [5000] * 40,   # cheapest — should be selected
+        30: [10000] * 40,
+        90: [10000] * 40,
+    }
+    rows = _make_sweet_spot_rows(days_before_prices, tmp_path)
+    analysis = build_analysis(rows)
+    assert analysis["CPH-AMS"]["sweet_spot_days"] == 10
+
+
+def test_sweet_spot_filters_below_threshold_bucket(tmp_path):
+    """Buckets with fewer than RELIABLE_MIN_OBSERVATIONS observations must
+    be excluded even if their mean price is the lowest.
+
+    days_before=5 has only 2 observations at a suspiciously low price of
+    1 cent — a classic outlier scenario.  days_before=30 has 15 observations
+    at a higher but reliable 8000 cents.  The sweet_spot must be 30, not 5.
+    """
+    import config
+
+    days_before_prices = {
+        5:  [1] * 2,          # below threshold — must be excluded
+        30: [8000] * 15,      # reliable
+    }
+    rows = _make_sweet_spot_rows(days_before_prices, tmp_path)
+    analysis = build_analysis(rows)
+    # The only reliable bucket is days_before=30
+    assert analysis["CPH-AMS"]["sweet_spot_days"] == 30
+    # Confirm threshold is indeed 10 so the test is meaningful
+    assert config.RELIABLE_MIN_OBSERVATIONS == 10
+
+
+def test_sweet_spot_none_when_no_bucket_meets_threshold(tmp_path):
+    """When every bucket has fewer than RELIABLE_MIN_OBSERVATIONS
+    observations, sweet_spot_days must be None (not an arbitrary pick).
+    The frontend already handles None via its 'Not enough data yet' fallback.
+    """
+    days_before_prices = {
+        10: [9000] * 3,   # only 3 obs — below threshold
+        20: [8500] * 5,   # only 5 obs — below threshold
+        30: [8000] * 2,   # only 2 obs — below threshold
+    }
+    rows = _make_sweet_spot_rows(days_before_prices, tmp_path)
+    analysis = build_analysis(rows)
+    assert analysis["CPH-AMS"]["sweet_spot_days"] is None

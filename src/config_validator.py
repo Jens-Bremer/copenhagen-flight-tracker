@@ -27,6 +27,7 @@ def validate_config(cfg: dict) -> None:
     _check_bot_challenge_min_bytes(cfg.get("BOT_CHALLENGE_MIN_BYTES"))
     _check_bot_challenge_title_patterns(cfg.get("BOT_CHALLENGE_TITLE_PATTERNS"))
     _check_consecutive_failure_days(cfg.get("CONSECUTIVE_FAILURE_DAYS"))
+    _check_reliable_min_observations(cfg.get("RELIABLE_MIN_OBSERVATIONS"))
 
 
 def _check_routes(routes) -> None:
@@ -183,3 +184,8 @@ def _check_bot_challenge_title_patterns(value) -> None:
 def _check_consecutive_failure_days(value) -> None:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ValueError("CONSECUTIVE_FAILURE_DAYS must be a positive integer (>= 1)")
+
+
+def _check_reliable_min_observations(value) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError("RELIABLE_MIN_OBSERVATIONS must be a positive integer (>= 1)")
