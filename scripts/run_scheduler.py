@@ -19,6 +19,7 @@ from src.frontend_csv_builder import build as build_frontend_csv
 from src.health_checker import run_health_check
 from src.html_generator import generate as generate_html
 from src.log_config import setup_logging
+from src.migrations import apply_migrations
 from src.notifier import send_alert
 from src.request_pacer import compute_sleep_intervals
 from src.route_expander import expand_jobs
@@ -179,6 +180,8 @@ def _signal_handler(signum: int, frame) -> None:
 def main() -> None:
     signal.signal(signal.SIGTERM, _signal_handler)
     validate_config(vars(config))
+    applied = apply_migrations(config.DATABASE_PATH)
+    logger.info("Scheduler: applied %d migration(s) on startup", applied)
     setup_schedule()
     logger.info("Scheduler running — press Ctrl+C to stop")
 
