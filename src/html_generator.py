@@ -13,7 +13,6 @@ Imports only config + stdlib + json (per CLAUDE.md module contract).
 
 from __future__ import annotations
 
-import bisect
 import csv
 import json
 import string
@@ -22,6 +21,8 @@ from datetime import date as date_type
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+
+from src.analytics import percentile_rank
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 TEMPLATE_PATH = FRONTEND_DIR / "index.html.template"
@@ -144,19 +145,7 @@ def _percentile_from_history(latest_cents: int, history: list[dict]) -> float | 
     Returns None when fewer than 5 observations exist.
     """
     prices = sorted(h["price_cents"] for h in history)
-    n = len(prices)
-    if n < 5:
-        return None
-    if latest_cents <= prices[0]:
-        return 0.0
-    if latest_cents >= prices[-1]:
-        return 100.0
-    lower = bisect.bisect_left(prices, latest_cents)
-    upper = bisect.bisect_right(prices, latest_cents)
-    rank: float = lower
-    if upper > lower:
-        rank = (lower + upper - 1) / 2
-    return (rank / (n - 1)) * 100.0
+    return percentile_rank(latest_cents, prices)
 
 
 def _trajectory_from_history(

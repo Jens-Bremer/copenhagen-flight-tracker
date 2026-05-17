@@ -1,7 +1,83 @@
 import pytest
 
-from src.analytics import compute_price_percentile
+from src.analytics import compute_price_percentile, percentile_rank
 from src.database import initialize_database, insert_observations
+
+# ─── percentile_rank (pure function) ─────────────────────────────────────────
+
+
+def test_percentile_rank_too_few_samples_returns_none():
+    """Returns None when len(sorted_prices) < min_samples (default 5)."""
+    assert percentile_rank(5000, [1000, 2000, 3000, 4000]) is None
+
+
+def test_percentile_rank_empty_list_returns_none():
+    """Empty input is below min_samples, so None is returned."""
+    assert percentile_rank(0, []) is None
+
+
+def test_percentile_rank_price_below_minimum_returns_zero():
+    """Price at or below the first element → 0.0."""
+    assert percentile_rank(500, [1000, 2000, 3000, 4000, 5000]) == pytest.approx(0.0)
+
+
+def test_percentile_rank_price_equal_minimum_returns_zero():
+    """Price exactly equal to the minimum → 0.0."""
+    assert percentile_rank(1000, [1000, 2000, 3000, 4000, 5000]) == pytest.approx(0.0)
+
+
+def test_percentile_rank_price_above_maximum_returns_hundred():
+    """Price at or above the last element → 100.0."""
+    assert percentile_rank(6000, [1000, 2000, 3000, 4000, 5000]) == pytest.approx(100.0)
+
+
+def test_percentile_rank_price_equal_maximum_returns_hundred():
+    """Price exactly equal to the maximum → 100.0."""
+    assert percentile_rank(5000, [1000, 2000, 3000, 4000, 5000]) == pytest.approx(100.0)
+
+
+def test_percentile_rank_price_at_median_of_unique_values():
+    """Middle element of 5 unique values → 50.0."""
+    # prices: [1000, 2000, 3000, 4000, 5000], index 2 of 4 → 2/4 * 100 = 50.0
+    assert percentile_rank(3000, [1000, 2000, 3000, 4000, 5000]) == pytest.approx(50.0)
+
+
+def test_percentile_rank_price_at_quarter():
+    """Second element of 5 → rank 1/4 → 25.0."""
+    assert percentile_rank(2000, [1000, 2000, 3000, 4000, 5000]) == pytest.approx(25.0)
+
+
+def test_percentile_rank_tied_prices_use_midpoint():
+    """Tied prices share the midpoint of their index range.
+
+    prices = [1000, 5000, 5000, 5000, 9000]
+    5000 appears at indices 1, 2, 3.
+    lower_index = bisect_left → 1
+    upper_index = bisect_right → 4
+    rank = (1 + 4 - 1) / 2 = 2.0
+    percentile = 2.0 / 4 * 100 = 50.0
+    """
+    prices = [1000, 5000, 5000, 5000, 9000]
+    assert percentile_rank(5000, prices) == pytest.approx(50.0)
+
+
+def test_percentile_rank_tied_min_prices_use_midpoint():
+    """Multiple occurrences at the minimum fall back to the 0.0 edge case."""
+    # price <= prices[0] → 0.0 (edge case fires before bisect)
+    prices = [5000, 5000, 6000, 7000, 8000]
+    assert percentile_rank(5000, prices) == pytest.approx(0.0)
+
+
+def test_percentile_rank_min_samples_override():
+    """min_samples parameter overrides the default threshold."""
+    # With 3 prices and min_samples=3, should return a result (not None)
+    result = percentile_rank(2000, [1000, 2000, 3000], min_samples=3)
+    assert result == pytest.approx(50.0)
+
+
+def test_percentile_rank_min_samples_override_none():
+    """min_samples=6 with only 5 prices → None."""
+    assert percentile_rank(3000, [1000, 2000, 3000, 4000, 5000], min_samples=6) is None
 
 
 def _obs(price_amount: int, retrieved_at: str) -> dict:
