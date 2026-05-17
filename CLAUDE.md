@@ -14,8 +14,11 @@ Currently, the project operates as a mature service with a full analytics fronte
 ## Commands
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Install dependencies (production)
+pip install -e .
+
+# Install with dev extras (pytest, ruff)
+pip install -e ".[dev]"
 
 # Initialize the database (safe to run multiple times)
 python scripts/setup_db.py

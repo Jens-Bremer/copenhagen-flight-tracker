@@ -3,6 +3,18 @@ name = "copenhagen-flight-tracker"
 version = "0.1.0"
 description = "Self-hosted flight price tracker for CPH-AMS routes"
 requires-python = ">=3.9"
+dependencies = [
+    "fast-flights>=2.2,<3.0",
+    "primp>=0.15.0,<1.0",
+    "python-dateutil>=2.9.0.post0,<3.0",
+    "schedule>=1.2.2,<2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.3,<10.0",
+    "ruff>=0.6.0,<1.0",
+]
 
 [tool.ruff]
 line-length = 88
