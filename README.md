@@ -1,6 +1,6 @@
 # Copenhagen Flight Tracker
 
-A self-hosted Python service that tracks one-way flight prices between Copenhagen (CPH) and Amsterdam (AMS) in both directions. It scrapes Google Flights via the [`fast-flights`](https://github.com/AWeirdDev/flights) library (Protobuf-based, no browser needed), stores every observed price in SQLite, and spreads requests evenly across a configurable daily window to avoid IP bans (hopefully). An easy overview with the cheapest flights will be hosted on jensbremer.nl (eventually)
+A self-hosted Python service that tracks one-way flight prices between Copenhagen (CPH) and Amsterdam (AMS) in both directions. It scrapes Google Flights via the [`fast-flights`](https://github.com/AWeirdDev/flights) library (Protobuf-based, no browser needed), stores every observed price in SQLite, and spreads requests evenly across a configurable daily window to avoid IP bans (hopefully). An overview of the data is presented on [jensbremer.nl](https://stats.jensbremer.nl/copenhagen-flight-tracker/frontend/)
 
 ## Install
 
@@ -11,7 +11,6 @@ cd copenhagen-flight-tracker
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python -c "import os; os.makedirs('data', exist_ok=True); os.makedirs('logs', exist_ok=True)"
 python scripts/setup_db.py
 ```
 
@@ -22,7 +21,6 @@ cd copenhagen-flight-tracker
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
-python -c "import os; os.makedirs('data', exist_ok=True); os.makedirs('logs', exist_ok=True)"
 python scripts\setup_db.py
 ```
 
@@ -150,4 +148,4 @@ python scripts/query_prices.py --date YYYY-MM-DD
 
 MIT
 
-_( i have not clue how this works, just take your own repsonsibilty )_
+_( i have no clue how this works, just take your own responsibility )_
