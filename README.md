@@ -122,6 +122,19 @@ sudo cp deploy/copenhagen-flight-tracker.logrotate /etc/logrotate.d/
 
 The scheduler handles `SIGTERM` gracefully — `systemctl stop` will shut it down cleanly.
 
+## Upgrading
+
+After pulling a new release on a long-lived server:
+
+```bash
+./scripts/update.sh        # macOS / Linux
+```
+```powershell
+.\scripts\update.ps1       # Windows (PowerShell 5.1+)
+```
+
+The script will refuse to proceed if you have uncommitted edits to tracked files — commit or stash them first. It stops the scheduler via `data/run_scheduler.pid` (from #133), pulls, installs deps from `pyproject.toml`, runs DB migrations, then restarts.
+
 ## CSV export
 
 `data/flights_export.csv` is regenerated automatically every night at 23:45. It contains all stored observations with columns: `retrieved_at`, `departure_date`, `origin`, `destination`, `airline`, `departure_time`, `arrival_time`, `price_amount`, `price_currency`. This file is intended for archival completeness and downstream tooling.
