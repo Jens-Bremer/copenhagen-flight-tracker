@@ -239,19 +239,6 @@ def sort_rows(rows: list) -> list:
     )
 
 
-def _drop_reason(raw: dict) -> str:
-    """Best-effort reason string for a dropped row, used in the per-row warning."""
-    if not raw.get("departure_time") or not raw.get("arrival_time"):
-        return "empty departure_time or arrival_time"
-    raw_price = raw.get("price_amount", "")
-    try:
-        if int(raw_price) <= 0:
-            return "invalid price_amount"
-    except (TypeError, ValueError):
-        return "invalid price_amount"
-    return "unparseable departure_time or arrival_time"
-
-
 def dedupe_rows(rows: list) -> list:
     """Drop rows that are identical across all output columns."""
     seen = set()
@@ -285,23 +272,41 @@ def build(input_path: str, output_path: str) -> tuple:
         input_rows = list(reader)
 
     transformed = []
-    missing_time_count = 0
+    skip_missing_time = 0
+    skip_invalid_price = 0
+    skip_parse_error = 0
     total_rows = len(input_rows)
-    for index, raw in enumerate(input_rows, start=1):
+    for raw in input_rows:
         if not raw.get("departure_time") or not raw.get("arrival_time"):
-            missing_time_count += 1
+            skip_missing_time += 1
             continue
         slim = slim_row(raw)
         if slim is None:
-            logger.warning("row %d skipped: %s", index, _drop_reason(raw))
+            price = raw.get("price_amount", "")
+            try:
+                if int(price) <= 0:
+                    skip_invalid_price += 1
+                else:
+                    skip_parse_error += 1
+            except (TypeError, ValueError):
+                skip_invalid_price += 1
             continue
         transformed.append(slim)
 
-    if missing_time_count:
+    total_skipped = skip_missing_time + skip_invalid_price + skip_parse_error
+    if total_skipped:
+        parts = []
+        if skip_missing_time:
+            parts.append(f"{skip_missing_time} missing time")
+        if skip_invalid_price:
+            parts.append(f"{skip_invalid_price} invalid price")
+        if skip_parse_error:
+            parts.append(f"{skip_parse_error} parse error")
         logger.info(
-            "%d out of %d rows discarded due to missing time",
-            missing_time_count,
+            "skipped %d of %d input rows: %s",
+            total_skipped,
             total_rows,
+            "; ".join(parts),
         )
 
     if input_rows and not transformed:

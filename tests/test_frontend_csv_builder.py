@@ -238,7 +238,7 @@ def test_build_dedupes_identical_rows(tmp_path):
     assert len(rows) == 1
 
 
-def test_build_logs_missing_time_summary_once(tmp_path, caplog):
+def test_build_logs_skip_summary_once(tmp_path, caplog):
     src_path = str(tmp_path / "in.csv")
     out = str(tmp_path / "out.csv")
     _write_input(
@@ -252,10 +252,11 @@ def test_build_logs_missing_time_summary_once(tmp_path, caplog):
         written, status = build(src_path, out)
     assert status == BUILD_OK
     assert written == 1
-    assert any("discarded due to missing time" in rec.message for rec in caplog.records)
-    assert not any(
-        "row 1" in rec.message and "skipped" in rec.message for rec in caplog.records
+    assert any(
+        "missing time" in rec.message and "skipped" in rec.message
+        for rec in caplog.records
     )
+    assert not any("row " in rec.message for rec in caplog.records)
 
 
 def test_slim_row_drops_empty_departure_time():
@@ -491,7 +492,7 @@ def test_build_norwegian_klm_collision_kept(tmp_path):
     assert {r["airline"] for r in rows} == {"Norwegian", "KLM"}
 
 
-def test_build_drops_malformed_with_warning(tmp_path, caplog):
+def test_build_logs_skip_summary_on_parse_error(tmp_path, caplog):
     src_path = str(tmp_path / "in.csv")
     out = str(tmp_path / "out.csv")
     _write_input(
@@ -501,26 +502,32 @@ def test_build_drops_malformed_with_warning(tmp_path, caplog):
             _input_csv_row(),  # ok
         ],
     )
-    with caplog.at_level(logging.WARNING, logger="src.frontend_csv_builder"):
+    with caplog.at_level(logging.INFO, logger="src.frontend_csv_builder"):
         written, status = build(src_path, out)
     assert status == BUILD_OK
     assert written == 1
     rows = _read_output(out)
     assert len(rows) == 1
     assert any(
-        "row 1" in rec.message and "skipped" in rec.message for rec in caplog.records
+        "parse error" in rec.message and "skipped" in rec.message
+        for rec in caplog.records
     )
+    assert not any("row " in rec.message for rec in caplog.records)
 
 
-def test_build_drops_price_zero_with_warning(tmp_path, caplog):
+def test_build_logs_skip_summary_on_invalid_price(tmp_path, caplog):
     src_path = str(tmp_path / "in.csv")
     out = str(tmp_path / "out.csv")
     _write_input(src_path, [_input_csv_row(price_amount="0"), _input_csv_row()])
-    with caplog.at_level(logging.WARNING, logger="src.frontend_csv_builder"):
+    with caplog.at_level(logging.INFO, logger="src.frontend_csv_builder"):
         written, status = build(src_path, out)
     assert status == BUILD_OK
     assert written == 1
-    assert any("price_amount" in rec.message for rec in caplog.records)
+    assert any(
+        "invalid price" in rec.message and "skipped" in rec.message
+        for rec in caplog.records
+    )
+    assert not any("row " in rec.message for rec in caplog.records)
 
 
 def test_build_all_rows_unparseable_returns_status(tmp_path):
