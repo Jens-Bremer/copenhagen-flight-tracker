@@ -268,6 +268,13 @@ def test_write_heartbeat_leaves_prior_content_intact_on_mid_write_crash(tmp_path
         "failed_jobs_count": 0,
         "total_jobs": 100,
         "duration_seconds": 1234.5,
+        "failures_by_kind": {
+            "bot_challenge": 0,
+            "rate_limited": 0,
+            "parse_error": 0,
+            "network": 0,
+            "other": 0,
+        },
     }
     with open(heartbeat_path, "w") as f:
         json.dump(prior, f)
@@ -295,6 +302,56 @@ def test_write_heartbeat_leaves_prior_content_intact_on_mid_write_crash(tmp_path
     # on disk after a crash, but it must NOT have clobbered the target.
     # The temp file is acceptable — what matters is target integrity.
     assert os.path.exists(heartbeat_path)
+
+
+def test_write_heartbeat_persists_failures_by_kind(tmp_path):
+    """The heartbeat must persist the per-category failure counters so the
+    health checker can read them (issue #111). Default of None must serialize
+    as a fresh zero-filled dict — never absent, never null — so downstream
+    consumers can rely on the field's presence."""
+    heartbeat_path = str(tmp_path / "last_run.json")
+    failures = {
+        "bot_challenge": 4,
+        "rate_limited": 1,
+        "parse_error": 0,
+        "network": 2,
+        "other": 0,
+    }
+    _write_heartbeat(
+        heartbeat_path,
+        run_date="2026-05-17",
+        total_observations=42,
+        failed_jobs_count=7,
+        total_jobs=100,
+        duration_seconds=10.0,
+        failures_by_kind=failures,
+    )
+    with open(heartbeat_path) as f:
+        data = json.load(f)
+    assert data["failures_by_kind"] == failures
+
+
+def test_write_heartbeat_defaults_failures_by_kind_to_zero_counts(tmp_path):
+    """Omitting failures_by_kind must still write a zero-filled dict so
+    consumers never see a missing field."""
+    heartbeat_path = str(tmp_path / "last_run.json")
+    _write_heartbeat(
+        heartbeat_path,
+        run_date="2026-05-17",
+        total_observations=42,
+        failed_jobs_count=0,
+        total_jobs=100,
+        duration_seconds=10.0,
+    )
+    with open(heartbeat_path) as f:
+        data = json.load(f)
+    assert data["failures_by_kind"] == {
+        "bot_challenge": 0,
+        "rate_limited": 0,
+        "parse_error": 0,
+        "network": 0,
+        "other": 0,
+    }
 
 
 def test_write_heartbeat_calls_os_replace_once_with_temp_and_target(tmp_path):

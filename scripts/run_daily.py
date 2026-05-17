@@ -13,7 +13,14 @@ import config
 from src.config_validator import validate_config
 from src.database import insert_observations
 from src.date_generator import generate_target_dates
-from src.flight_fetcher import fetch_flights_for_date, install_fetch_patch
+from src.flight_fetcher import (
+    BotChallengeError,
+    NetworkError,
+    ParseError,
+    RateLimitedError,
+    fetch_flights_for_date,
+    install_fetch_patch,
+)
 from src.log_config import setup_logging
 from src.price_alerter import check_and_alert_cheap_flights
 from src.request_pacer import compute_sleep_intervals, seconds_until_window_start
@@ -24,6 +31,36 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 
+def _empty_failures_by_kind() -> dict:
+    """Return a fresh per-category failure counter dict.
+
+    Categories track the LEADING ban-signal taxonomy from issue #111:
+    bot_challenge and rate_limited are the high-signal ones; parse_error
+    isolates response-shape changes; network covers transport blips; other
+    catches whatever fast_flights raises that doesn't fit the above.
+    """
+    return {
+        "bot_challenge": 0,
+        "rate_limited": 0,
+        "parse_error": 0,
+        "network": 0,
+        "other": 0,
+    }
+
+
+def _classify_failure(exc: BaseException) -> str:
+    """Map an exception raised by fetch_flights_for_date to a failure category."""
+    if isinstance(exc, BotChallengeError):
+        return "bot_challenge"
+    if isinstance(exc, RateLimitedError):
+        return "rate_limited"
+    if isinstance(exc, ParseError):
+        return "parse_error"
+    if isinstance(exc, NetworkError):
+        return "network"
+    return "other"
+
+
 def _write_heartbeat(
     heartbeat_path: str,
     run_date: str,
@@ -31,6 +68,7 @@ def _write_heartbeat(
     failed_jobs_count: int,
     total_jobs: int,
     duration_seconds: float,
+    failures_by_kind: Optional[dict] = None,
 ) -> None:
     """Write the heartbeat file atomically via temp-file + os.replace.
 
@@ -43,6 +81,8 @@ def _write_heartbeat(
     """
     target_dir = os.path.dirname(os.path.abspath(heartbeat_path))
     os.makedirs(target_dir, exist_ok=True)
+    if failures_by_kind is None:
+        failures_by_kind = _empty_failures_by_kind()
     with tempfile.NamedTemporaryFile(
         mode="w",
         dir=target_dir,
@@ -57,6 +97,7 @@ def _write_heartbeat(
                 "failed_jobs_count": failed_jobs_count,
                 "total_jobs": total_jobs,
                 "duration_seconds": round(duration_seconds, 1),
+                "failures_by_kind": failures_by_kind,
             },
             f,
             indent=2,
@@ -91,6 +132,13 @@ def run_collection(
 
     total_observations = 0
     failed_jobs = []
+    # Per-category failure counters (issue #111). Only the final outcome of
+    # each job counts: if the first pass raised BotChallengeError but the
+    # retry succeeded, that job is NOT counted as a failure. We accomplish
+    # this by tallying the retry results (if any) and otherwise the first
+    # pass — the retry-pass loop below replaces failed_jobs, so we recompute
+    # the totals from the final failed_jobs list.
+    first_pass_exceptions: dict[tuple, BaseException] = {}
 
     for idx, (origin, destination, departure_date) in enumerate(jobs, start=1):
         logger.info(
@@ -124,10 +172,14 @@ def run_collection(
                 "Job %s→%s %s failed: %s", origin, destination, departure_date, exc
             )
             failed_jobs.append((origin, destination, departure_date, str(exc)))
+            first_pass_exceptions[(origin, destination, departure_date)] = exc
 
         if idx < total_jobs and intervals:
             sleep_fn(intervals[idx - 1])
 
+    # Retry pass — exceptions raised here REPLACE the first-pass exception
+    # for the same job, so failures_by_kind reflects the final outcome.
+    retry_exceptions: dict[tuple, BaseException] = {}
     if failed_jobs:
         logger.info("Starting retry pass for %d failed job(s)", len(failed_jobs))
         retry_results = []
@@ -161,7 +213,23 @@ def run_collection(
                     exc,
                 )
                 retry_results.append((origin, destination, departure_date, str(exc)))
+                retry_exceptions[(origin, destination, departure_date)] = exc
         failed_jobs = retry_results
+
+    # Tally final per-category failure counts. For each job that is still in
+    # failed_jobs after the retry pass, prefer the retry exception (latest
+    # signal); fall back to the first-pass exception if there was no retry
+    # exception (e.g. retry succeeded structurally but inserted 0 rows).
+    failures_by_kind = _empty_failures_by_kind()
+    for origin, destination, dep_date, _reason in failed_jobs:
+        key = (origin, destination, dep_date)
+        exc = retry_exceptions.get(key) or first_pass_exceptions.get(key)
+        if exc is None:
+            # "no observations stored" with no underlying exception — not a
+            # classifiable fetch failure, count as "other".
+            failures_by_kind["other"] += 1
+            continue
+        failures_by_kind[_classify_failure(exc)] += 1
 
     duration = time.monotonic() - start_time
     logger.info(
@@ -182,6 +250,7 @@ def run_collection(
         len(failed_jobs),
         total_jobs,
         duration,
+        failures_by_kind,
     )
     check_and_alert_cheap_flights(db_path, config.PRICE_ALERT_THRESHOLD, run_date)
     return total_observations, len(failed_jobs)

@@ -24,6 +24,9 @@ def validate_config(cfg: dict) -> None:
     _check_price_alert_threshold(cfg.get("PRICE_ALERT_THRESHOLD"))
     _check_log_dir(cfg.get("LOG_DIR"))
     _check_log_keep_days(cfg.get("LOG_KEEP_DAYS"))
+    _check_bot_challenge_min_bytes(cfg.get("BOT_CHALLENGE_MIN_BYTES"))
+    _check_bot_challenge_title_patterns(cfg.get("BOT_CHALLENGE_TITLE_PATTERNS"))
+    _check_consecutive_failure_days(cfg.get("CONSECUTIVE_FAILURE_DAYS"))
 
 
 def _check_routes(routes) -> None:
@@ -157,3 +160,26 @@ def _check_log_dir(value) -> None:
 def _check_log_keep_days(value) -> None:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ValueError("LOG_KEEP_DAYS must be a positive integer (>= 1)")
+
+
+def _check_bot_challenge_min_bytes(value) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError("BOT_CHALLENGE_MIN_BYTES must be a positive integer (>= 1)")
+
+
+def _check_bot_challenge_title_patterns(value) -> None:
+    if not isinstance(value, list) or len(value) == 0:
+        raise ValueError(
+            "BOT_CHALLENGE_TITLE_PATTERNS must be a non-empty list of non-empty strings"
+        )
+    for pattern in value:
+        if not isinstance(pattern, str) or pattern == "":
+            raise ValueError(
+                "BOT_CHALLENGE_TITLE_PATTERNS: each entry must be a non-empty string,"
+                f" got {pattern!r}"
+            )
+
+
+def _check_consecutive_failure_days(value) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError("CONSECUTIVE_FAILURE_DAYS must be a positive integer (>= 1)")
