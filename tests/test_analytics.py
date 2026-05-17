@@ -20,6 +20,7 @@ def _obs(price_amount: int, retrieved_at: str) -> dict:
         "price_currency": "EUR",
         "is_best": True,
         "current_price_trend": "low",
+        "duration_minutes": 90,
     }
 
 

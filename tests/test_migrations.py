@@ -105,3 +105,73 @@ def test_schema_version_table_created_on_first_call(tmp_path, monkeypatch):
     apply_migrations(db_path)
 
     assert _table_exists(db_path, "schema_version")
+
+
+# --- Test 5: migration #1 (duration_minutes) end-to-end (#89) ---
+
+
+def test_migration_1_adds_duration_minutes_and_records_version(tmp_path):
+    """Initialise a DB, run real MIGRATIONS (not monkeypatched), and assert
+    that the duration_minutes column exists and schema_version contains 1.
+
+    Note: _CREATE_TABLE already includes duration_minutes for fresh installs
+    (per #89), so this test exercises an "old" schema by dropping the column
+    creation first — i.e. it simulates an upgrade from a pre-migration DB by
+    using a hand-rolled legacy CREATE TABLE statement.
+    """
+    db_path = str(tmp_path / "flights.db")
+    # Hand-roll the legacy schema (pre-#89), without duration_minutes.
+    legacy_sql = """
+    CREATE TABLE flight_observations (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        retrieved_at        TEXT    NOT NULL,
+        departure_date      TEXT    NOT NULL,
+        origin              TEXT    NOT NULL,
+        destination         TEXT    NOT NULL,
+        airline             TEXT    NOT NULL,
+        departure_time      TEXT    NOT NULL,
+        arrival_time        TEXT    NOT NULL,
+        duration            TEXT    NOT NULL,
+        stops               INTEGER NOT NULL,
+        price               TEXT,
+        price_amount        INTEGER,
+        price_currency      TEXT,
+        is_best             INTEGER NOT NULL,
+        current_price_trend TEXT
+    );
+    """
+    conn = sqlite3.connect(db_path)
+    conn.executescript(legacy_sql)
+    conn.commit()
+    conn.close()
+
+    assert "duration_minutes" not in _column_names(db_path, "flight_observations")
+
+    applied = apply_migrations(db_path)
+
+    assert applied == 1
+    assert "duration_minutes" in _column_names(db_path, "flight_observations")
+    assert _schema_versions(db_path) == [1]
+
+
+# --- Test 6: fresh install path is safe (#89) ---
+
+
+def test_fresh_install_then_apply_migrations_is_idempotent(tmp_path):
+    """``initialize_database`` creates the target schema with all columns;
+    ``apply_migrations`` must not crash when migration 1's ALTER finds the
+    column already present, and must still record the version so future
+    migrations advance correctly."""
+    db_path = str(tmp_path / "flights.db")
+    initialize_database(db_path)  # fresh install, includes duration_minutes
+
+    applied = apply_migrations(db_path)
+
+    assert applied == 1
+    assert "duration_minutes" in _column_names(db_path, "flight_observations")
+    assert _schema_versions(db_path) == [1]
+
+    # Second call must be a no-op.
+    applied_again = apply_migrations(db_path)
+    assert applied_again == 0
+    assert _schema_versions(db_path) == [1]

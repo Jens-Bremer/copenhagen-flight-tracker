@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS flight_observations (
     price_amount        INTEGER,
     price_currency      TEXT,
     is_best             INTEGER NOT NULL,
-    current_price_trend TEXT
+    current_price_trend TEXT,
+    duration_minutes    INTEGER
 );
 """
 
@@ -31,11 +32,13 @@ _INSERT = """
 INSERT INTO flight_observations (
     retrieved_at, departure_date, origin, destination, airline,
     departure_time, arrival_time, duration, stops, price,
-    price_amount, price_currency, is_best, current_price_trend
+    price_amount, price_currency, is_best, current_price_trend,
+    duration_minutes
 ) VALUES (
     :retrieved_at, :departure_date, :origin, :destination, :airline,
     :departure_time, :arrival_time, :duration, :stops, :price,
-    :price_amount, :price_currency, :is_best, :current_price_trend
+    :price_amount, :price_currency, :is_best, :current_price_trend,
+    :duration_minutes
 );
 """
 

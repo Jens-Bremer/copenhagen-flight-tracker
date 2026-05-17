@@ -2,7 +2,11 @@ from datetime import date, datetime, timezone
 
 import fast_flights
 
-from src.response_parser import extract_price_parts, parse_flights
+from src.response_parser import (
+    _parse_duration_to_minutes,
+    extract_price_parts,
+    parse_flights,
+)
 
 
 def _make_flight(price="€89", stops=0, is_best=True):
@@ -56,6 +60,7 @@ def test_row_contains_all_required_keys():
         "departure_time",
         "arrival_time",
         "duration",
+        "duration_minutes",
         "stops",
         "price",
         "price_amount",
@@ -76,6 +81,7 @@ def test_row_values_mapped_correctly():
     assert row["departure_time"] == "08:00"
     assert row["arrival_time"] == "10:05"
     assert row["duration"] == "2h 5m"
+    assert row["duration_minutes"] == 125
     assert row["stops"] == 0
     assert row["price"] == "€89"
     assert row["price_amount"] == 8900
@@ -143,3 +149,39 @@ def test_fr_prefix_parses_as_chf():
 
 def test_zloty_symbol_parses_as_pln():
     assert extract_price_parts("zł75") == (7500, "PLN")
+
+
+# --- _parse_duration_to_minutes ---
+
+
+def test_parse_duration_hours_and_minutes():
+    assert _parse_duration_to_minutes("1h 25m") == 85
+
+
+def test_parse_duration_minutes_only():
+    assert _parse_duration_to_minutes("55m") == 55
+
+
+def test_parse_duration_hours_only():
+    assert _parse_duration_to_minutes("2h") == 120
+
+
+def test_parse_duration_empty_string_returns_none():
+    assert _parse_duration_to_minutes("") is None
+
+
+def test_parse_duration_none_input_returns_none():
+    assert _parse_duration_to_minutes(None) is None
+
+
+def test_parse_duration_garbage_returns_none():
+    assert _parse_duration_to_minutes("garbage") is None
+
+
+def test_parse_duration_whitespace_returns_none():
+    assert _parse_duration_to_minutes("   ") is None
+
+
+def test_parse_duration_numeric_only_returns_none():
+    # Numeric strings without 'h'/'m' suffixes are not a recognised format.
+    assert _parse_duration_to_minutes("125") is None

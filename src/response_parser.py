@@ -18,6 +18,35 @@ _CURRENCY_SYMBOLS = {
     "zł": "PLN",
 }
 
+# Matches upstream fast-flights duration strings like "1h 25m", "55m", "2h".
+# Either (or both) groups may be present; an empty match is rejected by the
+# helper so plain whitespace or "" returns None instead of zero minutes.
+_DURATION_RE = re.compile(r"^(?:(\d+)h)?\s*(?:(\d+)m)?$")
+
+
+def _parse_duration_to_minutes(duration: Optional[str]) -> Optional[int]:
+    """Parse an upstream duration string ("1h 25m", "55m", "2h") to minutes.
+
+    Returns None for missing input, empty/whitespace strings, or anything that
+    doesn't match the ``[Nh][ Nm]`` shape. Never raises — the fast-flights
+    upstream format is not under our control, so callers must be tolerant.
+    """
+    if duration is None:
+        return None
+    stripped = duration.strip()
+    if not stripped:
+        return None
+    match = _DURATION_RE.match(stripped)
+    if not match:
+        return None
+    hours_str, minutes_str = match.group(1), match.group(2)
+    # Reject "" / pure-whitespace matches where neither group fired.
+    if hours_str is None and minutes_str is None:
+        return None
+    hours = int(hours_str) if hours_str is not None else 0
+    minutes = int(minutes_str) if minutes_str is not None else 0
+    return hours * 60 + minutes
+
 
 def extract_price_parts(raw_price: Optional[str]) -> tuple:
     """Parse a raw price string (e.g. '€89') into (amount_in_cents, currency_code).
@@ -66,6 +95,7 @@ def parse_flights(
                 "departure_time": flight.departure,
                 "arrival_time": flight.arrival,
                 "duration": flight.duration,
+                "duration_minutes": _parse_duration_to_minutes(flight.duration),
                 "stops": flight.stops,
                 "price": flight.price,
                 "price_amount": price_amount,

@@ -23,7 +23,9 @@ Design rules:
 
 import sqlite3
 
-MIGRATIONS: list[tuple[int, str]] = []
+MIGRATIONS: list[tuple[int, str]] = [
+    (1, "ALTER TABLE flight_observations ADD COLUMN duration_minutes INTEGER"),
+]
 
 
 def apply_migrations(db_path: str) -> int:
@@ -55,7 +57,17 @@ def apply_migrations(db_path: str) -> int:
         for version, sql in MIGRATIONS:
             if version <= current:
                 continue
-            conn.executescript(sql)
+            try:
+                conn.executescript(sql)
+            except sqlite3.OperationalError as exc:
+                # Fresh installs apply the full target schema via
+                # ``initialize_database``; subsequent ``apply_migrations``
+                # would otherwise fail on ``ALTER TABLE ... ADD COLUMN`` for
+                # a column that already exists. Treat that specific case as
+                # "already applied" and still record the version so the
+                # boundary advances. Any other OperationalError re-raises.
+                if "duplicate column name" not in str(exc):
+                    raise
             conn.execute("INSERT INTO schema_version (version) VALUES (?)", (version,))
             conn.commit()
             applied += 1
