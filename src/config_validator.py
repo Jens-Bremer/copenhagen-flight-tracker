@@ -22,6 +22,8 @@ def validate_config(cfg: dict) -> None:
         "HEALTH_COUNT_DROP_THRESHOLD", cfg.get("HEALTH_COUNT_DROP_THRESHOLD")
     )
     _check_price_alert_threshold(cfg.get("PRICE_ALERT_THRESHOLD"))
+    _check_log_dir(cfg.get("LOG_DIR"))
+    _check_log_keep_days(cfg.get("LOG_KEEP_DAYS"))
 
 
 def _check_routes(routes) -> None:
@@ -145,3 +147,13 @@ def _check_backup_dir(value) -> None:
 def _check_backup_keep_last_n(value) -> None:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ValueError("BACKUP_KEEP_LAST_N must be a positive integer (>= 1)")
+
+
+def _check_log_dir(value) -> None:
+    if not value or not isinstance(value, str):
+        raise ValueError("LOG_DIR must be a non-empty string")
+
+
+def _check_log_keep_days(value) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError("LOG_KEEP_DAYS must be a positive integer (>= 1)")
