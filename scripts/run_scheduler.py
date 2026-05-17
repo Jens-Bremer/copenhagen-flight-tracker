@@ -1,5 +1,6 @@
 import logging
 import os
+import signal
 import sys
 import time
 from typing import Optional
@@ -169,7 +170,14 @@ def setup_schedule() -> None:
     )
 
 
+def _signal_handler(signum: int, frame) -> None:
+    """Graceful shutdown on SIGTERM (systemd stop, Docker stop, etc.)."""
+    logger.info("Scheduler received signal %d, shutting down", signum)
+    sys.exit(0)
+
+
 def main() -> None:
+    signal.signal(signal.SIGTERM, _signal_handler)
     validate_config(vars(config))
     setup_schedule()
     logger.info("Scheduler running — press Ctrl+C to stop")

@@ -1,0 +1,21 @@
+[Unit]
+Description=Copenhagen Flight Tracker Scheduler
+Documentation=https://github.com/Jens-Bremer/copenhagen-flight-tracker
+After=network.target
+
+[Service]
+Type=simple
+User=flighttracker
+WorkingDirectory=/opt/copenhagen-flight-tracker
+ExecStart=/opt/copenhagen-flight-tracker/.venv/bin/python scripts/run_scheduler.py
+Restart=on-failure
+RestartSec=60
+StandardOutput=journal
+StandardError=journal
+
+# Graceful shutdown — the scheduler handles SIGTERM in run_scheduler.py
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

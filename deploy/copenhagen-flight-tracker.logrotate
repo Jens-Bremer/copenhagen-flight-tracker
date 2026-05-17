@@ -1,0 +1,19 @@
+# Logrotate config for Copenhagen Flight Tracker
+#
+# If you configure file-based logging (e.g. by redirecting the scheduler's
+# stderr to a file), this config will rotate the logs. When using the provided
+# systemd unit (StandardOutput=journal / StandardError=journal) logs go to
+# journald instead — in that case use journald's built-in rotation or
+# `journalctl --vacuum-time=` to manage retention.
+#
+# Place this file at /etc/logrotate.d/copenhagen-flight-tracker
+
+/opt/copenhagen-flight-tracker/logs/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}

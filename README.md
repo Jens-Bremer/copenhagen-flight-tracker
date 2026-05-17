@@ -80,6 +80,32 @@ python scripts/run_daily.py
 
 The script waits until 06:00 if the window has not opened yet, then spaces requests across the day until 22:00. Press `Ctrl+C` to stop early.
 
+## Deploying as a service
+
+Ready-made deployment files are provided under `deploy/` for Linux systems using systemd.
+
+```bash
+# 1. Clone and install (one-time setup)
+sudo mkdir -p /opt/copenhagen-flight-tracker
+sudo chown flighttracker:flighttracker /opt/copenhagen-flight-tracker
+git clone https://github.com/Jens-Bremer/copenhagen-flight-tracker.git /opt/copenhagen-flight-tracker
+cd /opt/copenhagen-flight-tracker
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python scripts/setup_db.py
+
+# 2. Install the systemd unit
+sudo cp deploy/copenhagen-flight-tracker.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now copenhagen-flight-tracker
+
+# 3. (Optional) Install logrotate config
+sudo cp deploy/copenhagen-flight-tracker.logrotate /etc/logrotate.d/
+```
+
+The scheduler handles `SIGTERM` gracefully — `systemctl stop` will shut it down cleanly.
+
 ## CSV export
 
 `data/flights_export.csv` is regenerated automatically every night at 23:45. It contains all stored observations with columns: `retrieved_at`, `departure_date`, `origin`, `destination`, `airline`, `departure_time`, `arrival_time`, `price_amount`, `price_currency`. This file is intended for archival completeness and downstream tooling.
