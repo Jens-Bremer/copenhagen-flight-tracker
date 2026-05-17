@@ -40,6 +40,7 @@ FLIGHT_TRACKER_PLAN.md
 .idea/
 *.swp
 *.swo
+.opencode/
 
 # Worktrees
 .worktrees/
