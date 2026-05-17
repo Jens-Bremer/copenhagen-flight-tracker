@@ -30,6 +30,7 @@ def _cfg(**overrides):
             "are you a robot",
         ],
         "CONSECUTIVE_FAILURE_DAYS": 2,
+        "RELIABLE_MIN_OBSERVATIONS": 10,
     }
     base.update(overrides)
     return base
@@ -486,3 +487,32 @@ def test_consecutive_failure_days_bool_raises():
 def test_consecutive_failure_days_float_raises():
     with pytest.raises(ValueError, match="CONSECUTIVE_FAILURE_DAYS"):
         validate_config(_cfg(CONSECUTIVE_FAILURE_DAYS=2.5))
+
+
+# --- RELIABLE_MIN_OBSERVATIONS (issue #113) ---
+
+
+def test_reliable_min_observations_valid_passes():
+    validate_config(_cfg(RELIABLE_MIN_OBSERVATIONS=1))   # minimum allowed
+    validate_config(_cfg(RELIABLE_MIN_OBSERVATIONS=10))  # default
+    validate_config(_cfg(RELIABLE_MIN_OBSERVATIONS=50))  # generous threshold
+
+
+def test_reliable_min_observations_zero_raises():
+    with pytest.raises(ValueError, match="RELIABLE_MIN_OBSERVATIONS"):
+        validate_config(_cfg(RELIABLE_MIN_OBSERVATIONS=0))
+
+
+def test_reliable_min_observations_negative_raises():
+    with pytest.raises(ValueError, match="RELIABLE_MIN_OBSERVATIONS"):
+        validate_config(_cfg(RELIABLE_MIN_OBSERVATIONS=-1))
+
+
+def test_reliable_min_observations_string_raises():
+    with pytest.raises(ValueError, match="RELIABLE_MIN_OBSERVATIONS"):
+        validate_config(_cfg(RELIABLE_MIN_OBSERVATIONS="x"))
+
+
+def test_reliable_min_observations_bool_raises():
+    with pytest.raises(ValueError, match="RELIABLE_MIN_OBSERVATIONS"):
+        validate_config(_cfg(RELIABLE_MIN_OBSERVATIONS=True))

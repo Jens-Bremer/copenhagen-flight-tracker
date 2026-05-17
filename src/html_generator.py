@@ -22,6 +22,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+import config
 from src.analytics import percentile_rank
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
@@ -395,7 +396,13 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
                     "obs_count": len(prices),
                 }
             )
-        sweet_spot = min(curve, key=lambda e: e["mean_cents"])["days_before"]
+        min_obs = config.RELIABLE_MIN_OBSERVATIONS
+        reliable = [e for e in curve if e["obs_count"] >= min_obs]
+        sweet_spot = (
+            min(reliable, key=lambda e: e["mean_cents"])["days_before"]
+            if reliable
+            else None
+        )
 
         # day_of_week aggregates the per-departure cheapest
         by_dow: dict[int, list[int]] = defaultdict(list)

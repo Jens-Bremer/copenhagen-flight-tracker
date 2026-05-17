@@ -1151,19 +1151,27 @@
 
     // Card 3 — When to book
     const sweetSpotDays = routeData.sweet_spot_days;
-    let bookByText = '—';
-    if (sweetSpotDays !== undefined && sweetSpotDays !== null) {
-      const t = new Date();
-      t.setDate(t.getDate() + sweetSpotDays);
-      bookByText = formatDate(
-        `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
-      );
+    let bookWhenHtml;
+    if (sweetSpotDays === undefined || sweetSpotDays === null) {
+      bookWhenHtml = fallback;
+    } else if (state.selectedDate) {
+      // Anchor book-by to the selected departure date minus the sweet-spot window.
+      const dep = new Date(state.selectedDate + 'T00:00:00');
+      const bookBy = new Date(dep);
+      bookBy.setDate(dep.getDate() - sweetSpotDays);
+      const bookByIso = `${bookBy.getFullYear()}-${String(bookBy.getMonth() + 1).padStart(2, '0')}-${String(bookBy.getDate()).padStart(2, '0')}`;
+      bookWhenHtml = `
+        <h3 class="hero-card__title">When to book</h3>
+        <p>For your selected departure (${escapeHtml(formatDate(state.selectedDate))}), the cheapest historical window is <strong>~${sweetSpotDays} days</strong> before → book by <strong>${escapeHtml(formatDate(bookByIso))}</strong>.</p>
+      `;
+    } else {
+      bookWhenHtml = `
+        <h3 class="hero-card__title">When to book</h3>
+        <p>Sweet spot: <strong>~${sweetSpotDays} days</strong> before departure</p>
+        <p class="hero-card__sub">Select a departure date on the calendar for a personalised book-by date.</p>
+      `;
     }
-    fill('hero-book-when', `
-      <h3 class="hero-card__title">When to book</h3>
-      <p>Sweet spot: <strong>~${sweetSpotDays !== undefined && sweetSpotDays !== null ? sweetSpotDays : '—'} days</strong> before departure</p>
-      <p>Book by <strong>${escapeHtml(bookByText)}</strong> for cheapest fares</p>
-    `);
+    fill('hero-book-when', bookWhenHtml);
   }
 
   function renderAll() {

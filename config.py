@@ -51,3 +51,6 @@ LOG_KEEP_DAYS = 14
 BOT_CHALLENGE_MIN_BYTES = 10000
 BOT_CHALLENGE_TITLE_PATTERNS = ["consent", "captcha", "unusual traffic", "are you a robot"]
 CONSECUTIVE_FAILURE_DAYS = 2
+
+# --- Sweet-spot recommendation (issue #113) ---
+RELIABLE_MIN_OBSERVATIONS = 10
