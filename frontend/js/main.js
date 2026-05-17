@@ -118,6 +118,9 @@ function main() {
     fatalBanner('Chart.js failed to load — re-run scripts/fetch_vendor.py.');
     return;
   }
+  if (typeof Chart !== 'undefined') {
+    Chart.defaults.devicePixelRatio = window.devicePixelRatio || 1;
+  }
 
   if (!DATA.metadata || (DATA.metadata.total_rows ?? 0) === 0) {
     document.querySelector('main').innerHTML =

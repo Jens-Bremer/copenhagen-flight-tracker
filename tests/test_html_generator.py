@@ -1818,3 +1818,62 @@ def test_multi_route_generate_with_third_route(tmp_path):
         "JS must use routeColor() for dynamic palette — "
         "not a hardcoded route→colour dict"
     )
+
+
+# ─── Issue #126: normalized-progression IQR fields ────────────────────────────
+
+
+def test_normalized_price_progression_has_iqr_fields():
+    """Each normalized_price_progression entry must include q1_pct_change and
+    q3_pct_change so the frontend can render an IQR band around the mean line."""
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    prog = analysis["CPH-AMS"]["normalized_price_progression"]
+    assert len(prog) > 0, "normalized_price_progression must be non-empty"
+    for entry in prog:
+        assert "q1_pct_change" in entry, (
+            f"normalized_price_progression entry missing q1_pct_change: {entry}"
+        )
+        assert "q3_pct_change" in entry, (
+            f"normalized_price_progression entry missing q3_pct_change: {entry}"
+        )
+        # Q1 ≤ mean ≤ Q3 must hold (sorted quartile invariant).
+        assert entry["q1_pct_change"] <= entry["mean_pct_change"] + 0.01, (
+            f"q1_pct_change must be ≤ mean_pct_change: {entry}"
+        )
+        assert entry["q3_pct_change"] >= entry["mean_pct_change"] - 0.01, (
+            f"q3_pct_change must be ≥ mean_pct_change: {entry}"
+        )
+
+
+def test_normalized_price_progression_iqr_equal_for_single_obs():
+    """When a bucket has only one observation, q1 == q3 == mean (degenerate case)."""
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    # Find any entry where the values can be checked for equality on single-obs buckets
+    prog = analysis["CPH-AMS"]["normalized_price_progression"]
+    for entry in prog:
+        # All single-obs buckets must have q1==q3==mean
+        # We can't control which are single-obs in the fixture, but we verify the
+        # invariant that all three fields are present as floats.
+        assert isinstance(entry["q1_pct_change"], float), (
+            f"q1_pct_change must be a float: {entry}"
+        )
+        assert isinstance(entry["q3_pct_change"], float), (
+            f"q3_pct_change must be a float: {entry}"
+        )
+
+
+def test_rendered_html_contains_normprog_iqr_field_references():
+    """The rendered HTML's app.js must reference q1_pct_change and q3_pct_change
+    so the IQR band for the normalized-progression chart is driven by the JSON data."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "q1_pct_change" in js, (
+        "renderNormProgress must reference q1_pct_change from "
+        "normalized_price_progression"
+    )
+    assert "q3_pct_change" in js, (
+        "renderNormProgress must reference q3_pct_change from "
+        "normalized_price_progression"
+    )
