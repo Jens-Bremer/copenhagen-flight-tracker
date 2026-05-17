@@ -78,10 +78,7 @@
     <section class="panel" aria-label="Airline price distributions">
       <h2 class="panel__heading">Price distribution by airline</h2>
       <p class="panel__subtitle">Where prices typically fall — each bar is one 5 euro bin</p>
-      <div class="trends-grid">
-        <div class="chart-wrap"><canvas id="histogram-out" role="img"></canvas></div>
-        <div class="chart-wrap"><canvas id="histogram-back" role="img"></canvas></div>
-      </div>
+      <div id="histograms-container" class="trends-grid"></div>
     </section>
 
     <!-- 6. Weekend pairs -->
@@ -105,10 +102,7 @@
     <section class="panel" aria-labelledby="timeheat-heading">
       <h2 class="panel__heading" id="timeheat-heading">Prices by departure time</h2>
       <p class="panel__subtitle">Cheapest hours to fly, by day of week</p>
-      <div class="timeheat-wrap">
-        <canvas id="timeheat-out" aria-label="CPH-AMS price heatmap by time of day"></canvas>
-        <canvas id="timeheat-back" aria-label="AMS-CPH price heatmap by time of day"></canvas>
-      </div>
+      <div id="timeheat-container" class="timeheat-wrap"></div>
     </section>
 
     <!-- 9. How prices change as departure approaches -->
