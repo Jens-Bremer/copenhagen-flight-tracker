@@ -2,6 +2,7 @@ import logging
 import os
 import signal
 import sys
+import tempfile
 import time
 from typing import Optional
 
@@ -28,7 +29,78 @@ from src.route_expander import expand_jobs
 setup_logging()
 logger = logging.getLogger(__name__)
 
+PID_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(config.DATABASE_PATH)),
+    "run_scheduler.pid",
+)
+
 _PRIORITY_RANK = {"urgent": 4, "high": 3, "default": 2, "low": 1, "min": 0}
+
+
+def _write_pid_file() -> None:
+    """Write the current process PID to PID_FILE atomically.
+
+    Uses a temp-file + os.replace so the file is never partially written.
+    The directory is created if it does not yet exist.
+    """
+    target_dir = os.path.dirname(os.path.abspath(PID_FILE))
+    os.makedirs(target_dir, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        dir=target_dir,
+        delete=False,
+    ) as f:
+        f.write(str(os.getpid()))
+        f.flush()
+        os.fsync(f.fileno())
+        tmp = f.name
+    os.replace(tmp, PID_FILE)
+    logger.debug("PID file written: %s (pid=%d)", PID_FILE, os.getpid())
+
+
+def _remove_pid_file() -> None:
+    """Remove the PID file; harmless if it is already absent."""
+    try:
+        os.remove(PID_FILE)
+        logger.debug("PID file removed: %s", PID_FILE)
+    except FileNotFoundError:
+        pass
+
+
+def _check_stale_pid_file() -> Optional[int]:
+    """Check for a pre-existing PID file and determine whether it is stale.
+
+    Returns:
+        None  — safe to proceed (no file, stale file cleaned up, or malformed
+                file cleaned up).
+        int   — a live process owns the PID file; caller should refuse to start.
+    """
+    if not os.path.exists(PID_FILE):
+        return None
+
+    try:
+        with open(PID_FILE) as f:
+            pid = int(f.read().strip())
+    except (ValueError, OSError):
+        logger.warning("PID file is malformed; removing: %s", PID_FILE)
+        _remove_pid_file()
+        return None
+
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        logger.info(
+            "Removing stale PID file from previous run (pid=%d was dead): %s",
+            pid,
+            PID_FILE,
+        )
+        _remove_pid_file()
+        return None
+    except PermissionError:
+        # Process exists but is owned by another user — treat as alive.
+        return pid
+
+    return pid
 
 
 def _highest_priority(problems: list) -> str:
@@ -175,34 +247,45 @@ def setup_schedule() -> None:
 def _signal_handler(signum: int, frame) -> None:
     """Graceful shutdown on SIGTERM (systemd stop, Docker stop, etc.)."""
     logger.info("Scheduler received signal %d, shutting down", signum)
+    _remove_pid_file()
     sys.exit(0)
 
 
 def main() -> None:
     signal.signal(signal.SIGTERM, _signal_handler)
     validate_config(vars(config))
-    applied = apply_migrations(config.DATABASE_PATH)
-    logger.info("Scheduler: applied %d migration(s) on startup", applied)
-    install_fetch_patch()
-    setup_schedule()
-    logger.info("Scheduler running — press Ctrl+C to stop")
 
-    from datetime import datetime
-
-    now = datetime.now()
-    if config.DAILY_WINDOW_START_HOUR <= now.hour < config.DAILY_WINDOW_END_HOUR:
-        logger.info(
-            "Started within the operating window. "
-            "Executing immediate collection with compressed intervals."
-        )
-        _daily_job()
+    existing = _check_stale_pid_file()
+    if existing is not None:
+        logger.error("Scheduler already running (PID %d). Refusing to start.", existing)
+        sys.exit(1)
+    _write_pid_file()
 
     try:
-        while True:
-            schedule.run_pending()
-            time.sleep(60)
-    except KeyboardInterrupt:
-        logger.info("Scheduler stopped by user")
+        applied = apply_migrations(config.DATABASE_PATH)
+        logger.info("Scheduler: applied %d migration(s) on startup", applied)
+        install_fetch_patch()
+        setup_schedule()
+        logger.info("Scheduler running — press Ctrl+C to stop")
+
+        from datetime import datetime
+
+        now = datetime.now()
+        if config.DAILY_WINDOW_START_HOUR <= now.hour < config.DAILY_WINDOW_END_HOUR:
+            logger.info(
+                "Started within the operating window. "
+                "Executing immediate collection with compressed intervals."
+            )
+            _daily_job()
+
+        try:
+            while True:
+                schedule.run_pending()
+                time.sleep(60)
+        except KeyboardInterrupt:
+            logger.info("Scheduler stopped by user")
+    finally:
+        _remove_pid_file()
 
 
 if __name__ == "__main__":

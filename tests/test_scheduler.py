@@ -14,11 +14,14 @@ import config
 from scripts.run_daily import _write_heartbeat
 from scripts.run_scheduler import (
     _backup_job,
+    _check_stale_pid_file,
     _csv_export_job,
     _daily_job,
     _frontend_csv_job,
     _generate_html_job,
     _health_check_job,
+    _remove_pid_file,
+    _write_pid_file,
     setup_schedule,
 )
 
@@ -250,6 +253,80 @@ def test_frontend_csv_job_chains_html_generation(tmp_path):
         mock_cfg.DATABASE_PATH = str(tmp_path / "flights.db")
         _frontend_csv_job()
     mock_gen.assert_called_once()
+
+
+# --- PID file management (issue #133) ---
+
+
+def test_write_pid_file_creates_file_with_current_pid(tmp_path, monkeypatch):
+    """_write_pid_file() must create the PID file containing the current PID."""
+    pid_file = tmp_path / "run_scheduler.pid"
+    monkeypatch.setattr("scripts.run_scheduler.PID_FILE", str(pid_file))
+    _write_pid_file()
+    assert pid_file.exists()
+    assert int(pid_file.read_text().strip()) == os.getpid()
+
+
+def test_remove_pid_file_removes_existing_file(tmp_path, monkeypatch):
+    """_remove_pid_file() must delete the PID file when it exists."""
+    pid_file = tmp_path / "run_scheduler.pid"
+    pid_file.write_text(str(os.getpid()))
+    monkeypatch.setattr("scripts.run_scheduler.PID_FILE", str(pid_file))
+    _remove_pid_file()
+    assert not pid_file.exists()
+
+
+def test_remove_pid_file_tolerates_absent_file(tmp_path, monkeypatch):
+    """_remove_pid_file() must not raise when the PID file does not exist."""
+    pid_file = tmp_path / "run_scheduler.pid"
+    monkeypatch.setattr("scripts.run_scheduler.PID_FILE", str(pid_file))
+    # Should not raise
+    _remove_pid_file()
+
+
+def test_check_stale_pid_file_returns_none_when_absent(tmp_path, monkeypatch):
+    """_check_stale_pid_file() returns None when no PID file exists."""
+    pid_file = tmp_path / "run_scheduler.pid"
+    monkeypatch.setattr("scripts.run_scheduler.PID_FILE", str(pid_file))
+    assert _check_stale_pid_file() is None
+
+
+def test_check_stale_pid_file_returns_pid_when_process_alive(tmp_path, monkeypatch):
+    """_check_stale_pid_file() returns the PID when the process is alive."""
+    pid_file = tmp_path / "run_scheduler.pid"
+    live_pid = 99999
+    pid_file.write_text(str(live_pid))
+    monkeypatch.setattr("scripts.run_scheduler.PID_FILE", str(pid_file))
+    # os.kill(pid, 0) not raising means the process exists
+    with patch("scripts.run_scheduler.os.kill"):
+        result = _check_stale_pid_file()
+    assert result == live_pid
+    # File must still exist — we don't clean up a live process's PID file
+    assert pid_file.exists()
+
+
+def test_check_stale_pid_file_cleans_up_dead_pid(tmp_path, monkeypatch):
+    """_check_stale_pid_file() removes the file and returns None when PID is dead."""
+    pid_file = tmp_path / "run_scheduler.pid"
+    dead_pid = 99999
+    pid_file.write_text(str(dead_pid))
+    monkeypatch.setattr("scripts.run_scheduler.PID_FILE", str(pid_file))
+    with patch(
+        "scripts.run_scheduler.os.kill", side_effect=ProcessLookupError
+    ):
+        result = _check_stale_pid_file()
+    assert result is None
+    assert not pid_file.exists()
+
+
+def test_check_stale_pid_file_cleans_up_malformed_file(tmp_path, monkeypatch):
+    """_check_stale_pid_file() removes a malformed PID file and returns None."""
+    pid_file = tmp_path / "run_scheduler.pid"
+    pid_file.write_text("not-a-pid")
+    monkeypatch.setattr("scripts.run_scheduler.PID_FILE", str(pid_file))
+    result = _check_stale_pid_file()
+    assert result is None
+    assert not pid_file.exists()
 
 
 # --- Atomic heartbeat write (issue #115) ---
