@@ -1,6 +1,10 @@
 # Copenhagen Flight Tracker
 
-A self-hosted Python service that tracks one-way flight prices between Copenhagen (CPH) and Amsterdam (AMS) in both directions. It scrapes Google Flights via the [`fast-flights`](https://github.com/AWeirdDev/flights) library (Protobuf-based, no browser needed), stores every observed price in SQLite, and spreads requests evenly across a configurable daily window to avoid IP bans (hopefully). An overview of the data is presented on [jensbremer.nl](https://stats.jensbremer.nl/copenhagen-flight-tracker/frontend/)
+I fly between Copenhagen (CPH) and Amsterdam (AMS) pretty often, so I wanted to answer one question: *when should I buy my ticket?* This project is my attempt — a self-hosted Python service that tracks one-way flight prices on both legs, scrapes Google Flights via [`fast-flights`](https://github.com/AWeirdDev/flights) (Protobuf-based, no browser needed), stores every observation in SQLite, and spreads requests across a configurable daily window to avoid IP bans.
+
+An overview of the data lives at [jensbremer.nl](https://stats.jensbremer.nl/copenhagen-flight-tracker/frontend/).
+
+**Almost all of this code was written by [Claude Code](https://claude.ai/code).** If that bothers you, that's fine — just close the tab. This is a hobby project that works for me, and maybe it'll work for you too. I don't care about feedback from someone I wouldn't ask advice from (good life lesson in general).
 
 ## Install
 
@@ -50,6 +54,28 @@ Set route-specific thresholds in `config.PRICE_ALERT_THRESHOLD` (values in cents
 ### Other settings
 
 All other tuneable values — routes, date range, pacing window, database path, health thresholds — are in `config.py`. Invalid configurations are caught and reported at startup before any work begins. This tool is specifically made for short flights within Europe. Not sure how well the tool handles different timezones, or flights with a layover.
+
+## Architecture
+
+The core pipeline flows through a handful of single-responsibility modules:
+
+```
+date_generator → route_expander → flight_fetcher → response_parser → database
+                                       ↑                   ↑
+                                   request_pacer        notifier/price_alerter
+                                                              ↓
+                                                        health_checker
+                                                              ↓
+                                                   analytics → html_generator → frontend/index.html
+```
+
+Each `src/` module imports only from `config` and stdlib/installed packages — no cross-imports between `src/` modules (except for the analytics/HTML/CSV pipeline). Pure logic lives in `src/`; side effects (DB writes, HTTP calls, sleeps) are orchestrated in `scripts/`.
+
+Key design rules:
+- **No hardcoded values.** Everything references `config.X`.
+- **All config in `config.py`.** No override mechanism — edit it directly.
+- **Two-pass retry.** Failed jobs are retried with a configurable delay.
+- **Pacing & jitter.** Requests spread across the day with ±10% jitter to look organic.
 
 ## Running the tracker
 
@@ -148,14 +174,18 @@ Downloads Chart.js 4.4.3 into `frontend/vendor/chart.min.js`. Already done in a 
 
 ### What's in the dashboard
 
+- **Hero summary cards** — cheapest month/day, lowest-ever price, market direction arrow, sweet-spot countdown.
 - **Calendar** — every departure date in the data window, colour-tinted on a shared green→red scale by cheapest observed price.
 - **Drill-down** — click a date to see all flights that day; click a flight to see its price-over-time chart with gaps preserved.
 - **Price trends** — market trend (cheapest seen on each scrape day) and lead-time curve (mean price by days-before-departure) with a sweet-spot annotation.
 - **Airline histograms** — €5 bins, one bar per airline using brand colours.
 - **Weekend pairs** — top 5 Fri-out + Sun-back pairs sorted by total price.
+- **Time-of-day heatmap** — mean price by day-of-week × departure hour.
+- **Normalized price progression** — % price change vs earliest observation as departure approaches.
+- **Verdict card** — "Great time to buy" / "Fair price" / "Above average" classification against historical data.
 - **Cheapness footer** — cheapest day-of-week and cheapest month.
 
-All five panels react to the route toggle (CPH-AMS / AMS-CPH / both) and the airline filter chips above the calendar.
+All panels react to the route toggle (CPH-AMS / AMS-CPH / both) and the airline filter chips above the calendar.
 
 ## Inspecting data
 
