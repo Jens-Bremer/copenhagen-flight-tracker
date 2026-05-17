@@ -28,8 +28,19 @@ from src.analytics import percentile_rank
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 TEMPLATE_PATH = FRONTEND_DIR / "index.html.template"
 STYLES_PATH = FRONTEND_DIR / "styles.css"
-APP_JS_PATH = FRONTEND_DIR / "app.js"
 CHART_JS_PATH = FRONTEND_DIR / "vendor" / "chart.min.js"
+JS_SOURCE_DIR = FRONTEND_DIR / "js"
+JS_FILE_ORDER = [
+    "constants.js",
+    "state.js",
+    "utils.js",
+    "data.js",
+    "calendar.js",
+    "drilldown.js",
+    "charts.js",
+    "filters.js",
+    "main.js",
+]
 
 # ─── CSV loader ──────────────────────────────────────────────────────────────
 
@@ -552,10 +563,17 @@ def build_summary(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             bins.sort(key=lambda b: b["bin_low"])
         out[route] = {"histogram": histogram, "weekend_pairs": []}
 
-    # Weekend pairs for both travel directions:
-    # CPH-AMS (Fri) + AMS-CPH (Sun) for the Copenhagen-resident traveller, and
-    # AMS-CPH (Fri) + CPH-AMS (Sun) for the Amsterdam-resident traveller.
-    for fri_route, sun_route in [("CPH-AMS", "AMS-CPH"), ("AMS-CPH", "CPH-AMS")]:
+    # Weekend pairs: for every route, pair Friday departures with the reverse
+    # route's Sunday return (origin↔destination swapped, +2 days).
+    # This generalises across any set of routes, not just CPH-AMS ↔ AMS-CPH.
+    for fri_route in list(out.keys()):
+        # Derive reverse route by swapping the origin and destination.
+        parts = fri_route.split("-", 1)
+        if len(parts) != 2:
+            continue
+        sun_route = f"{parts[1]}-{parts[0]}"
+        if sun_route not in out:
+            continue
         pairs: list[dict[str, Any]] = []
         for (route, dep_iso), fri in cheapest_dep.items():
             if route != fri_route:
@@ -581,8 +599,7 @@ def build_summary(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
                 }
             )
         pairs.sort(key=lambda p: p["total_cents"])
-        if fri_route in out:
-            out[fri_route]["weekend_pairs"] = pairs[:WEEKEND_PAIRS_TOP_N]
+        out[fri_route]["weekend_pairs"] = pairs[:WEEKEND_PAIRS_TOP_N]
     return out
 
 
@@ -590,6 +607,27 @@ def _read_text(path: Path) -> str:
     if not path.exists():
         raise FileNotFoundError(f"required frontend asset missing: {path}")
     return path.read_text(encoding="utf-8")
+
+
+def _build_app_js() -> str:
+    """Concatenate JS source files in order and wrap in an IIFE.
+
+    Each file in JS_SOURCE_DIR (in the order given by JS_FILE_ORDER) declares
+    its functions and constants at top level. Concatenation places them all in
+    the same IIFE scope, so they can call each other freely without any module
+    system. 'use strict' is added once, inside the wrapper.
+    """
+    parts: list[str] = []
+    for filename in JS_FILE_ORDER:
+        path = JS_SOURCE_DIR / filename
+        if not path.exists():
+            raise FileNotFoundError(
+                f"required JS source file missing: {path}\n"
+                f"Run 'git ls-files frontend/js/' to check the working tree."
+            )
+        parts.append(path.read_text(encoding="utf-8"))
+    body = "\n\n".join(parts)
+    return f"(function () {{\n'use strict';\n\n{body}\n}})();"
 
 
 def _safe_json(obj: Any) -> str:
@@ -614,7 +652,7 @@ def render_html(
     template = _read_text(TEMPLATE_PATH)
     styles = _read_text(STYLES_PATH)
     chart_js = _read_text(CHART_JS_PATH)
-    app_js = _read_text(APP_JS_PATH)
+    app_js = _build_app_js()
 
     return string.Template(template).safe_substitute(
         INLINE_STYLES=styles,

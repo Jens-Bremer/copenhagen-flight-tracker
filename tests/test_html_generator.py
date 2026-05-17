@@ -325,8 +325,13 @@ def test_normprog_panel_rendered_in_html():
 
 
 def test_timeheat_panel_rendered_in_html():
-    """The rendered HTML must contain two heatmap canvas elements and the
-    JS must reference time_of_day_matrix to populate them."""
+    """The rendered HTML must contain a timeheat container element and the
+    JS must reference time_of_day_matrix to populate it dynamically.
+
+    The two fixed canvas IDs (timeheat-out / timeheat-back) were replaced in
+    #104 with a single <div id="timeheat-container"> so that the renderer can
+    create one canvas per route for any arbitrary route list.
+    """
     import re
 
     html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
@@ -334,16 +339,18 @@ def test_timeheat_panel_rendered_in_html():
     assert all_scripts
     app_js = all_scripts[-1]
 
-    # Canvas elements for the two heatmap panels
-    assert 'id="timeheat-out"' in html, (
-        'HTML template must include <canvas id="timeheat-out"> for CPH-AMS heatmap'
-    )
-    assert 'id="timeheat-back"' in html, (
-        'HTML template must include <canvas id="timeheat-back"> for AMS-CPH heatmap'
+    # Dynamic container (replaces the old fixed canvas IDs).
+    assert 'id="timeheat-container"' in html, (
+        'HTML template must include <div id="timeheat-container"> for dynamic '
+        'per-route heatmap canvases (replaces old id="timeheat-out"/id="timeheat-back")'
     )
     # JS must read time_of_day_matrix from the analysis data
     assert "time_of_day_matrix" in app_js, (
         "app.js must reference time_of_day_matrix to render the heatmap cells"
+    )
+    # JS must iterate over routes dynamically, not use hardcoded IDs
+    assert "timeheat-container" in app_js, (
+        "app.js must reference timeheat-container to build canvases per route"
     )
 
 
@@ -1621,3 +1628,193 @@ def test_sweet_spot_none_when_no_bucket_meets_threshold(tmp_path):
     rows = _make_sweet_spot_rows(days_before_prices, tmp_path)
     analysis = build_analysis(rows)
     assert analysis["CPH-AMS"]["sweet_spot_days"] is None
+
+
+# ─── Issue #83: modular JS split verification ─────────────────────────────────
+
+
+def test_modular_split_produces_functionally_equivalent_js():
+    """The concatenated JS from frontend/js/*.js must contain all the key
+    function signatures and data field references from the original monolithic
+    app.js. This spot-checks that the split didn't accidentally drop any logic.
+    """
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+
+    # Core chart field references
+    assert "q1_cents" in js, "renderTrends must reference q1_cents from lead_time_curve"
+    assert "q3_cents" in js, "renderTrends must reference q3_cents from lead_time_curve"
+    assert "normalized_price_progression" in js, (
+        "renderNormProgress must reference normalized_price_progression"
+    )
+    assert "time_of_day_matrix" in js, (
+        "renderTimeheat must reference time_of_day_matrix"
+    )
+    assert "Math.round(cents / 100)" in js, (
+        "formatPrice must use Math.round(cents / 100)"
+    )
+
+    # Key function signatures all present in the bundle
+    for fn in [
+        "function renderCalendar",
+        "function renderDrilldown",
+        "function renderTrends",
+        "function renderHistograms",
+        "function renderFooterCharts",
+        "function renderTimeheat",
+        "function renderNormProgress",
+        "function wireFilters",
+        "function activeRoutes",
+        "function airlinePasses",
+        "function main",
+    ]:
+        assert fn in js, f"Expected function signature not found in bundled JS: {fn}"
+
+
+def test_js_bundle_wrapped_in_iife():
+    """The concatenated JS must be wrapped in an IIFE with 'use strict'."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert js.strip().startswith("(function ()"), (
+        "Bundled JS must start with IIFE wrapper: (function () {"
+    )
+    assert "'use strict';" in js, "Bundled JS must contain 'use strict';"
+    assert js.strip().endswith("})();"), (
+        "Bundled JS must end with IIFE closing: })();"
+    )
+
+
+def test_no_duplicate_use_strict_in_bundle():
+    """'use strict' must appear exactly once — added by _build_app_js, not in files."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert js.count("'use strict';") == 1, (
+        "'use strict' must appear exactly once in the bundled JS "
+        "(injected by the wrapper, not inside source files)"
+    )
+
+
+def test_js_source_files_exist_in_correct_order():
+    """All 9 JS source files must exist at frontend/js/ and be loadable."""
+    from src.html_generator import JS_FILE_ORDER, JS_SOURCE_DIR
+
+    for filename in JS_FILE_ORDER:
+        path = JS_SOURCE_DIR / filename
+        assert path.exists(), f"JS source file missing: {path}"
+        content = path.read_text(encoding="utf-8")
+        assert len(content) > 0, f"JS source file is empty: {path}"
+        # Source files must NOT contain IIFE wrapper or 'use strict'
+        assert "(function ()" not in content, (
+            f"{filename} must not contain an IIFE wrapper — "
+            "wrapping happens at build time"
+        )
+        assert "'use strict';" not in content, (
+            f"{filename} must not contain 'use strict' — "
+            "it is added by the IIFE wrapper"
+        )
+
+
+# ─── Issue #104: multi-route generalisation verification ──────────────────────
+
+
+def test_route_palette_defined_in_bundle():
+    """ROUTE_PALETTE must be defined in the JS bundle with at least 2 colours."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "ROUTE_PALETTE" in js, (
+        "constants.js must define ROUTE_PALETTE for dynamic route colouring"
+    )
+    assert "routeColor" in js, (
+        "utils.js must define routeColor() that indexes into ROUTE_PALETTE"
+    )
+
+
+def test_histograms_container_in_template_not_fixed_canvases():
+    """The histogram section must use a container div, not fixed per-route canvas IDs.
+
+    The old id='histogram-out' / id='histogram-back' canvases are replaced by
+    id='histograms-container' so that the renderer can build one canvas per
+    route for any route list (not just CPH-AMS + AMS-CPH).
+    """
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert 'id="histograms-container"' in html, (
+        "Template must use <div id=\"histograms-container\"> for dynamic per-route "
+        "histogram canvases (replaces old id=\"histogram-out\"/id=\"histogram-back\")"
+    )
+    assert 'id="histogram-out"' not in html, (
+        "Old hardcoded id=\"histogram-out\" canvas must be removed from the template"
+    )
+    assert 'id="histogram-back"' not in html, (
+        "Old hardcoded id=\"histogram-back\" canvas must be removed from the template"
+    )
+
+
+def test_timeheat_container_in_template_not_fixed_canvases():
+    """The timeheat section must use a container div, not fixed per-route canvas IDs."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert 'id="timeheat-container"' in html, (
+        "Template must use <div id=\"timeheat-container\"> for dynamic per-route "
+        "heatmap canvases"
+    )
+    assert 'id="timeheat-out"' not in html, (
+        "Old hardcoded id=\"timeheat-out\" canvas must be removed from the template"
+    )
+    assert 'id="timeheat-back"' not in html, (
+        "Old hardcoded id=\"timeheat-back\" canvas must be removed from the template"
+    )
+
+
+def test_active_routes_driven_by_metadata(tmp_path):
+    """activeRoutes() must return routes from DATA.metadata.routes, not hardcoded."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    # activeRoutes must reference metadata.routes, not ['CPH-AMS', 'AMS-CPH']
+    assert "metadata.routes" in js, (
+        "activeRoutes() must read from DATA.metadata.routes "
+        "to support arbitrary routes"
+    )
+
+
+def test_multi_route_generate_with_third_route(tmp_path):
+    """generate() must produce valid HTML containing LHR-DUB references when the
+    input CSV includes LHR-DUB flights. No CPH-AMS hardcoding should prevent this.
+
+    This verifies the end-to-end multi-route generalisation from issue #104.
+    """
+    csv_text = (
+        "retrieved_at,departure_date,origin,destination,airline,"
+        "departure_at,arrival_at,duration_minutes,price_cents,price_currency\n"
+        # LHR-DUB flights
+        "2026-05-10T23:46Z,2026-06-19,LHR,DUB,Ryanair,"
+        "2026-06-19T07:00:00,2026-06-19T08:30:00,90,5500,EUR\n"
+        "2026-05-15T23:46Z,2026-06-19,LHR,DUB,easyJet,"
+        "2026-06-19T12:00:00,2026-06-19T13:30:00,90,6800,EUR\n"
+        "2026-05-10T23:46Z,2026-06-21,DUB,LHR,Ryanair,"
+        "2026-06-21T17:00:00,2026-06-21T18:30:00,90,5800,EUR\n"
+        "2026-05-15T23:46Z,2026-06-21,DUB,LHR,easyJet,"
+        "2026-06-21T20:00:00,2026-06-21T21:30:00,90,7200,EUR\n"
+    )
+    p = tmp_path / "lhr_dub.csv"
+    p.write_text(csv_text)
+    out_path = tmp_path / "index.html"
+    n = generate(str(p), str(out_path))
+    assert n == 4
+    html = out_path.read_text(encoding="utf-8")
+
+    # Metadata must list LHR-DUB and DUB-LHR routes
+    import re
+    m = re.search(
+        r'<script type="application/json" id="DATA_METADATA">(.*?)</script>',
+        html, re.S,
+    )
+    assert m, "DATA_METADATA blob not found"
+    metadata = json.loads(m.group(1))
+    assert "LHR-DUB" in metadata["routes"], "LHR-DUB must appear in metadata.routes"
+    assert "DUB-LHR" in metadata["routes"], "DUB-LHR must appear in metadata.routes"
+
+    # The JS must reference routeColor (dynamic palette, not hardcoded dict)
+    js = _app_js(html)
+    assert "routeColor" in js, (
+        "JS must use routeColor() for dynamic palette — "
+        "not a hardcoded route→colour dict"
+    )
