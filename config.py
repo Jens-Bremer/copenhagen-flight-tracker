@@ -32,7 +32,7 @@ BACKUP_DIR = "data/backups"
 BACKUP_KEEP_LAST_N = 7
 
 # --- Notifications (ntfy.sh) ---
-NTFY_TOPIC = "your-topic-here"  # Replace with your ntfy.sh topic name
+NTFY_TOPIC = "copenhagen-flights-jensbremer"  # ntfy.sh topic name
 NTFY_URL = "https://ntfy.sh"
 PRICE_ALERT_THRESHOLD = {
     ("CPH", "AMS"): 5000,  # €50
