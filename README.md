@@ -1,6 +1,6 @@
 # Copenhagen Flight Tracker
 
-A self-hosted Python service that tracks one-way flight prices between Copenhagen (CPH) and Amsterdam (AMS) in both directions. It scrapes Google Flights via the [`fast-flights`](https://github.com/AWeirdDev/flights) library (Protobuf-based, no browser needed), stores every observed price in SQLite, and spreads requests evenly across a configurable daily window to avoid IP bans (hopefully). An overview of the data is presented on [jensbremer.nl](https://stats.jensbremer.nl/copenhagen-flight-tracker/frontend/)
+A self-hosted Python service that tracks one-way flight prices between Copenhagen (CPH) and Amsterdam (AMS) in both directions. It scrapes Google Flights via the [`fast-flights`](https://github.com/AWeirdDev/flights) library (Protobuf-based, no browser needed), stores every observed price in SQLite, and spreads requests evenly across a configurable daily window to avoid IP bans. An overview of the data is presented on [jensbremer.nl](https://stats.jensbremer.nl/copenhagen-flight-tracker/frontend/)
 
 ## Install
 
@@ -52,6 +52,20 @@ Set route-specific thresholds in `config.PRICE_ALERT_THRESHOLD` (values in cents
 ### Other settings
 
 All other tuneable values — routes, date range, pacing window, database path, health thresholds — are in `config.py`. Invalid configurations are caught and reported at startup before any work begins. This tool is specifically made for short flights within Europe. Not sure how well the tool handles different timezones, or flights with a layover.
+
+## First run
+
+After install, generate a dashboard you can open right now:
+
+```bash
+python scripts/setup_db.py
+python scripts/run_daily.py            # ~3-5 minutes to collect a small sample
+python scripts/build_frontend_csv.py
+python scripts/generate_html.py
+open frontend/index.html               # macOS; xdg-open on Linux; start on Windows
+```
+
+For ongoing collection, use the scheduler — see below.
 
 ## Running the tracker
 
@@ -172,8 +186,29 @@ python scripts/query_prices.py --cheapest
 python scripts/query_prices.py --date YYYY-MM-DD
 ```
 
+## Troubleshooting
+
+**Scheduler stops collecting at midnight** — check the heartbeat at `data/last_run.json` and the daily log in `logs/tracker.log`.
+
+**Dashboard shows "Not enough data yet"** — early days; needs at least `RELIABLE_MIN_OBSERVATIONS` per lead-time bucket (default 10) for the When-to-book card.
+
+**No ntfy alerts arriving** — check `NTFY_TOPIC` in `config.py` is not the placeholder `your-topic-here`; the topic must match exactly between `config.py` and your ntfy app subscription.
+
+**Health check reports "Bot challenge today"** — Google may have rotated the cookie-consent flow. See `src/flight_fetcher.py:patched_fetch` and issue #110.
+
+## Architecture
+
+- [`CLAUDE.md`](CLAUDE.md) — module contract, key design rules, commands cheatsheet.
+- [`docs/FRONTEND.md`](docs/FRONTEND.md) — frontend pipeline, JSON contract, Chart.js layout.
+
+### Note on stability
+
+The scraper depends on a hard-coded `SOCS=CAI; CONSENT=PENDING+999` cookie pair in `src/flight_fetcher.py` to bypass Google's EU consent wall. If Google changes that format, scraping silently degrades. The `#111` ban-signal classifier and `#110` cookie-consent alert are the early-warning surfaces; see `docs/FRONTEND.md` and `CLAUDE.md` for the broader architecture.
+
+## Contributing
+
+See [`CLAUDE.md`](CLAUDE.md) for module-contract rules and the project's code conventions. A formal `CONTRIBUTING.md` is filed as issue #131.
+
 ## License
 
-MIT
-
-_( i have no clue how this works, just take your own responsibility )_
+MIT — see LICENSE.
