@@ -33,4 +33,15 @@ jobs:
 
     - name: Run tests with pytest
       run: |
-        python -m pytest tests/
+        python -m pytest tests/ --ignore=tests/browser
+
+    # Browser smoke tests run on one Python version only — the Playwright
+    # browser install is ~150 MB and the smoke test is Python-version
+    # independent. Skipping on the other matrix entries keeps CI fast.
+    - name: Install Playwright browser
+      if: matrix.python-version == '3.10'
+      run: playwright install --with-deps chromium
+
+    - name: Run browser smoke tests
+      if: matrix.python-version == '3.10'
+      run: python -m pytest tests/browser/
