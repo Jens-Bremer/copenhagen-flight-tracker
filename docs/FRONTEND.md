@@ -6,8 +6,7 @@
 > how to extend it without breaking the pipeline.
 
 **Audience:** developers wiring backend changes (new fields, new airlines,
-new analytics) to the existing static dashboard. Designers should read
-`docs/DESIGN.md` (the brand sibling doc).
+new analytics) to the existing static dashboard.
 
 ---
 
@@ -424,8 +423,7 @@ will drift out of sync.
 
 ## Design tokens (cheat sheet)
 
-All in `:root` at the top of `frontend/styles.css`. See `DESIGN.md` /
-the design-system README for rationale.
+All in `:root` at the top of `frontend/styles.css`.
 
 - **Paper / ink** — `--color-cream`, `--color-cream-mid`,
   `--color-cream-dark`, `--color-text`, `--color-brown`,
