@@ -20,6 +20,8 @@ def _cfg(**overrides):
         "HEALTH_FAILURE_RATE_THRESHOLD": 0.25,
         "HEALTH_COUNT_DROP_THRESHOLD": 0.5,
         "PRICE_ALERT_THRESHOLD": 5000,
+        "LOG_DIR": "logs",
+        "LOG_KEEP_DAYS": 14,
     }
     base.update(overrides)
     return base
@@ -325,3 +327,56 @@ def test_backup_keep_last_n_float_raises():
 
 def test_backup_keep_last_n_one_passes():
     validate_config(_cfg(BACKUP_KEEP_LAST_N=1))  # must not raise
+
+
+# --- LOG_DIR ---
+
+
+def test_log_dir_valid_passes():
+    validate_config(_cfg(LOG_DIR="logs"))  # must not raise
+
+
+def test_log_dir_empty_string_raises():
+    with pytest.raises(ValueError, match="LOG_DIR"):
+        validate_config(_cfg(LOG_DIR=""))
+
+
+def test_log_dir_none_raises():
+    with pytest.raises(ValueError, match="LOG_DIR"):
+        validate_config(_cfg(LOG_DIR=None))
+
+
+def test_log_dir_non_string_raises():
+    with pytest.raises(ValueError, match="LOG_DIR"):
+        validate_config(_cfg(LOG_DIR=42))
+
+
+# --- LOG_KEEP_DAYS ---
+
+
+def test_log_keep_days_valid_passes():
+    validate_config(_cfg(LOG_KEEP_DAYS=14))  # must not raise
+
+
+def test_log_keep_days_one_passes():
+    validate_config(_cfg(LOG_KEEP_DAYS=1))  # must not raise
+
+
+def test_log_keep_days_zero_raises():
+    with pytest.raises(ValueError, match="LOG_KEEP_DAYS"):
+        validate_config(_cfg(LOG_KEEP_DAYS=0))
+
+
+def test_log_keep_days_negative_raises():
+    with pytest.raises(ValueError, match="LOG_KEEP_DAYS"):
+        validate_config(_cfg(LOG_KEEP_DAYS=-1))
+
+
+def test_log_keep_days_string_raises():
+    with pytest.raises(ValueError, match="LOG_KEEP_DAYS"):
+        validate_config(_cfg(LOG_KEEP_DAYS="x"))
+
+
+def test_log_keep_days_bool_raises():
+    with pytest.raises(ValueError, match="LOG_KEEP_DAYS"):
+        validate_config(_cfg(LOG_KEEP_DAYS=True))

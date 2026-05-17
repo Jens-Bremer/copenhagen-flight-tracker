@@ -42,3 +42,7 @@ PRICE_ALERT_THRESHOLD = {
 
 # --- Frontend CSV ---
 FRONTEND_MAX_DURATION_MINUTES = 120
+
+# --- Logging ---
+LOG_DIR = "logs"
+LOG_KEEP_DAYS = 14
