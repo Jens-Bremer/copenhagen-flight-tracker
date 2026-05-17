@@ -1,12 +1,14 @@
 import json
 import os
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
 import config
 from src.database import initialize_database, insert_observations
 from src.health_checker import (
+    _check_bot_challenge_today,
+    _check_consecutive_failures_per_route,
     check_missing_routes,
     check_observation_count,
     check_price_variance,
@@ -16,13 +18,27 @@ from src.health_checker import (
 TODAY = date.today().isoformat()
 
 
-def _make_heartbeat(path, run_date=None, failed_jobs_count=0, total_jobs=100):
+def _make_heartbeat(
+    path,
+    run_date=None,
+    failed_jobs_count=0,
+    total_jobs=100,
+    failures_by_kind=None,
+):
     data = {
         "run_date": run_date or TODAY,
         "total_observations": 100,
         "failed_jobs_count": failed_jobs_count,
         "total_jobs": total_jobs,
         "duration_seconds": 3600.0,
+        "failures_by_kind": failures_by_kind
+        or {
+            "bot_challenge": 0,
+            "rate_limited": 0,
+            "parse_error": 0,
+            "network": 0,
+            "other": 0,
+        },
     }
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w") as f:
@@ -284,3 +300,159 @@ def test_run_health_check_surfaces_missing_route_and_price_variance(ctx):
     problems = run_health_check(db_path, heartbeat_path=heartbeat_path, run_date=TODAY)
     assert any("Missing route" in p for p in problems)
     assert any("Price variance" in p for p in problems)
+
+
+# --- _check_bot_challenge_today (issue #111) ---
+
+
+def test_check_bot_challenge_today_fires_when_count_positive(ctx):
+    _, heartbeat_path = ctx
+    _make_heartbeat(
+        heartbeat_path,
+        failures_by_kind={
+            "bot_challenge": 3,
+            "rate_limited": 0,
+            "parse_error": 0,
+            "network": 0,
+            "other": 0,
+        },
+    )
+    problem = _check_bot_challenge_today(heartbeat_path)
+    assert problem is not None
+    assert "urgent" in problem.lower()
+    assert "bot challenge" in problem.lower()
+    assert "3" in problem
+
+
+def test_check_bot_challenge_today_silent_when_count_zero(ctx):
+    _, heartbeat_path = ctx
+    _make_heartbeat(heartbeat_path)  # default has all-zero counters
+    assert _check_bot_challenge_today(heartbeat_path) is None
+
+
+def test_check_bot_challenge_today_silent_when_field_absent(ctx, tmp_path):
+    """Old heartbeats from pre-#111 versions have no failures_by_kind field —
+    the check must treat that as 'no signal', not as an error."""
+    heartbeat_path = str(tmp_path / "last_run.json")
+    with open(heartbeat_path, "w") as f:
+        json.dump({"run_date": TODAY}, f)
+    assert _check_bot_challenge_today(heartbeat_path) is None
+
+
+def test_check_bot_challenge_today_silent_when_heartbeat_missing(tmp_path):
+    heartbeat_path = str(tmp_path / "nonexistent.json")
+    assert _check_bot_challenge_today(heartbeat_path) is None
+
+
+def test_run_health_check_surfaces_bot_challenge(ctx):
+    db_path, heartbeat_path = ctx
+    _make_heartbeat(
+        heartbeat_path,
+        failures_by_kind={
+            "bot_challenge": 5,
+            "rate_limited": 0,
+            "parse_error": 0,
+            "network": 0,
+            "other": 0,
+        },
+    )
+    # Seed enough healthy data so other checks don't fire on top.
+    obs = []
+    for origin, dest in config.ROUTES:
+        for price in [4500, 5500, 6500, 7500]:
+            obs.append(_obs(origin=origin, destination=dest, price_amount=price))
+    insert_observations(db_path, obs)
+    problems = run_health_check(db_path, heartbeat_path=heartbeat_path)
+    assert any("bot challenge" in p.lower() for p in problems)
+
+
+# --- _check_consecutive_failures_per_route (issue #111) ---
+
+
+def test_consecutive_failures_silent_on_empty_db(ctx):
+    db_path, _ = ctx
+    assert _check_consecutive_failures_per_route(db_path) == []
+
+
+def test_consecutive_failures_silent_when_today_has_data(ctx):
+    """If today already has observations for a route, the streak is 0 and the
+    check must stay silent — even if historical data is patchy."""
+    db_path, _ = ctx
+    insert_observations(db_path, [_obs() for _ in range(3)])  # today
+    assert _check_consecutive_failures_per_route(db_path) == []
+
+
+def test_consecutive_failures_silent_for_route_never_seen(ctx):
+    """A brand-new route with no history must not trip the check on day 1 —
+    routes the system has never observed are skipped."""
+    db_path, _ = ctx
+    # Insert obs for a route OTHER than the configured routes.
+    insert_observations(
+        db_path, [_obs(origin="ZZZ", destination="YYY")]
+    )
+    # The configured routes (CPH→AMS, AMS→CPH) have never been seen → silent.
+    assert _check_consecutive_failures_per_route(db_path) == []
+
+
+def test_consecutive_failures_fires_at_threshold(ctx):
+    """A route with obs N+1 days ago and nothing since must fire when the
+    streak reaches CONSECUTIVE_FAILURE_DAYS."""
+    db_path, _ = ctx
+    threshold = config.CONSECUTIVE_FAILURE_DAYS
+    # Last obs was (threshold + 1) days ago — yesterday and back through
+    # threshold days are empty → streak == threshold.
+    old_date = (date.today() - timedelta(days=threshold + 1)).isoformat()
+    insert_observations(
+        db_path,
+        [_obs(retrieved_date=old_date, origin="CPH", destination="AMS")],
+    )
+    problems = _check_consecutive_failures_per_route(db_path)
+    assert any("CPH→AMS" in p for p in problems)
+    assert any(f"{threshold} consecutive days" in p for p in problems)
+
+
+def test_consecutive_failures_silent_below_threshold(ctx):
+    """If only yesterday is missing (streak == 1) and threshold is 2, stay silent."""
+    db_path, _ = ctx
+    two_days_ago = (date.today() - timedelta(days=2)).isoformat()
+    insert_observations(
+        db_path,
+        [_obs(retrieved_date=two_days_ago, origin="CPH", destination="AMS")],
+    )
+    # streak: yesterday is empty (1), day-before-yesterday has data → streak=1.
+    # Default threshold = 2 → silent.
+    assert _check_consecutive_failures_per_route(db_path) == []
+
+
+def test_consecutive_failures_fires_per_route_independently(ctx):
+    """One route can be failing while another is healthy. Only the failing one
+    should appear in the problem list."""
+    db_path, _ = ctx
+    threshold = config.CONSECUTIVE_FAILURE_DAYS
+    old_date = (date.today() - timedelta(days=threshold + 5)).isoformat()
+    insert_observations(
+        db_path,
+        [
+            # CPH→AMS: only old data → will fire
+            _obs(retrieved_date=old_date, origin="CPH", destination="AMS"),
+            # AMS→CPH: data today → silent
+            _obs(origin="AMS", destination="CPH"),
+        ],
+    )
+    problems = _check_consecutive_failures_per_route(db_path)
+    assert any("CPH→AMS" in p for p in problems)
+    assert not any("AMS→CPH" in p for p in problems)
+
+
+def test_run_health_check_surfaces_consecutive_failures(ctx):
+    db_path, heartbeat_path = ctx
+    _make_heartbeat(heartbeat_path)
+    threshold = config.CONSECUTIVE_FAILURE_DAYS
+    old_date = (date.today() - timedelta(days=threshold + 1)).isoformat()
+    # Seed both routes with old-only data so they each trip the check.
+    obs = []
+    for origin, dest in config.ROUTES:
+        obs.append(_obs(retrieved_date=old_date, origin=origin, destination=dest))
+    insert_observations(db_path, obs)
+    problems = run_health_check(db_path, heartbeat_path=heartbeat_path)
+    assert any("consecutive days" in p for p in problems)

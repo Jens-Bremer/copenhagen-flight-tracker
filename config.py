@@ -46,3 +46,8 @@ FRONTEND_MAX_DURATION_MINUTES = 120
 # --- Logging ---
 LOG_DIR = "logs"
 LOG_KEEP_DAYS = 14
+
+# --- Ban / rate-limit signals (issue #111) ---
+BOT_CHALLENGE_MIN_BYTES = 10000
+BOT_CHALLENGE_TITLE_PATTERNS = ["consent", "captcha", "unusual traffic", "are you a robot"]
+CONSECUTIVE_FAILURE_DAYS = 2

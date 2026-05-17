@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import sqlite3
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 import config
@@ -72,6 +72,99 @@ def _check_high_failure_rate(heartbeat_path: str) -> Optional[str]:
         )
         return None
     return None
+
+
+def _check_bot_challenge_today(heartbeat_path: str) -> Optional[str]:
+    """Return a problem string if today's heartbeat shows bot-challenge hits.
+
+    A non-zero bot_challenge count is the project's LEADING ban indicator —
+    Google has started serving consent/captcha pages where it used to serve
+    real flight data. The right response is almost always to refresh the
+    SOCS=CAI cookie strategy (see #110/#111), not to wait it out.
+    """
+    if not os.path.exists(heartbeat_path):
+        return None
+    try:
+        with open(heartbeat_path) as f:
+            data = json.load(f)
+    except Exception as exc:
+        logger.warning(
+            "Could not read heartbeat for bot-challenge check: %s", exc
+        )
+        return None
+    failures = data.get("failures_by_kind") or {}
+    count = failures.get("bot_challenge", 0)
+    if count and count > 0:
+        return (
+            f"[urgent] Bot challenge today: {count} response(s) flagged as "
+            f"challenge pages — cookie consent may have rotated; see #110/#111"
+        )
+    return None
+
+
+def _check_consecutive_failures_per_route(db_path: str) -> list[str]:
+    """Per-route problem if a route has N+ consecutive empty days.
+
+    Walks back from yesterday (today is in-progress and may legitimately have
+    no rows yet at health-check time). Threshold is config.CONSECUTIVE_FAILURE_DAYS.
+
+    Routes that have never been observed are silently skipped — a brand-new
+    route on day 1 is not a "failure". Only routes with at least one historical
+    observation can trip this check, which makes it a true regression signal.
+
+    Routes that already have observations TODAY are also silently skipped:
+    the daily collection has clearly succeeded for that route, so the streak
+    is zero regardless of intermediate gaps.
+    """
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    problems: list[str] = []
+    conn = sqlite3.connect(db_path)
+    try:
+        for origin, destination in config.ROUTES:
+            # Skip routes the system has never seen — first day of a route
+            # is not a failure mode.
+            route_total = conn.execute(
+                "SELECT COUNT(*) FROM flight_observations "
+                "WHERE origin = ? AND destination = ?",
+                (origin, destination),
+            ).fetchone()[0]
+            if route_total == 0:
+                continue
+            # Today's collection already succeeded for this route → streak 0.
+            today_count = conn.execute(
+                "SELECT COUNT(*) FROM flight_observations "
+                "WHERE origin = ? AND destination = ? "
+                "AND DATE(retrieved_at) = ?",
+                (origin, destination, today.isoformat()),
+            ).fetchone()[0]
+            if today_count > 0:
+                continue
+            streak = 0
+            cursor = yesterday
+            while True:
+                count = conn.execute(
+                    "SELECT COUNT(*) FROM flight_observations "
+                    "WHERE origin = ? AND destination = ? "
+                    "AND DATE(retrieved_at) = ?",
+                    (origin, destination, cursor.isoformat()),
+                ).fetchone()[0]
+                if count > 0:
+                    break
+                streak += 1
+                cursor -= timedelta(days=1)
+                # Cap the walk-back so an old-but-now-dead route can't loop
+                # back to the dawn of time.
+                if streak > 365:
+                    break
+            if streak >= config.CONSECUTIVE_FAILURE_DAYS:
+                problems.append(
+                    f"[high] No observations for {origin}→{destination} "
+                    f"for {streak} consecutive days"
+                )
+    finally:
+        conn.close()
+    return problems
 
 
 def _check_zero_observations_today(db_path: str) -> Optional[str]:
@@ -230,6 +323,7 @@ def run_health_check(
     single_checks = [
         _check_heartbeat_stale(heartbeat_path),
         _check_high_failure_rate(heartbeat_path),
+        _check_bot_challenge_today(heartbeat_path),
         _check_zero_observations_today(db_path),
         _check_observation_count_drop(db_path),
         _check_currency_inconsistency(db_path),
@@ -237,6 +331,7 @@ def run_health_check(
     problems = [c for c in single_checks if c is not None]
     problems.extend(check_missing_routes(db_path, run_date, config.ROUTES))
     problems.extend(check_price_variance(db_path, run_date))
+    problems.extend(_check_consecutive_failures_per_route(db_path))
     for p in problems:
         logger.warning("Health check problem: %s", p)
     return problems

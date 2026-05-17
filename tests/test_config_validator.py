@@ -22,6 +22,14 @@ def _cfg(**overrides):
         "PRICE_ALERT_THRESHOLD": 5000,
         "LOG_DIR": "logs",
         "LOG_KEEP_DAYS": 14,
+        "BOT_CHALLENGE_MIN_BYTES": 10000,
+        "BOT_CHALLENGE_TITLE_PATTERNS": [
+            "consent",
+            "captcha",
+            "unusual traffic",
+            "are you a robot",
+        ],
+        "CONSECUTIVE_FAILURE_DAYS": 2,
     }
     base.update(overrides)
     return base
@@ -380,3 +388,101 @@ def test_log_keep_days_string_raises():
 def test_log_keep_days_bool_raises():
     with pytest.raises(ValueError, match="LOG_KEEP_DAYS"):
         validate_config(_cfg(LOG_KEEP_DAYS=True))
+
+
+# --- BOT_CHALLENGE_MIN_BYTES (issue #111) ---
+
+
+def test_bot_challenge_min_bytes_valid_passes():
+    validate_config(_cfg(BOT_CHALLENGE_MIN_BYTES=1))  # must not raise
+    validate_config(_cfg(BOT_CHALLENGE_MIN_BYTES=50000))
+
+
+def test_bot_challenge_min_bytes_zero_raises():
+    with pytest.raises(ValueError, match="BOT_CHALLENGE_MIN_BYTES"):
+        validate_config(_cfg(BOT_CHALLENGE_MIN_BYTES=0))
+
+
+def test_bot_challenge_min_bytes_negative_raises():
+    with pytest.raises(ValueError, match="BOT_CHALLENGE_MIN_BYTES"):
+        validate_config(_cfg(BOT_CHALLENGE_MIN_BYTES=-1))
+
+
+def test_bot_challenge_min_bytes_none_raises():
+    with pytest.raises(ValueError, match="BOT_CHALLENGE_MIN_BYTES"):
+        validate_config(_cfg(BOT_CHALLENGE_MIN_BYTES=None))
+
+
+def test_bot_challenge_min_bytes_bool_raises():
+    with pytest.raises(ValueError, match="BOT_CHALLENGE_MIN_BYTES"):
+        validate_config(_cfg(BOT_CHALLENGE_MIN_BYTES=True))
+
+
+def test_bot_challenge_min_bytes_float_raises():
+    with pytest.raises(ValueError, match="BOT_CHALLENGE_MIN_BYTES"):
+        validate_config(_cfg(BOT_CHALLENGE_MIN_BYTES=1000.5))
+
+
+# --- BOT_CHALLENGE_TITLE_PATTERNS (issue #111) ---
+
+
+def test_bot_challenge_title_patterns_valid_passes():
+    validate_config(_cfg(BOT_CHALLENGE_TITLE_PATTERNS=["consent"]))  # must not raise
+
+
+def test_bot_challenge_title_patterns_empty_raises():
+    with pytest.raises(ValueError, match="BOT_CHALLENGE_TITLE_PATTERNS"):
+        validate_config(_cfg(BOT_CHALLENGE_TITLE_PATTERNS=[]))
+
+
+def test_bot_challenge_title_patterns_not_a_list_raises():
+    with pytest.raises(ValueError, match="BOT_CHALLENGE_TITLE_PATTERNS"):
+        validate_config(_cfg(BOT_CHALLENGE_TITLE_PATTERNS="consent"))
+
+
+def test_bot_challenge_title_patterns_empty_string_entry_raises():
+    with pytest.raises(ValueError, match="BOT_CHALLENGE_TITLE_PATTERNS"):
+        validate_config(_cfg(BOT_CHALLENGE_TITLE_PATTERNS=["consent", ""]))
+
+
+def test_bot_challenge_title_patterns_non_string_entry_raises():
+    with pytest.raises(ValueError, match="BOT_CHALLENGE_TITLE_PATTERNS"):
+        validate_config(_cfg(BOT_CHALLENGE_TITLE_PATTERNS=["consent", 42]))
+
+
+def test_bot_challenge_title_patterns_none_raises():
+    with pytest.raises(ValueError, match="BOT_CHALLENGE_TITLE_PATTERNS"):
+        validate_config(_cfg(BOT_CHALLENGE_TITLE_PATTERNS=None))
+
+
+# --- CONSECUTIVE_FAILURE_DAYS (issue #111) ---
+
+
+def test_consecutive_failure_days_valid_passes():
+    validate_config(_cfg(CONSECUTIVE_FAILURE_DAYS=1))  # must not raise
+    validate_config(_cfg(CONSECUTIVE_FAILURE_DAYS=7))
+
+
+def test_consecutive_failure_days_zero_raises():
+    with pytest.raises(ValueError, match="CONSECUTIVE_FAILURE_DAYS"):
+        validate_config(_cfg(CONSECUTIVE_FAILURE_DAYS=0))
+
+
+def test_consecutive_failure_days_negative_raises():
+    with pytest.raises(ValueError, match="CONSECUTIVE_FAILURE_DAYS"):
+        validate_config(_cfg(CONSECUTIVE_FAILURE_DAYS=-1))
+
+
+def test_consecutive_failure_days_none_raises():
+    with pytest.raises(ValueError, match="CONSECUTIVE_FAILURE_DAYS"):
+        validate_config(_cfg(CONSECUTIVE_FAILURE_DAYS=None))
+
+
+def test_consecutive_failure_days_bool_raises():
+    with pytest.raises(ValueError, match="CONSECUTIVE_FAILURE_DAYS"):
+        validate_config(_cfg(CONSECUTIVE_FAILURE_DAYS=True))
+
+
+def test_consecutive_failure_days_float_raises():
+    with pytest.raises(ValueError, match="CONSECUTIVE_FAILURE_DAYS"):
+        validate_config(_cfg(CONSECUTIVE_FAILURE_DAYS=2.5))

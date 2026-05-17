@@ -9,6 +9,36 @@ from primp import Client
 import config
 
 
+# --- Exception hierarchy (issue #111) ---
+#
+# Classify fetch failures so the scheduler's heartbeat (and downstream health
+# checks) can distinguish a transient network blip from a structural Google
+# block. BotChallengeError + RateLimitedError together form the LEADING ban
+# indicator the project's #1 risk requires.
+class FlightFetchError(Exception):
+    """Base class for any error raised inside the patched fetch path."""
+
+
+class BotChallengeError(FlightFetchError):
+    """Response looks like a consent/captcha/anti-bot interstitial.
+
+    Detected via raw byte floor (response shorter than expected) or by a
+    case-insensitive substring match against config.BOT_CHALLENGE_TITLE_PATTERNS.
+    """
+
+
+class RateLimitedError(FlightFetchError):
+    """Google returned an HTTP 429 or 403 — explicit rate-limit / block."""
+
+
+class ParseError(FlightFetchError):
+    """fast_flights got a response but could not extract structured data."""
+
+
+class NetworkError(FlightFetchError):
+    """primp raised a connection/timeout error — no usable response."""
+
+
 # Patch fast_flights to avoid Google's EU cookie consent wall
 def patched_fetch(params: dict):
     # verify=False is intentional: primp manages its own TLS/browser fingerprint stack.
@@ -16,13 +46,36 @@ def patched_fetch(params: dict):
     client = Client(impersonate="chrome_131", verify=False)
     # The SOCS=CAI cookie signals that the user has accepted/rejected cookies,
     # preventing the consent redirect.
-    res = client.get(
-        "https://www.google.com/travel/flights",
-        params=params,
-        headers={"Cookie": "SOCS=CAI; CONSENT=PENDING+999"},
-    )
+    try:
+        res = client.get(
+            "https://www.google.com/travel/flights",
+            params=params,
+            headers={"Cookie": "SOCS=CAI; CONSENT=PENDING+999"},
+        )
+    except (ConnectionError, TimeoutError) as exc:
+        # primp surfaces transport failures as the standard built-in
+        # ConnectionError / TimeoutError. Wrap them so callers can branch
+        # on NetworkError without depending on primp's internals.
+        raise NetworkError(str(exc)) from exc
+
+    if res.status_code in (429, 403):
+        raise RateLimitedError(f"HTTP {res.status_code}")
     if res.status_code != 200:
         raise RuntimeError(f"HTTP {res.status_code}: {res.text_markdown}")
+
+    # --- Bot-challenge detection (raw byte floor + title substring) ---
+    # Cheap, deterministic, no DB state. A genuine Google Flights HTML page
+    # is tens to hundreds of kilobytes; consent / captcha interstitials are
+    # typically a few KB. The substring scan catches the slightly-larger
+    # consent screens that slip above the byte floor.
+    body = getattr(res, "text", "") or ""
+    if len(body.encode("utf-8")) < config.BOT_CHALLENGE_MIN_BYTES:
+        raise BotChallengeError("response below minimum length")
+    lower_body = body.lower()
+    for pattern in config.BOT_CHALLENGE_TITLE_PATTERNS:
+        if pattern.lower() in lower_body:
+            raise BotChallengeError(f"detected pattern: {pattern}")
+
     return res
 
 
@@ -47,6 +100,10 @@ def fetch_flights_for_date(
     """Fetch one-way flights for a single route and date.
 
     Returns None on failure unless raise_on_failure is True.
+
+    When raise_on_failure is True, FlightFetchError subclasses (and any other
+    exception raised by fast_flights) propagate unchanged so the orchestrator
+    can classify failures into per-category counters.
     """
     logger.info(
         "Querying %s→%s on %s", origin, destination, departure_date.strftime("%Y-%m-%d")
