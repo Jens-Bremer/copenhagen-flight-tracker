@@ -201,7 +201,18 @@ def slim_row(raw_row: dict) -> Optional[dict]:
         except ValueError:
             return None
 
-    duration = compute_duration_minutes(departure_at, arrival_at)
+    # Prefer the DB-populated duration_minutes column when present (#89).
+    # Legacy rows written before migration 1 carry NULL/empty and must fall
+    # back to the datetime-arithmetic path so historical data keeps working.
+    raw_duration = raw_row.get("duration_minutes")
+    duration: Optional[int] = None
+    if raw_duration not in (None, ""):
+        try:
+            duration = int(raw_duration)
+        except (TypeError, ValueError):
+            duration = None
+    if duration is None:
+        duration = compute_duration_minutes(departure_at, arrival_at)
     if duration <= 0:
         return None
     if duration > config.FRONTEND_MAX_DURATION_MINUTES:

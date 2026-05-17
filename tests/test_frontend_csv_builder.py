@@ -226,6 +226,42 @@ def test_slim_row_keeps_duration_equal_2_hours():
     assert out["duration_minutes"] == 120
 
 
+# --- duration_minutes DB-column preference (#89) ---
+
+
+def test_slim_row_prefers_db_duration_minutes_over_arithmetic():
+    """When the input carries a populated duration_minutes (new rows written
+    after migration 1), the slim row must use it verbatim rather than
+    re-deriving from departure_at/arrival_at."""
+    # Datetime arithmetic would give 90; DB value of 95 must win.
+    out = slim_row(_input_row(duration_minutes="95"))
+    assert out["duration_minutes"] == 95
+
+
+def test_slim_row_falls_back_to_arithmetic_when_duration_minutes_missing():
+    """Legacy rows written before migration 1 have no duration_minutes column
+    in the export CSV at all; the helper must fall back to datetime
+    arithmetic on departure_at/arrival_at."""
+    row = _input_row()  # baseline _input_row() does not set duration_minutes
+    assert "duration_minutes" not in row
+    out = slim_row(row)
+    assert out["duration_minutes"] == 90
+
+
+def test_slim_row_falls_back_when_duration_minutes_empty_string():
+    """Empty string (CSV representation of NULL for legacy rows) triggers
+    the fallback path."""
+    out = slim_row(_input_row(duration_minutes=""))
+    assert out["duration_minutes"] == 90
+
+
+def test_slim_row_falls_back_when_duration_minutes_unparseable():
+    """Garbage in duration_minutes column should not raise; fall back to
+    arithmetic so we never lose the row over a single bad cell."""
+    out = slim_row(_input_row(duration_minutes="not a number"))
+    assert out["duration_minutes"] == 90
+
+
 def test_build_dedupes_identical_rows(tmp_path):
     src_path = str(tmp_path / "in.csv")
     out = str(tmp_path / "out.csv")
