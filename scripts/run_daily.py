@@ -13,7 +13,7 @@ import config
 from src.config_validator import validate_config
 from src.database import insert_observations
 from src.date_generator import generate_target_dates
-from src.flight_fetcher import fetch_flights_for_date
+from src.flight_fetcher import fetch_flights_for_date, install_fetch_patch
 from src.log_config import setup_logging
 from src.price_alerter import check_and_alert_cheap_flights
 from src.request_pacer import compute_sleep_intervals, seconds_until_window_start
@@ -189,6 +189,7 @@ def run_collection(
 
 def main() -> None:
     validate_config(vars(config))
+    install_fetch_patch()
     logger.info("Starting daily flight price collection (%s)", date.today().isoformat())
 
     dates = generate_target_dates(date.today())

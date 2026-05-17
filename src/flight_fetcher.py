@@ -26,7 +26,14 @@ def patched_fetch(params: dict):
     return res
 
 
-fast_flights.core.fetch = patched_fetch
+def install_fetch_patch() -> None:
+    """Install the patched fetch onto fast_flights.core.
+
+    Must be called once at process startup (run_daily.main / run_scheduler.main).
+    Tests that need the unpatched fast_flights.core.fetch can simply not call this.
+    """
+    fast_flights.core.fetch = patched_fetch
+
 
 logger = logging.getLogger(__name__)
 

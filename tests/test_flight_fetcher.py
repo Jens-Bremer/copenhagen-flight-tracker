@@ -1,10 +1,12 @@
+import importlib
 import logging
 from datetime import date
 from unittest.mock import MagicMock, patch
 
 import fast_flights
+import fast_flights.core
 
-from src.flight_fetcher import fetch_flights_for_date
+from src.flight_fetcher import fetch_flights_for_date, install_fetch_patch
 
 ORIGIN = "CPH"
 DESTINATION = "AMS"
@@ -28,10 +30,18 @@ def test_returns_none_on_exception():
     assert result is None
 
 
-def test_returns_none_when_patched_fetch_gets_non_200(caplog):
+def test_returns_none_when_patched_fetch_gets_non_200(caplog, monkeypatch):
     bad_res = MagicMock()
     bad_res.status_code = 429
     bad_res.text_markdown = "rate limited"
+
+    # This test exercises the patched_fetch code path (mocking the primp
+    # Client inside it). For fast_flights.get_flights to route into
+    # patched_fetch we must install the patch explicitly — the module no
+    # longer does it at import time. monkeypatch.setattr restores the
+    # original fetch when the test ends, so other tests stay isolated.
+    monkeypatch.setattr(fast_flights.core, "fetch", fast_flights.core.fetch)
+    install_fetch_patch()
 
     with patch("src.flight_fetcher.Client") as mock_client:
         mock_client.return_value.get.return_value = bad_res
@@ -96,3 +106,29 @@ def test_logs_error_on_failure(caplog):
         with caplog.at_level(logging.ERROR, logger="src.flight_fetcher"):
             fetch_flights_for_date(ORIGIN, DESTINATION, DEPARTURE)
     assert "timeout" in caplog.text
+
+
+def test_module_import_does_not_install_patch(monkeypatch):
+    """Importing src.flight_fetcher must NOT rebind fast_flights.core.fetch.
+
+    The patch is a process-wide side effect; it must only happen when callers
+    explicitly opt in via install_fetch_patch(). Anything else — tests, the
+    REPL, future analytics modules that transitively import flight_fetcher —
+    must see the pristine upstream fetch.
+    """
+    # Install a sentinel as the "original" fetch so we can detect rebinding
+    # even on a fresh process where the patch has never been applied.
+    sentinel = object()
+    monkeypatch.setattr(fast_flights.core, "fetch", sentinel)
+
+    # Reload src.flight_fetcher so its module-level code re-executes under
+    # the sentinel. If the old side effect were still present, this would
+    # rebind fast_flights.core.fetch to patched_fetch.
+    import src.flight_fetcher as flight_fetcher_module
+
+    importlib.reload(flight_fetcher_module)
+    assert fast_flights.core.fetch is sentinel
+
+    # Explicit call MUST rebind it.
+    flight_fetcher_module.install_fetch_patch()
+    assert fast_flights.core.fetch is flight_fetcher_module.patched_fetch
