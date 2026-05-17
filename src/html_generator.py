@@ -312,6 +312,32 @@ def _mean(values: list[int]) -> int:
     return round(sum(values) / len(values)) if values else 0
 
 
+def _build_norm_prog_entry(days_before: int, values: list[float]) -> dict[str, Any]:
+    """Compute mean, Q1, and Q3 pct_change for a normalized-progression bucket.
+
+    Tolerant of single-observation buckets: when len(values) == 1,
+    q1 == q3 == mean. Uses simple index-based quartile (same as _quartiles).
+    """
+    n = len(values)
+    mean_val = round(sum(values) / n, 2)
+    if n == 1:
+        return {
+            "days_before": days_before,
+            "mean_pct_change": mean_val,
+            "q1_pct_change": mean_val,
+            "q3_pct_change": mean_val,
+        }
+    s = sorted(values)
+    q1_val = round(s[n // 4], 2)
+    q3_val = round(s[(3 * n) // 4], 2)
+    return {
+        "days_before": days_before,
+        "mean_pct_change": mean_val,
+        "q1_pct_change": q1_val,
+        "q3_pct_change": q3_val,
+    }
+
+
 def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Per route: lead-time curve, sweet spot, dow/month means, market trend."""
     if not rows:
@@ -454,7 +480,7 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
 
         norm_prog = sorted(
             (
-                {"days_before": db, "mean_pct_change": round(sum(v) / len(v), 2)}
+                _build_norm_prog_entry(db, v)
                 for (r, db), v in pct_by_days.items()
                 if r == route
             ),

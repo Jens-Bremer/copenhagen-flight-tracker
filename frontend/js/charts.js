@@ -10,28 +10,22 @@ function renderTrends() {
   }
 
   // Market trend — one line per active route, X = obs_date, Y = min_cents/100
+  // Odd-indexed routes (second route, fourth, …) get a dashed line for distinction.
   const marketDatasets = routes.map((r) => {
     const trend = DATA.analysis[r].market_trend || [];
     const color = routeColor(r);
+    const routeIdx = DATA.metadata.routes.indexOf(r);
+    const isDashed = routeIdx % 2 === 1;
     return {
       label: r,
       data: trend.map((t) => ({ x: t.obs_date, y: t.min_cents / 100 })),
       borderColor: color,
-      backgroundColor: color.replace(')', ', 0.10)').replace('rgb(', 'rgba(').replace('#', '') === color
-        ? color + '1a'   // hex fallback — use inline rgba below instead
-        : color,
+      backgroundColor: hexToRgba(color, 0.10),
+      borderDash: isDashed ? [6, 4] : [],
       spanGaps: false,
       borderWidth: 2,
       pointRadius: 2,
     };
-  });
-  // Recompute rgba backgrounds from ROUTE_PALETTE hex values
-  routes.forEach((r, i) => {
-    const hex = routeColor(r).replace('#', '');
-    const rv = parseInt(hex.slice(0, 2), 16);
-    const gv = parseInt(hex.slice(2, 4), 16);
-    const bv = parseInt(hex.slice(4, 6), 16);
-    marketDatasets[i].backgroundColor = `rgba(${rv},${gv},${bv},0.10)`;
   });
 
   const allDates = Array.from(new Set(
@@ -51,19 +45,18 @@ function renderTrends() {
   });
 
   // Three datasets per route: Q1 boundary, Q3 boundary (filled back to Q1 = IQR band), mean line.
+  // Odd-indexed routes get a dashed border for visual distinction.
   const leadDatasets = routes.flatMap((r) => {
     const curve = DATA.analysis[r].lead_time_curve || [];
-    const hex = routeColor(r).replace('#', '');
-    const rv = parseInt(hex.slice(0, 2), 16);
-    const gv = parseInt(hex.slice(2, 4), 16);
-    const bv = parseInt(hex.slice(4, 6), 16);
-    const bandAlpha = `rgba(${rv},${gv},${bv},`;
+    const color = routeColor(r);
+    const routeIdx = DATA.metadata.routes.indexOf(r);
+    const isDashed = routeIdx % 2 === 1;
     return [
       {
         label: `${r} Q1`,
         data: curve.map((c) => ({ x: c.days_before, y: c.q1_cents / 100 })),
-        borderColor: bandAlpha + '0)',
-        backgroundColor: bandAlpha + '0)',
+        borderColor: hexToRgba(color, 0),
+        backgroundColor: hexToRgba(color, 0),
         fill: false,
         pointRadius: 0,
         spanGaps: false,
@@ -71,8 +64,8 @@ function renderTrends() {
       {
         label: `${r} IQR`,
         data: curve.map((c) => ({ x: c.days_before, y: c.q3_cents / 100 })),
-        borderColor: bandAlpha + '0)',
-        backgroundColor: bandAlpha + '0.15)',
+        borderColor: hexToRgba(color, 0),
+        backgroundColor: hexToRgba(color, 0.15),
         fill: '-1',
         pointRadius: 0,
         spanGaps: false,
@@ -80,7 +73,8 @@ function renderTrends() {
       {
         label: r,
         data: curve.map((c) => ({ x: c.days_before, y: c.mean_cents / 100 })),
-        borderColor: routeColor(r),
+        borderColor: color,
+        borderDash: isDashed ? [6, 4] : [],
         fill: false,
         spanGaps: false,
         borderWidth: 2,
@@ -218,7 +212,7 @@ function renderHistograms() {
         responsive: true, maintainAspectRatio: false,
         plugins: {
           title: { display: true, text: `${route} — price distribution (€5 bins)` },
-          legend: { position: 'right' },
+          legend: { position: 'bottom', align: 'center', labels: { boxWidth: 12, boxHeight: 12, padding: 8 } },
           tooltip: {
             callbacks: {
               label:  (c)     => `${c.dataset.label}: ${c.parsed.y} obs`,
@@ -262,7 +256,7 @@ function renderWeekendPairs() {
   routesWithPairs.forEach((route) => {
     const pairs = DATA.summary[route].weekend_pairs;
     const tableHtml = `
-      <table class="pairs-table" aria-label="Cheapest weekend pairs for ${escapeHtml(route)}">
+      <table class="pairs-table" data-route="${escapeHtml(route)}" aria-label="Cheapest weekend pairs for ${escapeHtml(route)}">
         <caption>${escapeHtml(route)} weekend pairs (Fri outbound + Sun inbound)</caption>
         <thead>
           <tr>
@@ -289,6 +283,12 @@ function renderWeekendPairs() {
       </table>
     `;
     root.insertAdjacentHTML('beforeend', tableHtml);
+    // Set caption background to route palette colour after insertion.
+    const table = root.querySelector(`table[data-route="${CSS.escape(route)}"]`);
+    if (table) {
+      const caption = table.querySelector('caption');
+      if (caption) caption.style.backgroundColor = routeColor(route);
+    }
   });
 }
 
@@ -300,13 +300,7 @@ function renderFooterCharts() {
   if (routes.length === 0) return;
 
   const ROUTE_COLORS = Object.fromEntries(
-    (DATA.metadata.routes || []).map((r) => {
-      const hex = routeColor(r).replace('#', '');
-      const rv = parseInt(hex.slice(0, 2), 16);
-      const gv = parseInt(hex.slice(2, 4), 16);
-      const bv = parseInt(hex.slice(4, 6), 16);
-      return [r, `rgba(${rv},${gv},${bv},0.65)`];
-    })
+    (DATA.metadata.routes || []).map((r) => [r, hexToRgba(routeColor(r), 0.65)])
   );
 
   function makeGroupedChart(canvas, field, keyField, title) {
@@ -510,18 +504,44 @@ function renderNormProgress() {
   const routes = (DATA.metadata.routes || []).filter((r) => DATA.analysis[r]);
   if (routes.length === 0) return;
 
-  const datasets = routes.map((r) => {
+  // Three datasets per route: Q1 (transparent), IQR fill, mean visible line.
+  // Odd-indexed routes get a dashed line for visual distinction (same as renderTrends).
+  const datasets = routes.flatMap((r) => {
     const prog = DATA.analysis[r].normalized_price_progression || [];
-    return {
-      label: r,
-      data: prog.map((e) => ({ x: e.days_before, y: e.mean_pct_change })),
-      borderColor: routeColor(r),
-      backgroundColor: 'transparent',
-      spanGaps: false,
-      borderWidth: 2,
-      pointRadius: 2,
-      fill: false,
-    };
+    const color = routeColor(r);
+    const routeIdx = DATA.metadata.routes.indexOf(r);
+    const isDashed = routeIdx % 2 === 1;
+    return [
+      {
+        label: `${r} Q1`,
+        data: prog.map((e) => ({ x: e.days_before, y: e.q1_pct_change !== undefined ? e.q1_pct_change : e.mean_pct_change })),
+        borderColor: hexToRgba(color, 0),
+        backgroundColor: hexToRgba(color, 0),
+        fill: false,
+        pointRadius: 0,
+        spanGaps: false,
+      },
+      {
+        label: `${r} IQR`,
+        data: prog.map((e) => ({ x: e.days_before, y: e.q3_pct_change !== undefined ? e.q3_pct_change : e.mean_pct_change })),
+        borderColor: hexToRgba(color, 0),
+        backgroundColor: hexToRgba(color, 0.15),
+        fill: '-1',
+        pointRadius: 0,
+        spanGaps: false,
+      },
+      {
+        label: r,
+        data: prog.map((e) => ({ x: e.days_before, y: e.mean_pct_change })),
+        borderColor: color,
+        borderDash: isDashed ? [6, 4] : [],
+        backgroundColor: 'transparent',
+        spanGaps: false,
+        borderWidth: 2,
+        pointRadius: 2,
+        fill: false,
+      },
+    ];
   });
 
   charts.normProg = new Chart($('normprog-chart'), {
@@ -531,9 +551,17 @@ function renderNormProgress() {
       responsive: true, maintainAspectRatio: false,
       plugins: {
         title: { display: true, text: '% price change vs. earliest observation (0% = no change from baseline)' },
+        legend: {
+          labels: {
+            filter: (item) => !item.text.endsWith(' Q1') && !item.text.endsWith(' IQR'),
+          },
+        },
         tooltip: {
           callbacks: {
-            label: (c) => `${c.dataset.label}: ${c.parsed.y >= 0 ? '+' : ''}${c.parsed.y.toFixed(1)}% vs earliest`,
+            label: (c) => {
+              if (c.dataset.label.endsWith(' Q1') || c.dataset.label.endsWith(' IQR')) return null;
+              return `${c.dataset.label}: ${c.parsed.y >= 0 ? '+' : ''}${c.parsed.y.toFixed(1)}% vs earliest`;
+            },
           },
         },
       },

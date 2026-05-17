@@ -196,3 +196,39 @@ def test_compute_price_percentile_duplicate_max_is_hundred(db_path):
     )
 
     assert percentile == pytest.approx(100.0)
+
+
+# ─── Issue #126: _build_norm_prog_entry IQR fields ────────────────────────────
+
+
+def test_norm_prog_entry_iqr_fields_present_multi_obs():
+    """_build_norm_prog_entry must produce q1_pct_change and q3_pct_change
+    when there are multiple observations in the bucket."""
+    from src.html_generator import _build_norm_prog_entry
+
+    values = [0.0, -2.5, 3.0, 5.0, -1.0]
+    entry = _build_norm_prog_entry(10, values)
+    assert "q1_pct_change" in entry, "q1_pct_change must be present"
+    assert "q3_pct_change" in entry, "q3_pct_change must be present"
+    assert "mean_pct_change" in entry, "mean_pct_change must be present"
+    assert entry["days_before"] == 10
+
+
+def test_norm_prog_entry_iqr_equal_for_single_obs():
+    """With a single observation, q1 == q3 == mean (degenerate bucket)."""
+    from src.html_generator import _build_norm_prog_entry
+
+    entry = _build_norm_prog_entry(5, [3.7])
+    assert entry["q1_pct_change"] == pytest.approx(3.7, abs=0.01)
+    assert entry["q3_pct_change"] == pytest.approx(3.7, abs=0.01)
+    assert entry["mean_pct_change"] == pytest.approx(3.7, abs=0.01)
+
+
+def test_norm_prog_entry_iqr_ordering():
+    """q1 ≤ mean ≤ q3 must hold for any set of values."""
+    from src.html_generator import _build_norm_prog_entry
+
+    values = [-10.0, -5.0, 0.0, 5.0, 10.0, 15.0, 20.0, 25.0]
+    entry = _build_norm_prog_entry(30, values)
+    assert entry["q1_pct_change"] <= entry["mean_pct_change"] + 0.01
+    assert entry["q3_pct_change"] >= entry["mean_pct_change"] - 0.01

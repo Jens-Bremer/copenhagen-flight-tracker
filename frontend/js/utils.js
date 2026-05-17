@@ -81,3 +81,13 @@ function routeColor(route) {
   const idx = DATA.metadata.routes.indexOf(route);
   return ROUTE_PALETTE[idx % ROUTE_PALETTE.length];
 }
+
+/** Convert a 6-digit hex colour string to an rgba() CSS string.
+ *  alpha defaults to 1.0. Used for IQR band fills in chart datasets. */
+function hexToRgba(hex, alpha) {
+  const h = hex.replace('#', '');
+  const rv = parseInt(h.slice(0, 2), 16);
+  const gv = parseInt(h.slice(2, 4), 16);
+  const bv = parseInt(h.slice(4, 6), 16);
+  return `rgba(${rv},${gv},${bv},${alpha !== undefined ? alpha : 1})`;
+}
