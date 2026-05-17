@@ -1,5 +1,6 @@
 """Tests for run_scheduler: job registration and callable job functions."""
 
+import json
 import os
 import sys
 from unittest.mock import patch
@@ -10,6 +11,7 @@ import schedule
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
+from scripts.run_daily import _write_heartbeat
 from scripts.run_scheduler import (
     _backup_job,
     _csv_export_job,
@@ -248,3 +250,77 @@ def test_frontend_csv_job_chains_html_generation(tmp_path):
         mock_cfg.DATABASE_PATH = str(tmp_path / "flights.db")
         _frontend_csv_job()
     mock_gen.assert_called_once()
+
+
+# --- Atomic heartbeat write (issue #115) ---
+
+
+def test_write_heartbeat_leaves_prior_content_intact_on_mid_write_crash(tmp_path):
+    """If json.dump raises mid-write, the target file must remain intact (its
+    prior content) or be absent — never a partial/empty file. This guards
+    against the failure mode where the health checker reads an empty
+    last_run.json and reports a misleading 'stale' message."""
+    heartbeat_path = str(tmp_path / "last_run.json")
+    # Seed with valid prior content from a previous successful run.
+    prior = {
+        "run_date": "2026-05-16",
+        "total_observations": 99,
+        "failed_jobs_count": 0,
+        "total_jobs": 100,
+        "duration_seconds": 1234.5,
+    }
+    with open(heartbeat_path, "w") as f:
+        json.dump(prior, f)
+
+    with patch(
+        "scripts.run_daily.json.dump", side_effect=RuntimeError("disk full")
+    ):
+        with pytest.raises(RuntimeError, match="disk full"):
+            _write_heartbeat(
+                heartbeat_path,
+                run_date="2026-05-17",
+                total_observations=100,
+                failed_jobs_count=0,
+                total_jobs=100,
+                duration_seconds=42.0,
+            )
+
+    # The target file must be unchanged — atomic rename never happened.
+    with open(heartbeat_path) as f:
+        actual = json.load(f)
+    assert actual == prior
+
+    # No stray temp files leaked into the directory (besides the heartbeat
+    # itself); tempfile.NamedTemporaryFile(delete=False) leaves the temp file
+    # on disk after a crash, but it must NOT have clobbered the target.
+    # The temp file is acceptable — what matters is target integrity.
+    assert os.path.exists(heartbeat_path)
+
+
+def test_write_heartbeat_calls_os_replace_once_with_temp_and_target(tmp_path):
+    """The atomic-write idiom must use os.replace exactly once, with the temp
+    path as source and the target heartbeat path as destination. This guards
+    against accidental regressions to a naive open()+write that would bypass
+    the atomic-rename step."""
+    heartbeat_path = str(tmp_path / "last_run.json")
+
+    with patch("scripts.run_daily.os.replace") as mock_replace:
+        _write_heartbeat(
+            heartbeat_path,
+            run_date="2026-05-17",
+            total_observations=100,
+            failed_jobs_count=0,
+            total_jobs=100,
+            duration_seconds=42.0,
+        )
+
+    mock_replace.assert_called_once()
+    args, _kwargs = mock_replace.call_args
+    src, dst = args
+    # Source must be a temp file in the same directory as the target — a
+    # cross-filesystem rename is non-atomic on POSIX.
+    assert os.path.dirname(src) == os.path.dirname(os.path.abspath(heartbeat_path))
+    assert os.path.basename(src).startswith(".last_run.")
+    assert os.path.basename(src).endswith(".tmp")
+    # Destination must be exactly the target heartbeat path.
+    assert dst == heartbeat_path

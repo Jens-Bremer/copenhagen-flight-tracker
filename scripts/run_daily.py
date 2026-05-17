@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import sys
+import tempfile
 import time
 from datetime import date, datetime, timezone
 from typing import Callable, Optional
@@ -31,8 +32,24 @@ def _write_heartbeat(
     total_jobs: int,
     duration_seconds: float,
 ) -> None:
-    os.makedirs(os.path.dirname(os.path.abspath(heartbeat_path)), exist_ok=True)
-    with open(heartbeat_path, "w") as f:
+    """Write the heartbeat file atomically via temp-file + os.replace.
+
+    A naive ``open("w") + json.dump`` leaves the heartbeat empty or partial if
+    the process dies mid-write. The health checker then either reports a
+    misleading "stale" message or silently disables itself. Instead, write to
+    a temp file in the same directory (so ``os.replace`` is atomic on POSIX),
+    fsync it, and rename over the target. Either the old file survives intact
+    or the new one fully replaces it — never a half-written intermediate.
+    """
+    target_dir = os.path.dirname(os.path.abspath(heartbeat_path))
+    os.makedirs(target_dir, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        dir=target_dir,
+        prefix=".last_run.",
+        suffix=".tmp",
+        delete=False,
+    ) as f:
         json.dump(
             {
                 "run_date": run_date,
@@ -44,6 +61,10 @@ def _write_heartbeat(
             f,
             indent=2,
         )
+        f.flush()
+        os.fsync(f.fileno())
+        tmp = f.name
+    os.replace(tmp, heartbeat_path)
 
 
 def run_collection(
