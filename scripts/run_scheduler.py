@@ -15,6 +15,7 @@ from scripts.export_csv import export_to_csv
 from scripts.run_daily import run_collection
 from src.config_validator import validate_config
 from src.date_generator import generate_target_dates
+from src.flight_fetcher import install_fetch_patch
 from src.frontend_csv_builder import build as build_frontend_csv
 from src.health_checker import run_health_check
 from src.html_generator import generate as generate_html
@@ -182,6 +183,7 @@ def main() -> None:
     validate_config(vars(config))
     applied = apply_migrations(config.DATABASE_PATH)
     logger.info("Scheduler: applied %d migration(s) on startup", applied)
+    install_fetch_patch()
     setup_schedule()
     logger.info("Scheduler running — press Ctrl+C to stop")
 
