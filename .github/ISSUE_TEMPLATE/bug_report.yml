@@ -1,0 +1,58 @@
+name: Bug report
+description: Something isn't working
+labels: ["bug"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is broken? Include error messages or unexpected behaviour.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Minimal steps to reproduce the bug.
+      placeholder: |
+        1. Run `python scripts/run_daily.py`
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+      description: What did you expect? What happened instead?
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: Python 3.11 / macOS 14 / fast-flights 2.3.0
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant log output from `logs/tracker.log`, scheduler stdout, or ntfy alerts.
+      render: shell
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - backend
+        - frontend
+        - ops
+        - testing
+        - docs
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - low
+        - medium
+        - high
+      default: 1

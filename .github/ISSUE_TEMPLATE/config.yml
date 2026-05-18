@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Contribution guide
+    url: https://github.com/Jens-Bremer/copenhagen-flight-tracker/blob/master/CONTRIBUTING.md
+    about: Read the project conventions (branch / commit format, module contract, test rules) before opening an issue.
