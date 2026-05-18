@@ -43,7 +43,7 @@ class NetworkError(FlightFetchError):
 def patched_fetch(params: dict):
     # verify=False is intentional: primp manages its own TLS/browser fingerprint stack.
     # Python's default cert verification can conflict with that.
-    client = Client(impersonate="chrome_131", verify=False)
+    client = Client(impersonate=config.IMPERSONATION, verify=False)
     # The SOCS=CAI cookie signals that the user has accepted/rejected cookies,
     # preventing the consent redirect.
     try:
@@ -84,7 +84,25 @@ def install_fetch_patch() -> None:
 
     Must be called once at process startup (run_daily.main / run_scheduler.main).
     Tests that need the unpatched fast_flights.core.fetch can simply not call this.
+
+    Probes the configured impersonation profile up-front. primp emits only a
+    WARNING when the profile is missing and silently switches to 'random' —
+    which serves Google a different TLS fingerprint per request and gets the
+    scraper bot-walled. We promote that warning into a fatal RuntimeError so
+    a misconfiguration is impossible to ignore. See config.IMPERSONATION for
+    the rationale and valid candidates.
     """
+    try:
+        Client(impersonate=config.IMPERSONATION, verify=False)
+    except Exception as exc:
+        raise RuntimeError(
+            f"primp impersonation profile {config.IMPERSONATION!r} is not "
+            f"available in the installed primp version ({exc}). primp must be "
+            "pinned (pyproject.toml) to a release that ships this profile, "
+            "OR config.IMPERSONATION must be updated to a profile that "
+            "exists. Do NOT proceed with scraping — the silent 'random' "
+            "fallback will get you bot-walled."
+        ) from exc
     fast_flights.core.fetch = patched_fetch
 
 
