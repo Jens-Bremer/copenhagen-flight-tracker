@@ -1,0 +1,53 @@
+name: Chore / tech debt
+description: Refactor, tooling, or repo hygiene
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: What needs to change?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: Why does it matter now? Link related issues / commits if helpful.
+    validations:
+      required: true
+  - type: textarea
+    id: where
+    attributes:
+      label: Where (files)
+      description: Exact files / modules affected.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance
+      description: How will we verify this is done?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - backend
+        - frontend
+        - ops
+        - testing
+        - docs
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - low
+        - medium
+        - high
+      default: 0
