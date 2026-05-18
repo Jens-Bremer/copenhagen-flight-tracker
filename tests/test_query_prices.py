@@ -61,3 +61,134 @@ def test_cmd_cheapest_omits_percentile_when_not_enough_data(
     output = capsys.readouterr().out
 
     assert "percentile" not in output
+
+
+def test_cmd_health_healthy_state(tmp_path, monkeypatch, capsys):
+    """Test --health when system is healthy (no issues)."""
+    import json
+    from datetime import date
+
+    db_path = str(tmp_path / "flights.db")
+    initialize_database(db_path)
+    heartbeat_path = str(tmp_path / "last_run.json")
+
+    # Write a valid heartbeat for today
+    with open(heartbeat_path, "w") as f:
+        json.dump(
+            {
+                "run_date": date.today().isoformat(),
+                "total_observations": 42,
+                "failed_jobs_count": 0,
+                "total_jobs": 10,
+                "duration_seconds": 120.5,
+            },
+            f,
+        )
+
+    # Add some observations for today
+    today_iso = date.today().isoformat()
+    insert_observations(
+        db_path,
+        [
+            _obs(1000, f"{today_iso}T06:00:00+00:00"),
+            _obs(2000, f"{today_iso}T07:00:00+00:00"),
+        ],
+    )
+
+    monkeypatch.setattr(query_prices.config, "DATABASE_PATH", db_path)
+    monkeypatch.setattr(
+        query_prices, "run_health_check", lambda db, hb: []
+    )  # No issues
+
+    try:
+        query_prices.cmd_health()
+    except SystemExit as e:
+        exit_code = e.code
+    else:
+        exit_code = None
+
+    output = capsys.readouterr().out
+    assert "Heartbeat:" in output
+    assert "ok" in output
+    assert "Total jobs:" in output
+    assert "(none)" in output
+    assert exit_code == 0
+
+
+def test_cmd_health_with_failures(tmp_path, monkeypatch, capsys):
+    """Test --health when there are failed jobs."""
+    import json
+    from datetime import date
+
+    db_path = str(tmp_path / "flights.db")
+    initialize_database(db_path)
+    heartbeat_path = str(tmp_path / "last_run.json")
+
+    # Write a heartbeat with failures
+    with open(heartbeat_path, "w") as f:
+        json.dump(
+            {
+                "run_date": date.today().isoformat(),
+                "total_observations": 40,
+                "failed_jobs_count": 1,
+                "total_jobs": 10,
+                "duration_seconds": 120.5,
+            },
+            f,
+        )
+
+    # Add some observations
+    today_iso = date.today().isoformat()
+    insert_observations(
+        db_path,
+        [
+            _obs(1000, f"{today_iso}T06:00:00+00:00"),
+            _obs(2000, f"{today_iso}T07:00:00+00:00"),
+        ],
+    )
+
+    monkeypatch.setattr(query_prices.config, "DATABASE_PATH", db_path)
+    # Mock health check to return an issue
+    monkeypatch.setattr(
+        query_prices,
+        "run_health_check",
+        lambda db, hb: ["[high] Some issue detected"],
+    )
+
+    try:
+        query_prices.cmd_health()
+    except SystemExit as e:
+        exit_code = e.code
+    else:
+        exit_code = None
+
+    output = capsys.readouterr().out
+    assert "Failed:           1" in output
+    assert "10%" in output  # 1/10
+    assert "[high] Some issue detected" in output
+    assert exit_code == 1
+
+
+def test_cmd_health_missing_heartbeat(tmp_path, monkeypatch, capsys):
+    """Test --health when heartbeat is missing."""
+    db_path = str(tmp_path / "flights.db")
+    initialize_database(db_path)
+
+    monkeypatch.setattr(query_prices.config, "DATABASE_PATH", db_path)
+    monkeypatch.setattr(
+        query_prices, "run_health_check", lambda db, hb: []
+    )  # No issues
+
+    try:
+        query_prices.cmd_health()
+    except SystemExit as e:
+        exit_code = e.code
+    else:
+        exit_code = None
+
+    output = capsys.readouterr().out
+    assert "Heartbeat:" in output
+    assert "missing (daemon may not have run yet)" in output
+    assert "Total jobs:       0" in output
+    assert "(none)" in output
+    assert exit_code == 0
