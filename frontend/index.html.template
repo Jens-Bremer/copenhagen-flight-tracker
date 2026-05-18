@@ -131,6 +131,7 @@
   <script type="application/json" id="DATA_FLIGHTS">${DATA_FLIGHTS}</script>
   <script type="application/json" id="DATA_ANALYSIS">${DATA_ANALYSIS}</script>
   <script type="application/json" id="DATA_SUMMARY">${DATA_SUMMARY}</script>
+  <div id="data-load-error" style="display:none;position:fixed;inset:0;z-index:9999;background:#fff3cd;color:#856404;padding:2rem;font-family:sans-serif;font-size:1.1rem;"></div>
 
   <script>${INLINE_CHART_JS}</script>
   <script>${INLINE_APP_JS}</script>

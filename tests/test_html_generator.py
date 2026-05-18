@@ -446,12 +446,14 @@ def test_build_summary_empty_input():
 
 
 def test_render_html_inlines_assets_and_data():
+    """With inline_data=True the five JSON blobs are embedded into the HTML."""
     html = render_html(
         metadata={"generated_at": "2026-05-15T23:47Z"},
         calendar={"CPH-AMS": {}},
         flights={"CPH-AMS": {}},
         analysis={"CPH-AMS": {}},
         summary={"CPH-AMS": {}},
+        inline_data=True,
     )
     # Asset inlining
     assert "<style>" in html
@@ -473,6 +475,36 @@ def test_render_html_inlines_assets_and_data():
     }
     for raw in blob_dict.values():
         json.loads(raw)
+
+
+def test_render_html_default_mode_blobs_are_empty():
+    """With inline_data=False (default) the five JSON script elements are empty
+    so the browser fetches data.json instead."""
+    import re
+
+    html = render_html(
+        metadata={"generated_at": "2026-05-15T23:47Z"},
+        calendar={"CPH-AMS": {}},
+        flights={"CPH-AMS": {}},
+        analysis={"CPH-AMS": {}},
+        summary={"CPH-AMS": {}},
+    )
+    blobs = re.findall(
+        r'<script type="application/json" id="(DATA_\w+)">(.*?)</script>', html, re.S
+    )
+    blob_dict = {k: v for k, v in blobs}
+    # All five script elements must be present but contain no data
+    assert set(blob_dict) == {
+        "DATA_METADATA",
+        "DATA_CALENDAR",
+        "DATA_FLIGHTS",
+        "DATA_ANALYSIS",
+        "DATA_SUMMARY",
+    }
+    for raw in blob_dict.values():
+        assert raw.strip() == "", (
+            f"Expected empty blob in default mode, got: {raw[:80]!r}"
+        )
 
 
 def test_render_html_uses_safe_substitute_no_placeholder_leaks():
@@ -682,6 +714,7 @@ def test_render_html_escapes_script_close_in_json_blobs():
         flights={},
         analysis={},
         summary={},
+        inline_data=True,
     )
     # Raw </script> must not appear inside the metadata blob
     import re
@@ -702,13 +735,53 @@ def test_render_html_escapes_script_close_in_json_blobs():
 
 
 def test_generate_writes_output_file(tmp_path):
+    """Default mode: writes index.html + sibling data.json; blobs are NOT inlined."""
     out_path = tmp_path / "index.html"
     n = generate(str(FIXTURE), str(out_path))
     assert n > 0
     assert out_path.exists()
     html = out_path.read_text(encoding="utf-8")
     assert "Copenhagen" in html
+    # In default (external) mode the script elements are present but empty
     assert '<script type="application/json" id="DATA_METADATA">' in html
+    import re
+    m = re.search(
+        r'<script type="application/json" id="DATA_METADATA">(.*?)</script>',
+        html, re.S,
+    )
+    assert m and m.group(1).strip() == "", (
+        "DATA_METADATA blob should be empty in default mode"
+    )
+    # data.json must exist as a sibling
+    data_json = tmp_path / "data.json"
+    assert data_json.exists(), "data.json sibling was not written by generate()"
+    payload = json.loads(data_json.read_text(encoding="utf-8"))
+    assert "metadata" in payload and "calendar" in payload
+    assert "flights" in payload and "analysis" in payload and "summary" in payload
+
+
+def test_generate_writes_output_file_inline_data(tmp_path):
+    """With inline_data=True the five blobs are embedded in the HTML (no data.json)."""
+    out_path = tmp_path / "index.html"
+    n = generate(str(FIXTURE), str(out_path), inline_data=True)
+    assert n > 0
+    assert out_path.exists()
+    html = out_path.read_text(encoding="utf-8")
+    assert "Copenhagen" in html
+    # Blobs must be inlined
+    import re
+    m = re.search(
+        r'<script type="application/json" id="DATA_METADATA">(.*?)</script>',
+        html, re.S,
+    )
+    assert m and m.group(1).strip() != "", (
+        "DATA_METADATA blob should be non-empty with inline_data=True"
+    )
+    # No data.json should be written
+    data_json = tmp_path / "data.json"
+    assert not data_json.exists(), (
+        "data.json should NOT be written when inline_data=True"
+    )
 
 
 def test_generate_missing_input_raises(tmp_path):
@@ -727,8 +800,11 @@ def test_generate_empty_input_writes_skeleton(tmp_path):
     assert n == 0
     html = out_path.read_text(encoding="utf-8")
     assert "Copenhagen" in html
-    # DATA_METADATA contains total_rows=0
-    assert '"total_rows":0' in html.replace(" ", "")
+    # DATA_METADATA with total_rows=0 is in data.json (default mode)
+    data_json = tmp_path / "data.json"
+    assert data_json.exists()
+    payload = json.loads(data_json.read_text(encoding="utf-8"))
+    assert payload["metadata"]["total_rows"] == 0
 
 
 def test_cli_smoke(tmp_path):
@@ -978,6 +1054,7 @@ def test_data_analysis_blob_contains_market_direction_and_best_time():
         flights=build_flights(rows),
         analysis=analysis,
         summary=build_summary(rows),
+        inline_data=True,
     )
     m = re.search(
         r'<script type="application/json" id="DATA_ANALYSIS">(.*?)</script>',
@@ -1008,6 +1085,7 @@ def test_data_flights_blob_contains_trajectory_percentile_mean():
         flights=build_flights(rows),
         analysis=build_analysis(rows),
         summary=build_summary(rows),
+        inline_data=True,
     )
     m = re.search(
         r'<script type="application/json" id="DATA_FLIGHTS">(.*?)</script>',
@@ -1801,14 +1879,11 @@ def test_multi_route_generate_with_third_route(tmp_path):
     assert n == 4
     html = out_path.read_text(encoding="utf-8")
 
-    # Metadata must list LHR-DUB and DUB-LHR routes
-    import re
-    m = re.search(
-        r'<script type="application/json" id="DATA_METADATA">(.*?)</script>',
-        html, re.S,
-    )
-    assert m, "DATA_METADATA blob not found"
-    metadata = json.loads(m.group(1))
+    # In default mode the blobs are in data.json, not inline in the HTML.
+    data_json = tmp_path / "data.json"
+    assert data_json.exists(), "data.json must be written by generate()"
+    payload = json.loads(data_json.read_text(encoding="utf-8"))
+    metadata = payload["metadata"]
     assert "LHR-DUB" in metadata["routes"], "LHR-DUB must appear in metadata.routes"
     assert "DUB-LHR" in metadata["routes"], "DUB-LHR must appear in metadata.routes"
 

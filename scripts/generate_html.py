@@ -40,10 +40,20 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Generate the static frontend HTML.")
     parser.add_argument("--input", default=DEFAULT_INPUT)
     parser.add_argument("--output", default=DEFAULT_OUTPUT)
+    parser.add_argument(
+        "--inline-data",
+        action="store_true",
+        default=False,
+        help=(
+            "Embed all five JSON data blobs directly into index.html (original "
+            "behaviour). Useful for offline / USB use where data.json cannot be "
+            "served alongside the HTML. Default: write data.json as a sibling file."
+        ),
+    )
     args = parser.parse_args(argv)
 
     try:
-        n = generate(args.input, args.output)
+        n = generate(args.input, args.output, inline_data=args.inline_data)
         log.info("Wrote %s from %d rows", args.output, n)
         return 0
     except FileNotFoundError as exc:
