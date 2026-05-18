@@ -427,5 +427,5 @@ a, a:visited {
   -webkit-text-fill-color: var(--color-red);
 }
 body, .panel, .pairs-table, .calendar, .hero-card, .verdict-card {
-  -webkit-text-fill-color: var(--color-text);
+  -webkit-text-fill-color: currentColor;
 }
