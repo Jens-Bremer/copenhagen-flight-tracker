@@ -673,27 +673,58 @@ def render_html(
     flights: dict[str, Any],
     analysis: dict[str, Any],
     summary: dict[str, Any],
+    inline_data: bool = False,
 ) -> str:
-    """Inline assets + JSON blobs into the template. Returns the full HTML string."""
+    """Inline assets + JSON blobs into the template. Returns the full HTML string.
+
+    When *inline_data* is True the five JSON blobs are substituted directly into
+    the ``<script type="application/json">`` elements in the template, producing
+    a fully self-contained HTML file (the original behaviour).
+
+    When *inline_data* is False (the default) the blob placeholders are replaced
+    with empty strings, so the browser's ``loadData()`` in data.js will fetch
+    ``data.json`` instead.  The caller is responsible for writing that file (see
+    :func:`generate`).
+    """
     template = _read_text(TEMPLATE_PATH)
     styles = _read_text(STYLES_PATH)
     chart_js = _read_text(CHART_JS_PATH)
     app_js = _build_app_js()
 
+    if inline_data:
+        data_metadata = _safe_json(metadata)
+        data_calendar = _safe_json(calendar)
+        data_flights = _safe_json(flights)
+        data_analysis = _safe_json(analysis)
+        data_summary = _safe_json(summary)
+    else:
+        data_metadata = ""
+        data_calendar = ""
+        data_flights = ""
+        data_analysis = ""
+        data_summary = ""
+
     return string.Template(template).safe_substitute(
         INLINE_STYLES=styles,
         INLINE_CHART_JS=chart_js,
         INLINE_APP_JS=app_js,
-        DATA_METADATA=_safe_json(metadata),
-        DATA_CALENDAR=_safe_json(calendar),
-        DATA_FLIGHTS=_safe_json(flights),
-        DATA_ANALYSIS=_safe_json(analysis),
-        DATA_SUMMARY=_safe_json(summary),
+        DATA_METADATA=data_metadata,
+        DATA_CALENDAR=data_calendar,
+        DATA_FLIGHTS=data_flights,
+        DATA_ANALYSIS=data_analysis,
+        DATA_SUMMARY=data_summary,
     )
 
 
-def generate(input_path: str, output_path: str) -> int:
-    """Read CSV → run analyses → render HTML → write to disk. Returns row count."""
+def generate(input_path: str, output_path: str, inline_data: bool = False) -> int:
+    """Read CSV → run analyses → render HTML → write to disk. Returns row count.
+
+    When *inline_data* is False (default) the five JSON blobs are written to a
+    sibling file ``data.json`` next to *output_path* and the HTML references
+    them via ``fetch('data.json')``.  When *inline_data* is True the blobs are
+    embedded directly in the HTML (the original behaviour, suitable for
+    offline / USB use).
+    """
     rows = load_rows(input_path)
     now = datetime.now(timezone.utc)
     metadata = build_metadata(rows, generated_at=now)
@@ -701,12 +732,28 @@ def generate(input_path: str, output_path: str) -> int:
     flights = build_flights(rows)
     analysis = build_analysis(rows)
     summary = build_summary(rows)
+
+    if not inline_data:
+        # Write the five blobs to data.json in the same directory as output_path
+        data_payload = {
+            "metadata": metadata,
+            "calendar": calendar,
+            "flights": flights,
+            "analysis": analysis,
+            "summary": summary,
+        }
+        data_json_path = Path(output_path).parent / "data.json"
+        data_json_path.write_text(
+            json.dumps(data_payload, separators=(",", ":")), encoding="utf-8"
+        )
+
     html = render_html(
         metadata=metadata,
         calendar=calendar,
         flights=flights,
         analysis=analysis,
         summary=summary,
+        inline_data=inline_data,
     )
     Path(output_path).write_text(html, encoding="utf-8")
     return len(rows)

@@ -109,11 +109,11 @@ function renderAll() {
 }
 
 // ───── Boot ────────────────────────────────────────────────────────────────
-function main() {
+async function main() {
   try { assertRequiredDomIds(); }
   catch (e) { fatalBanner(e.message); console.error(e); return; }
 
-  DATA = loadData();
+  DATA = await loadData();
   if (typeof window.Chart === 'undefined') {
     fatalBanner('Chart.js failed to load — re-run scripts/fetch_vendor.py.');
     return;
