@@ -220,7 +220,7 @@ The scraper depends on a hard-coded `SOCS=CAI; CONSENT=PENDING+999` cookie pair 
 
 ## Contributing
 
-See [`CLAUDE.md`](CLAUDE.md) for module-contract rules and the project's code conventions. A formal `CONTRIBUTING.md` is filed as issue #131.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for branch conventions, commit format, and code rules.
 
 ## License
 
