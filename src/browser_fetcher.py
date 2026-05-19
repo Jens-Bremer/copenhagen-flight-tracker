@@ -1,7 +1,7 @@
 import logging
 import re
 from typing import Optional
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 from playwright.sync_api import BrowserContext, sync_playwright
 
@@ -45,7 +45,15 @@ def _get_context() -> BrowserContext:
         _playwright_instance = sync_playwright().start()
         browser_type = getattr(_playwright_instance, config.PLAYWRIGHT_BROWSER)
         _browser = browser_type.launch(headless=config.PLAYWRIGHT_HEADLESS)
-        proxy = {"server": config.PLAYWRIGHT_PROXY_URL} if config.PLAYWRIGHT_PROXY_URL else None
+        if config.PLAYWRIGHT_PROXY_URL:
+            parsed = urlparse(config.PLAYWRIGHT_PROXY_URL)
+            proxy = {
+                "server": f"{parsed.scheme}://{parsed.hostname}:{parsed.port}",
+                "username": parsed.username or "",
+                "password": parsed.password or "",
+            }
+        else:
+            proxy = None
         _context = _browser.new_context(
             viewport={"width": 1280, "height": 900},
             proxy=proxy,
