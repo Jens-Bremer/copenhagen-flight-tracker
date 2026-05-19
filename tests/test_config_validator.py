@@ -621,6 +621,12 @@ def test_playwright_browser_accepts_firefox():
     validate_config(cfg)  # no raise
 
 
+def test_playwright_browser_accepts_webkit():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_BROWSER"] = "webkit"
+    validate_config(cfg)  # no raise
+
+
 def test_playwright_browser_rejects_unknown():
     cfg = _cfg()
     cfg["PLAYWRIGHT_BROWSER"] = "ie6"
