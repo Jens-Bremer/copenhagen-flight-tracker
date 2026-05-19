@@ -33,6 +33,10 @@ def _cfg(**overrides):
         "RELIABLE_MIN_OBSERVATIONS": 10,
         "PROXY_LIST_PATH": "data/proxies.txt",
         "PROXY_ENABLED": True,
+        "PLAYWRIGHT_HEADLESS": False,
+        "PLAYWRIGHT_BROWSER": "chromium",
+        "PLAYWRIGHT_TIMEOUT_MS": 20000,
+        "PLAYWRIGHT_PROXY_URL": "",
     }
     base.update(overrides)
     return base
@@ -581,3 +585,83 @@ def test_proxy_enabled_int_zero_raises():
 def test_proxy_enabled_none_raises():
     with pytest.raises(ValueError, match="PROXY_ENABLED"):
         validate_config(_cfg(PROXY_ENABLED=None))
+
+
+# --- PLAYWRIGHT_* validators ---
+
+
+def test_playwright_headless_accepts_true():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_HEADLESS"] = True
+    validate_config(cfg)  # no raise
+
+
+def test_playwright_headless_accepts_false():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_HEADLESS"] = False
+    validate_config(cfg)  # no raise
+
+
+def test_playwright_headless_rejects_non_bool():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_HEADLESS"] = "yes"
+    with pytest.raises(ValueError, match="PLAYWRIGHT_HEADLESS"):
+        validate_config(cfg)
+
+
+def test_playwright_browser_accepts_chromium():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_BROWSER"] = "chromium"
+    validate_config(cfg)  # no raise
+
+
+def test_playwright_browser_accepts_firefox():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_BROWSER"] = "firefox"
+    validate_config(cfg)  # no raise
+
+
+def test_playwright_browser_rejects_unknown():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_BROWSER"] = "ie6"
+    with pytest.raises(ValueError, match="PLAYWRIGHT_BROWSER"):
+        validate_config(cfg)
+
+
+def test_playwright_timeout_ms_accepts_positive_int():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_TIMEOUT_MS"] = 15000
+    validate_config(cfg)  # no raise
+
+
+def test_playwright_timeout_ms_rejects_zero():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_TIMEOUT_MS"] = 0
+    with pytest.raises(ValueError, match="PLAYWRIGHT_TIMEOUT_MS"):
+        validate_config(cfg)
+
+
+def test_playwright_timeout_ms_rejects_float():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_TIMEOUT_MS"] = 15000.0
+    with pytest.raises(ValueError, match="PLAYWRIGHT_TIMEOUT_MS"):
+        validate_config(cfg)
+
+
+def test_playwright_proxy_url_accepts_empty_string():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_PROXY_URL"] = ""
+    validate_config(cfg)  # no raise — empty string means no proxy
+
+
+def test_playwright_proxy_url_accepts_http_url():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_PROXY_URL"] = "http://user:pass@host:8080"
+    validate_config(cfg)  # no raise
+
+
+def test_playwright_proxy_url_rejects_none():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_PROXY_URL"] = None
+    with pytest.raises(ValueError, match="PLAYWRIGHT_PROXY_URL"):
+        validate_config(cfg)

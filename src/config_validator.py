@@ -30,6 +30,10 @@ def validate_config(cfg: dict) -> None:
     _check_reliable_min_observations(cfg.get("RELIABLE_MIN_OBSERVATIONS"))
     _check_proxy_list_path(cfg.get("PROXY_LIST_PATH"))
     _check_proxy_enabled(cfg.get("PROXY_ENABLED"))
+    _check_playwright_headless(cfg.get("PLAYWRIGHT_HEADLESS"))
+    _check_playwright_browser(cfg.get("PLAYWRIGHT_BROWSER"))
+    _check_playwright_timeout_ms(cfg.get("PLAYWRIGHT_TIMEOUT_MS"))
+    _check_playwright_proxy_url(cfg.get("PLAYWRIGHT_PROXY_URL"))
 
 
 def _check_routes(routes) -> None:
@@ -201,3 +205,26 @@ def _check_proxy_list_path(value) -> None:
 def _check_proxy_enabled(value) -> None:
     if not isinstance(value, bool):
         raise ValueError("PROXY_ENABLED must be a boolean")
+
+
+def _check_playwright_headless(value) -> None:
+    if not isinstance(value, bool):
+        raise ValueError("PLAYWRIGHT_HEADLESS must be a boolean (True or False)")
+
+
+def _check_playwright_browser(value) -> None:
+    allowed = {"chromium", "firefox", "webkit"}
+    if value not in allowed:
+        raise ValueError(
+            f"PLAYWRIGHT_BROWSER must be one of {sorted(allowed)}, got {value!r}"
+        )
+
+
+def _check_playwright_timeout_ms(value) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError("PLAYWRIGHT_TIMEOUT_MS must be a positive integer (milliseconds)")
+
+
+def _check_playwright_proxy_url(value) -> None:
+    if not isinstance(value, str):
+        raise ValueError("PLAYWRIGHT_PROXY_URL must be a string (use '' for no proxy)")
