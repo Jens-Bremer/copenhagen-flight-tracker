@@ -1,9 +1,11 @@
 import logging
 from typing import Optional
+from urllib.parse import urlencode
 
 from playwright.sync_api import BrowserContext, sync_playwright
 
 import config
+from src.flight_fetcher import BotChallengeError, NetworkError, RateLimitedError
 
 logger = logging.getLogger(__name__)
 
@@ -69,3 +71,47 @@ def shutdown_browser() -> None:
     if _playwright_instance:
         _playwright_instance.stop()
         _playwright_instance = None
+
+
+def browser_fetch(params: dict) -> BrowserResponse:
+    """Navigate to Google Flights via a real headed browser and return the page body.
+
+    Replaces patched_fetch as the transport layer. fast_flights' URL construction
+    and response parsing are unchanged — only the HTTP layer is swapped.
+    page.close() is always called via finally so no pages leak between requests.
+    """
+    url = "https://www.google.com/travel/flights?" + urlencode(params)
+    context = _get_context()
+    page = context.new_page()
+    try:
+        try:
+            response = page.goto(
+                url,
+                timeout=config.PLAYWRIGHT_TIMEOUT_MS,
+                wait_until="domcontentloaded",
+            )
+        except Exception as exc:
+            raise NetworkError(str(exc)) from exc
+
+        if response is None:
+            raise NetworkError("page.goto returned no response")
+
+        status = response.status
+        body = page.content()
+    finally:
+        page.close()
+
+    if status in (429, 403):
+        raise RateLimitedError(f"HTTP {status}")
+    if status != 200:
+        raise RuntimeError(f"HTTP {status}")
+
+    if len(body.encode("utf-8")) < config.BOT_CHALLENGE_MIN_BYTES:
+        raise BotChallengeError("response below minimum length")
+
+    lower = body.lower()
+    for pattern in config.BOT_CHALLENGE_TITLE_PATTERNS:
+        if pattern.lower() in lower:
+            raise BotChallengeError(f"detected pattern: {pattern}")
+
+    return BrowserResponse(status, body)

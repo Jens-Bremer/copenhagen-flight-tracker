@@ -110,3 +110,121 @@ def test_shutdown_browser_is_idempotent(monkeypatch):
 
     browser_fetcher.shutdown_browser()  # first call — all None, no-op
     browser_fetcher.shutdown_browser()  # second call — still all None, no-op
+
+
+# ---------------------------------------------------------------------------
+# browser_fetch
+# ---------------------------------------------------------------------------
+
+
+def _make_page(status: int = 200, content: str = "") -> MagicMock:
+    """Return a mock Playwright page with goto + content configured."""
+    page = MagicMock()
+    mock_response = MagicMock()
+    mock_response.status = status
+    page.goto.return_value = mock_response
+    page.content.return_value = content
+    return page
+
+
+def _good_body() -> str:
+    import config
+    return "x" * (config.BOT_CHALLENGE_MIN_BYTES + 1000)
+
+
+def test_browser_fetch_returns_browser_response_on_200():
+    page = _make_page(200, _good_body())
+    with patch("src.browser_fetcher._get_context") as mock_ctx:
+        mock_ctx.return_value.new_page.return_value = page
+        result = browser_fetcher.browser_fetch({"tfs": "abc"})
+    assert result.status_code == 200
+    assert isinstance(result.text, str)
+
+
+def test_browser_fetch_closes_page_on_success():
+    page = _make_page(200, _good_body())
+    with patch("src.browser_fetcher._get_context") as mock_ctx:
+        mock_ctx.return_value.new_page.return_value = page
+        browser_fetcher.browser_fetch({"tfs": "abc"})
+    page.close.assert_called_once()
+
+
+def test_browser_fetch_closes_page_on_goto_exception():
+    page = MagicMock()
+    page.goto.side_effect = Exception("timeout")
+    with patch("src.browser_fetcher._get_context") as mock_ctx:
+        mock_ctx.return_value.new_page.return_value = page
+        with pytest.raises(browser_fetcher.NetworkError):
+            browser_fetcher.browser_fetch({"tfs": "abc"})
+    page.close.assert_called_once()
+
+
+def test_browser_fetch_raises_network_error_on_goto_exception():
+    page = MagicMock()
+    page.goto.side_effect = Exception("connection refused")
+    with patch("src.browser_fetcher._get_context") as mock_ctx:
+        mock_ctx.return_value.new_page.return_value = page
+        with pytest.raises(browser_fetcher.NetworkError, match="connection refused"):
+            browser_fetcher.browser_fetch({"tfs": "abc"})
+
+
+def test_browser_fetch_raises_network_error_when_goto_returns_none():
+    page = MagicMock()
+    page.goto.return_value = None
+    with patch("src.browser_fetcher._get_context") as mock_ctx:
+        mock_ctx.return_value.new_page.return_value = page
+        with pytest.raises(browser_fetcher.NetworkError):
+            browser_fetcher.browser_fetch({"tfs": "abc"})
+
+
+def test_browser_fetch_raises_rate_limited_on_429():
+    page = _make_page(429, _good_body())
+    with patch("src.browser_fetcher._get_context") as mock_ctx:
+        mock_ctx.return_value.new_page.return_value = page
+        with pytest.raises(browser_fetcher.RateLimitedError, match="HTTP 429"):
+            browser_fetcher.browser_fetch({"tfs": "abc"})
+
+
+def test_browser_fetch_raises_rate_limited_on_403():
+    page = _make_page(403, _good_body())
+    with patch("src.browser_fetcher._get_context") as mock_ctx:
+        mock_ctx.return_value.new_page.return_value = page
+        with pytest.raises(browser_fetcher.RateLimitedError, match="HTTP 403"):
+            browser_fetcher.browser_fetch({"tfs": "abc"})
+
+
+def test_browser_fetch_raises_bot_challenge_on_short_body():
+    page = _make_page(200, "tiny")
+    with patch("src.browser_fetcher._get_context") as mock_ctx:
+        mock_ctx.return_value.new_page.return_value = page
+        with pytest.raises(browser_fetcher.BotChallengeError, match="below minimum length"):
+            browser_fetcher.browser_fetch({"tfs": "abc"})
+
+
+def test_browser_fetch_raises_bot_challenge_on_captcha_pattern():
+    body = _good_body() + "Please solve this CAPTCHA to continue"
+    page = _make_page(200, body)
+    with patch("src.browser_fetcher._get_context") as mock_ctx:
+        mock_ctx.return_value.new_page.return_value = page
+        with pytest.raises(browser_fetcher.BotChallengeError, match="captcha"):
+            browser_fetcher.browser_fetch({"tfs": "abc"})
+
+
+def test_browser_fetch_raises_bot_challenge_on_consent_pattern():
+    body = _good_body() + "Before you continue to Google CONSENT required"
+    page = _make_page(200, body)
+    with patch("src.browser_fetcher._get_context") as mock_ctx:
+        mock_ctx.return_value.new_page.return_value = page
+        with pytest.raises(browser_fetcher.BotChallengeError, match="consent"):
+            browser_fetcher.browser_fetch({"tfs": "abc"})
+
+
+def test_browser_fetch_passes_url_with_params_to_goto():
+    page = _make_page(200, _good_body())
+    with patch("src.browser_fetcher._get_context") as mock_ctx:
+        mock_ctx.return_value.new_page.return_value = page
+        browser_fetcher.browser_fetch({"tfs": "MYENCODED", "hl": "en"})
+    call_url = page.goto.call_args[0][0]
+    assert "tfs=MYENCODED" in call_url
+    assert "hl=en" in call_url
+    assert call_url.startswith("https://www.google.com/travel/flights")
