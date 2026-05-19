@@ -23,6 +23,7 @@ from src.html_generator import generate as generate_html
 from src.log_config import setup_logging
 from src.migrations import apply_migrations
 from src.notifier import send_alert
+from src.proxy_manager import ProxyRotator, load_proxies
 from src.request_pacer import compute_sleep_intervals
 from src.route_expander import expand_jobs
 
@@ -128,7 +129,23 @@ def _daily_job(heartbeat_path: Optional[str] = None) -> None:
         heartbeat_path = os.path.join(
             os.path.dirname(os.path.abspath(config.DATABASE_PATH)), "last_run.json"
         )
-    run_collection(jobs, config.DATABASE_PATH, heartbeat_path, intervals)
+
+    proxy_rotator = ProxyRotator([])
+    if config.PROXY_ENABLED:
+        try:
+            proxy_list = load_proxies(config.PROXY_LIST_PATH)
+            proxy_rotator = ProxyRotator(proxy_list)
+            logger.info("Proxy rotation enabled: %d proxies loaded", len(proxy_rotator))
+        except FileNotFoundError:
+            logger.warning(
+                "Proxy file not found at '%s' — running without proxies. "
+                "See proxies.txt.example for setup instructions.",
+                config.PROXY_LIST_PATH,
+            )
+    else:
+        logger.info("Proxy rotation disabled (config.PROXY_ENABLED = False)")
+
+    run_collection(jobs, config.DATABASE_PATH, heartbeat_path, intervals, proxy_rotator=proxy_rotator)
     logger.info("Scheduler: daily collection finished")
 
 

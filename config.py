@@ -64,3 +64,7 @@ CONSECUTIVE_FAILURE_DAYS = 2
 
 # --- Sweet-spot recommendation (issue #113) ---
 RELIABLE_MIN_OBSERVATIONS = 10
+
+# --- Proxy rotation (Webshare free tier) ---
+PROXY_LIST_PATH = "data/proxies.txt"  # One proxy per line: host:port:username:password
+PROXY_ENABLED = True  # Set False to scrape without proxies (uses your own IP)

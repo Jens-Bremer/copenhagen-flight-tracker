@@ -19,6 +19,7 @@ ENV/
 # Data and logs (runtime-generated, never commit)
 data/
 data/backups/
+data/proxies.txt
 logs/
 
 # Generated frontend output (sources in frontend/ are committed; the
