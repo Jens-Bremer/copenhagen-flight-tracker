@@ -1,6 +1,5 @@
 import logging
 from typing import Optional
-from urllib.parse import urlencode
 
 from playwright.sync_api import BrowserContext, sync_playwright
 
