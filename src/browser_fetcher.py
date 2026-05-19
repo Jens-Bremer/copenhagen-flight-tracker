@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Optional
 from urllib.parse import urlencode
 
@@ -119,10 +120,16 @@ def browser_fetch(params: dict) -> BrowserResponse:
     if len(body.encode("utf-8")) < config.BOT_CHALLENGE_MIN_BYTES:
         raise BotChallengeError("response below minimum length")
 
-    lower = body.lower()
+    # Match patterns against the page <title> only — not the full body.
+    # Google Flights legitimately includes reCAPTCHA JS on every page, so
+    # "captcha" appears in script URLs even on clean responses. A real block
+    # page has a suspicious title ("Unusual Traffic Detected", "Before you
+    # continue"); a real Flights page title never contains these words.
+    title_match = re.search(r"<title[^>]*>(.*?)</title>", body, re.IGNORECASE | re.DOTALL)
+    title = title_match.group(1).lower() if title_match else ""
     for pattern in config.BOT_CHALLENGE_TITLE_PATTERNS:
-        if pattern.lower() in lower:
-            raise BotChallengeError(f"detected pattern: {pattern}")
+        if pattern.lower() in title:
+            raise BotChallengeError(f"detected pattern in title: {pattern}")
 
     return BrowserResponse(status, body)
 
