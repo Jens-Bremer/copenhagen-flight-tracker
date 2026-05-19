@@ -1,0 +1,72 @@
+import logging
+from typing import Optional
+from urllib.parse import urlencode
+
+from playwright.sync_api import BrowserContext, sync_playwright
+
+import config
+
+logger = logging.getLogger(__name__)
+
+# --- Module-level browser state (single persistent context for process lifetime) ---
+_playwright_instance = None
+_browser = None
+_context: Optional[BrowserContext] = None
+
+# Injected into every new page before any page scripts run.
+# Removes the navigator.webdriver flag that automation leaves behind, and
+# ensures window.chrome exists (real Chromium has it; headless Playwright doesn't).
+_STEALTH_SCRIPT = """
+    Object.defineProperty(navigator, 'webdriver', {
+        get: () => undefined,
+        configurable: true,
+    });
+    if (!window.chrome) {
+        window.chrome = { runtime: {} };
+    }
+"""
+
+
+class BrowserResponse:
+    """Minimal response interface matching what fast_flights expects from its fetch function."""
+
+    def __init__(self, status_code: int, text: str) -> None:
+        self.status_code = status_code
+        self.text = text
+        self.text_markdown = text
+
+
+def _get_context() -> BrowserContext:
+    """Return the shared browser context, creating it on the first call."""
+    global _playwright_instance, _browser, _context
+    if _context is None:
+        _playwright_instance = sync_playwright().start()
+        browser_type = getattr(_playwright_instance, config.PLAYWRIGHT_BROWSER)
+        _browser = browser_type.launch(headless=config.PLAYWRIGHT_HEADLESS)
+        proxy = {"server": config.PLAYWRIGHT_PROXY_URL} if config.PLAYWRIGHT_PROXY_URL else None
+        _context = _browser.new_context(
+            viewport={"width": 1280, "height": 900},
+            proxy=proxy,
+        )
+        _context.add_init_script(_STEALTH_SCRIPT)
+        logger.info(
+            "Browser launched: %s headless=%s proxy=%s",
+            config.PLAYWRIGHT_BROWSER,
+            config.PLAYWRIGHT_HEADLESS,
+            bool(config.PLAYWRIGHT_PROXY_URL),
+        )
+    return _context
+
+
+def shutdown_browser() -> None:
+    """Close the browser cleanly. Call on process exit."""
+    global _playwright_instance, _browser, _context
+    if _context:
+        _context.close()
+        _context = None
+    if _browser:
+        _browser.close()
+        _browser = None
+    if _playwright_instance:
+        _playwright_instance.stop()
+        _playwright_instance = None
