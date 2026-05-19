@@ -137,6 +137,31 @@ def test_module_import_does_not_install_patch(monkeypatch):
     assert fast_flights.core.fetch is flight_fetcher_module.patched_fetch
 
 
+def test_install_fetch_patch_refuses_invalid_impersonation(monkeypatch):
+    """install_fetch_patch must REFUSE to start when config.IMPERSONATION
+    names a profile that the installed primp version does not ship.
+
+    primp's own behaviour on an unknown profile is to silently fall back to
+    'random' (emits only a WARNING). That fallback gives every request a
+    different TLS fingerprint and gets the scraper bot-walled within hours —
+    the exact outcome that caused the captcha incident this guard is for.
+    We promote primp's warning into a fatal RuntimeError so the failure mode
+    can never silently degrade collection again.
+    """
+    import config as config_module
+    import src.flight_fetcher as flight_fetcher_module
+
+    monkeypatch.setattr(config_module, "IMPERSONATION", "chrome_does_not_exist")
+
+    # Sentinel: confirm fast_flights.core.fetch is NOT rebound on failure.
+    sentinel = object()
+    monkeypatch.setattr(fast_flights.core, "fetch", sentinel)
+
+    with pytest.raises(RuntimeError, match="chrome_does_not_exist"):
+        flight_fetcher_module.install_fetch_patch()
+    assert fast_flights.core.fetch is sentinel
+
+
 # --- Exception hierarchy & classification (issue #111) ---
 #
 # These tests refer to exception classes via the `flight_fetcher` module
