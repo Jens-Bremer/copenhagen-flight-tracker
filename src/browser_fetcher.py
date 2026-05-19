@@ -115,3 +115,26 @@ def browser_fetch(params: dict) -> BrowserResponse:
             raise BotChallengeError(f"detected pattern: {pattern}")
 
     return BrowserResponse(status, body)
+
+
+def install_browser_patch() -> None:
+    """Probe the browser config and patch fast_flights.core.fetch with browser_fetch.
+
+    Must be called once at process startup. Raises RuntimeError if the browser
+    cannot be launched (missing display, bad PLAYWRIGHT_BROWSER value, etc.) so
+    that misconfigurations are immediately visible rather than silently degrading.
+    """
+    import fast_flights.core
+
+    try:
+        _get_context()
+    except Exception as exc:
+        raise RuntimeError(
+            f"Failed to launch Playwright browser ({config.PLAYWRIGHT_BROWSER}, "
+            f"headless={config.PLAYWRIGHT_HEADLESS}): {exc}. "
+            "Check that 'playwright install chromium' has been run and, if "
+            "headless=False, that a display is available."
+        ) from exc
+
+    fast_flights.core.fetch = browser_fetch
+    logger.info("fast_flights.core.fetch replaced with browser_fetch")

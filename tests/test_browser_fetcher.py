@@ -236,3 +236,42 @@ def test_browser_fetch_passes_url_with_params_to_goto():
     assert "tfs=MYENCODED" in call_url
     assert "hl=en" in call_url
     assert call_url.startswith("https://www.google.com/travel/flights")
+
+
+# ---------------------------------------------------------------------------
+# install_browser_patch
+# ---------------------------------------------------------------------------
+
+
+def test_install_browser_patch_replaces_fast_flights_fetch(monkeypatch):
+    """install_browser_patch must rebind fast_flights.core.fetch to browser_fetch."""
+    sentinel = object()
+    monkeypatch.setattr(fast_flights.core, "fetch", sentinel)
+
+    with patch("src.browser_fetcher._get_context"):
+        browser_fetcher.install_browser_patch()
+
+    assert fast_flights.core.fetch is browser_fetcher.browser_fetch
+
+
+def test_install_browser_patch_does_not_rebind_on_context_failure(monkeypatch):
+    """If the browser cannot launch, fast_flights.core.fetch must NOT be rebound."""
+    sentinel = object()
+    monkeypatch.setattr(fast_flights.core, "fetch", sentinel)
+
+    with patch(
+        "src.browser_fetcher._get_context", side_effect=Exception("browser crashed")
+    ):
+        with pytest.raises(RuntimeError, match="browser crashed"):
+            browser_fetcher.install_browser_patch()
+
+    assert fast_flights.core.fetch is sentinel
+
+
+def test_install_browser_patch_raises_runtime_error_with_helpful_message(monkeypatch):
+    monkeypatch.setattr(fast_flights.core, "fetch", object())
+    with patch(
+        "src.browser_fetcher._get_context", side_effect=Exception("no display")
+    ):
+        with pytest.raises(RuntimeError, match="no display"):
+            browser_fetcher.install_browser_patch()
