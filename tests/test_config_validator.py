@@ -31,6 +31,8 @@ def _cfg(**overrides):
         ],
         "CONSECUTIVE_FAILURE_DAYS": 2,
         "RELIABLE_MIN_OBSERVATIONS": 10,
+        "PROXY_LIST_PATH": "data/proxies.txt",
+        "PROXY_ENABLED": True,
     }
     base.update(overrides)
     return base
@@ -516,3 +518,66 @@ def test_reliable_min_observations_string_raises():
 def test_reliable_min_observations_bool_raises():
     with pytest.raises(ValueError, match="RELIABLE_MIN_OBSERVATIONS"):
         validate_config(_cfg(RELIABLE_MIN_OBSERVATIONS=True))
+
+
+# --- PROXY_LIST_PATH ---
+
+
+def test_proxy_list_path_valid_passes():
+    validate_config(_cfg(PROXY_LIST_PATH="data/proxies.txt"))  # must not raise
+
+
+def test_proxy_list_path_empty_string_raises():
+    with pytest.raises(ValueError, match="PROXY_LIST_PATH"):
+        validate_config(_cfg(PROXY_LIST_PATH=""))
+
+
+def test_proxy_list_path_none_raises():
+    with pytest.raises(ValueError, match="PROXY_LIST_PATH"):
+        validate_config(_cfg(PROXY_LIST_PATH=None))
+
+
+def test_proxy_list_path_non_string_raises():
+    with pytest.raises(ValueError, match="PROXY_LIST_PATH"):
+        validate_config(_cfg(PROXY_LIST_PATH=123))
+
+
+def test_proxy_list_path_int_raises():
+    with pytest.raises(ValueError, match="PROXY_LIST_PATH"):
+        validate_config(_cfg(PROXY_LIST_PATH=456))
+
+
+# --- PROXY_ENABLED ---
+
+
+def test_proxy_enabled_true_passes():
+    validate_config(_cfg(PROXY_ENABLED=True))  # must not raise
+
+
+def test_proxy_enabled_false_passes():
+    validate_config(_cfg(PROXY_ENABLED=False))  # must not raise
+
+
+def test_proxy_enabled_string_true_raises():
+    with pytest.raises(ValueError, match="PROXY_ENABLED"):
+        validate_config(_cfg(PROXY_ENABLED="true"))
+
+
+def test_proxy_enabled_string_false_raises():
+    with pytest.raises(ValueError, match="PROXY_ENABLED"):
+        validate_config(_cfg(PROXY_ENABLED="false"))
+
+
+def test_proxy_enabled_int_one_raises():
+    with pytest.raises(ValueError, match="PROXY_ENABLED"):
+        validate_config(_cfg(PROXY_ENABLED=1))
+
+
+def test_proxy_enabled_int_zero_raises():
+    with pytest.raises(ValueError, match="PROXY_ENABLED"):
+        validate_config(_cfg(PROXY_ENABLED=0))
+
+
+def test_proxy_enabled_none_raises():
+    with pytest.raises(ValueError, match="PROXY_ENABLED"):
+        validate_config(_cfg(PROXY_ENABLED=None))

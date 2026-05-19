@@ -28,6 +28,8 @@ def validate_config(cfg: dict) -> None:
     _check_bot_challenge_title_patterns(cfg.get("BOT_CHALLENGE_TITLE_PATTERNS"))
     _check_consecutive_failure_days(cfg.get("CONSECUTIVE_FAILURE_DAYS"))
     _check_reliable_min_observations(cfg.get("RELIABLE_MIN_OBSERVATIONS"))
+    _check_proxy_list_path(cfg.get("PROXY_LIST_PATH"))
+    _check_proxy_enabled(cfg.get("PROXY_ENABLED"))
 
 
 def _check_routes(routes) -> None:
@@ -189,3 +191,13 @@ def _check_consecutive_failure_days(value) -> None:
 def _check_reliable_min_observations(value) -> None:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ValueError("RELIABLE_MIN_OBSERVATIONS must be a positive integer (>= 1)")
+
+
+def _check_proxy_list_path(value) -> None:
+    if not value or not isinstance(value, str):
+        raise ValueError("PROXY_LIST_PATH must be a non-empty string")
+
+
+def _check_proxy_enabled(value) -> None:
+    if not isinstance(value, bool):
+        raise ValueError("PROXY_ENABLED must be a boolean")
