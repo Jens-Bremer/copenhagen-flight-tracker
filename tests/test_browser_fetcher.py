@@ -193,6 +193,14 @@ def test_browser_fetch_raises_rate_limited_on_403():
             browser_fetcher.browser_fetch({"tfs": "abc"})
 
 
+def test_browser_fetch_raises_runtime_error_on_500():
+    page = _make_page(500, _good_body())
+    with patch("src.browser_fetcher._get_context") as mock_ctx:
+        mock_ctx.return_value.new_page.return_value = page
+        with pytest.raises(RuntimeError, match="HTTP 500"):
+            browser_fetcher.browser_fetch({"tfs": "abc"})
+
+
 def test_browser_fetch_raises_bot_challenge_on_short_body():
     page = _make_page(200, "tiny")
     with patch("src.browser_fetcher._get_context") as mock_ctx:
