@@ -50,6 +50,16 @@ def _get_context() -> BrowserContext:
             proxy=proxy,
         )
         _context.add_init_script(_STEALTH_SCRIPT)
+        # Signal to Google that the user has already handled cookie consent,
+        # bypassing the EU GDPR consent wall. Same approach as the old primp
+        # path which sent Cookie: SOCS=CAI on every request.
+        _context.add_cookies([{
+            "name": "SOCS",
+            "value": "CAI",
+            "domain": ".google.com",
+            "path": "/",
+            "sameSite": "Lax",
+        }])
         logger.info(
             "Browser launched: %s headless=%s proxy=%s",
             config.PLAYWRIGHT_BROWSER,
