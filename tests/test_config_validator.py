@@ -36,7 +36,7 @@ def _cfg(**overrides):
         "PLAYWRIGHT_HEADLESS": False,
         "PLAYWRIGHT_BROWSER": "chromium",
         "PLAYWRIGHT_TIMEOUT_MS": 20000,
-        "PLAYWRIGHT_PROXY_URL": "",
+        "PROXY_SPLIT_RATIO": 0.5,
     }
     base.update(overrides)
     return base
@@ -654,20 +654,61 @@ def test_playwright_timeout_ms_rejects_float():
         validate_config(cfg)
 
 
-def test_playwright_proxy_url_accepts_empty_string():
+def test_proxy_split_ratio_accepts_zero():
     cfg = _cfg()
-    cfg["PLAYWRIGHT_PROXY_URL"] = ""
-    validate_config(cfg)  # no raise — empty string means no proxy
+    cfg["PROXY_SPLIT_RATIO"] = 0.0
+    validate_config(cfg)  # no raise — 0.0 means all direct
 
 
-def test_playwright_proxy_url_accepts_http_url():
+def test_proxy_split_ratio_accepts_one():
     cfg = _cfg()
-    cfg["PLAYWRIGHT_PROXY_URL"] = "http://user:pass@host:8080"
-    validate_config(cfg)  # no raise
+    cfg["PROXY_SPLIT_RATIO"] = 1.0
+    validate_config(cfg)  # no raise — 1.0 means all proxy
 
 
-def test_playwright_proxy_url_rejects_none():
+def test_proxy_split_ratio_accepts_mid_value():
     cfg = _cfg()
-    cfg["PLAYWRIGHT_PROXY_URL"] = None
-    with pytest.raises(ValueError, match="PLAYWRIGHT_PROXY_URL"):
+    cfg["PROXY_SPLIT_RATIO"] = 0.5
+    validate_config(cfg)  # no raise — 0.5 means 50/50
+
+
+def test_proxy_split_ratio_rejects_negative():
+    cfg = _cfg()
+    cfg["PROXY_SPLIT_RATIO"] = -0.1
+    with pytest.raises(ValueError, match="PROXY_SPLIT_RATIO"):
+        validate_config(cfg)
+
+
+def test_proxy_split_ratio_rejects_above_one():
+    cfg = _cfg()
+    cfg["PROXY_SPLIT_RATIO"] = 1.1
+    with pytest.raises(ValueError, match="PROXY_SPLIT_RATIO"):
+        validate_config(cfg)
+
+
+def test_proxy_split_ratio_rejects_int():
+    cfg = _cfg()
+    cfg["PROXY_SPLIT_RATIO"] = 1
+    with pytest.raises(ValueError, match="PROXY_SPLIT_RATIO"):
+        validate_config(cfg)
+
+
+def test_proxy_split_ratio_rejects_bool():
+    cfg = _cfg()
+    cfg["PROXY_SPLIT_RATIO"] = True
+    with pytest.raises(ValueError, match="PROXY_SPLIT_RATIO"):
+        validate_config(cfg)
+
+
+def test_proxy_split_ratio_rejects_none():
+    cfg = _cfg()
+    cfg["PROXY_SPLIT_RATIO"] = None
+    with pytest.raises(ValueError, match="PROXY_SPLIT_RATIO"):
+        validate_config(cfg)
+
+
+def test_proxy_split_ratio_rejects_string():
+    cfg = _cfg()
+    cfg["PROXY_SPLIT_RATIO"] = "0.5"
+    with pytest.raises(ValueError, match="PROXY_SPLIT_RATIO"):
         validate_config(cfg)

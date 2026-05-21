@@ -75,4 +75,4 @@ PROXY_ENABLED = True  # Set False to scrape without proxies (uses your own IP)
 PLAYWRIGHT_HEADLESS = False
 PLAYWRIGHT_BROWSER = "chromium"   # "chromium", "firefox", or "webkit"
 PLAYWRIGHT_TIMEOUT_MS = 20000     # page-load timeout (ms)
-PLAYWRIGHT_PROXY_URL = ""          # e.g. "http://user:pass@host:8080", or "" for direct
+PROXY_SPLIT_RATIO = 0.5            # Fraction of requests routed via proxy (0.0–1.0)

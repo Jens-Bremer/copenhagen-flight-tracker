@@ -33,7 +33,7 @@ def validate_config(cfg: dict) -> None:
     _check_playwright_headless(cfg.get("PLAYWRIGHT_HEADLESS"))
     _check_playwright_browser(cfg.get("PLAYWRIGHT_BROWSER"))
     _check_playwright_timeout_ms(cfg.get("PLAYWRIGHT_TIMEOUT_MS"))
-    _check_playwright_proxy_url(cfg.get("PLAYWRIGHT_PROXY_URL"))
+    _check_proxy_split_ratio(cfg.get("PROXY_SPLIT_RATIO"))
 
 
 def _check_routes(routes) -> None:
@@ -225,6 +225,6 @@ def _check_playwright_timeout_ms(value) -> None:
         raise ValueError("PLAYWRIGHT_TIMEOUT_MS must be a positive integer (milliseconds)")
 
 
-def _check_playwright_proxy_url(value) -> None:
-    if not isinstance(value, str):
-        raise ValueError("PLAYWRIGHT_PROXY_URL must be a string (use '' for no proxy)")
+def _check_proxy_split_ratio(value) -> None:
+    if isinstance(value, bool) or not isinstance(value, float) or not (0.0 <= value <= 1.0):
+        raise ValueError("PROXY_SPLIT_RATIO must be a float between 0.0 and 1.0 (inclusive)")
