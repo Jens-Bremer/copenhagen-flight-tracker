@@ -1,3 +1,4 @@
+import atexit
 import logging
 import os
 import signal
@@ -14,16 +15,15 @@ import config
 from scripts.backup_db import backup_database
 from scripts.export_csv import export_to_csv
 from scripts.run_daily import run_collection
+from src.browser_fetcher import install_browser_patch, shutdown_browser
 from src.config_validator import validate_config
 from src.date_generator import generate_target_dates
-from src.flight_fetcher import install_fetch_patch
 from src.frontend_csv_builder import build as build_frontend_csv
 from src.health_checker import run_health_check
 from src.html_generator import generate as generate_html
 from src.log_config import setup_logging
 from src.migrations import apply_migrations
 from src.notifier import send_alert
-from src.proxy_manager import ProxyRotator, load_proxies
 from src.request_pacer import compute_sleep_intervals
 from src.route_expander import expand_jobs
 
@@ -130,22 +130,7 @@ def _daily_job(heartbeat_path: Optional[str] = None) -> None:
             os.path.dirname(os.path.abspath(config.DATABASE_PATH)), "last_run.json"
         )
 
-    proxy_rotator = ProxyRotator([])
-    if config.PROXY_ENABLED:
-        try:
-            proxy_list = load_proxies(config.PROXY_LIST_PATH)
-            proxy_rotator = ProxyRotator(proxy_list)
-            logger.info("Proxy rotation enabled: %d proxies loaded", len(proxy_rotator))
-        except FileNotFoundError:
-            logger.warning(
-                "Proxy file not found at '%s' — running without proxies. "
-                "See proxies.txt.example for setup instructions.",
-                config.PROXY_LIST_PATH,
-            )
-    else:
-        logger.info("Proxy rotation disabled (config.PROXY_ENABLED = False)")
-
-    run_collection(jobs, config.DATABASE_PATH, heartbeat_path, intervals, proxy_rotator=proxy_rotator)
+    run_collection(jobs, config.DATABASE_PATH, heartbeat_path, intervals)
     logger.info("Scheduler: daily collection finished")
 
 
@@ -281,7 +266,8 @@ def main() -> None:
     try:
         applied = apply_migrations(config.DATABASE_PATH)
         logger.info("Scheduler: applied %d migration(s) on startup", applied)
-        install_fetch_patch()
+        install_browser_patch()
+        atexit.register(shutdown_browser)
         setup_schedule()
         logger.info("Scheduler running — press Ctrl+C to stop")
 

@@ -33,6 +33,9 @@ frontend/index.html
 # Project planning doc (local only)
 FLIGHT_TRACKER_PLAN.md
 
+# Superpowers design docs (local only)
+docs/superpowers/
+
 # macOS
 .DS_Store
 

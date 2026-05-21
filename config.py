@@ -68,3 +68,11 @@ RELIABLE_MIN_OBSERVATIONS = 10
 # --- Proxy rotation (Webshare free tier) ---
 PROXY_LIST_PATH = "data/proxies.txt"  # One proxy per line: host:port:username:password
 PROXY_ENABLED = True  # Set False to scrape without proxies (uses your own IP)
+
+# --- Browser automation (Playwright) ---
+# headless=False runs a visible Chrome window — the right default for the
+# dedicated home-PC deployment where a display is always available.
+PLAYWRIGHT_HEADLESS = False
+PLAYWRIGHT_BROWSER = "chromium"   # "chromium", "firefox", or "webkit"
+PLAYWRIGHT_TIMEOUT_MS = 20000     # page-load timeout (ms)
+PROXY_SPLIT_RATIO = 0.5            # Fraction of requests routed via proxy (0.0–1.0)

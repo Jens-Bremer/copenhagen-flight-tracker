@@ -39,28 +39,11 @@ class NetworkError(FlightFetchError):
     """primp raised a connection/timeout error — no usable response."""
 
 
-# --- Module-level proxy state ---
-# The patched_fetch function is called by fast_flights internals with a fixed
-# signature (params: dict). We cannot add parameters to it. Instead, the
-# orchestrator sets the proxy before each fetch call via set_current_proxy().
-_current_proxy: Optional[str] = None
-
-
-def set_current_proxy(proxy: Optional[str]) -> None:
-    """Set the proxy URL for the next patched_fetch call.
-
-    Called by the orchestrator (run_daily.py) before each fetch_flights_for_date
-    invocation. Pass None to use a direct connection.
-    """
-    global _current_proxy
-    _current_proxy = proxy
-
-
 # Patch fast_flights to avoid Google's EU cookie consent wall
 def patched_fetch(params: dict):
     # verify=False is intentional: primp manages its own TLS/browser fingerprint stack.
     # Python's default cert verification can conflict with that.
-    client = Client(impersonate=config.IMPERSONATION, verify=False, proxy=_current_proxy)
+    client = Client(impersonate=config.IMPERSONATION, verify=False)
     # The SOCS=CAI cookie signals that the user has accepted/rejected cookies,
     # preventing the consent redirect.
     try:
@@ -131,7 +114,6 @@ def fetch_flights_for_date(
     destination: str,
     departure_date: date,
     raise_on_failure: bool = False,
-    proxy: Optional[str] = None,
 ) -> Optional[fast_flights.Result]:
     """Fetch one-way flights for a single route and date.
 
@@ -140,17 +122,12 @@ def fetch_flights_for_date(
     When raise_on_failure is True, FlightFetchError subclasses (and any other
     exception raised by fast_flights) propagate unchanged so the orchestrator
     can classify failures into per-category counters.
-
-    If proxy is provided, the request is routed through that proxy URL.
-    Format: http://username:password@host:port
     """
-    set_current_proxy(proxy)
     logger.info(
-        "Querying %s→%s on %s%s",
+        "Querying %s→%s on %s",
         origin,
         destination,
         departure_date.strftime("%Y-%m-%d"),
-        " via proxy" if proxy else "",
     )
     try:
         return fast_flights.get_flights(
