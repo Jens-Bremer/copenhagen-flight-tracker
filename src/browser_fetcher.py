@@ -168,11 +168,13 @@ def _get_context(use_proxy: bool) -> BrowserContext:
             if _proxy_url is None:
                 raise RuntimeError("use_proxy=True but no proxy URL was configured")
             parsed = urlparse(_proxy_url)
+            # Squid is configured to allow the scraper IP without authentication
+            # (acl scraper_ip src <scraper-ip>/32 + http_access allow scraper_ip).
+            # Passing username/password here causes Chrome to send a Proxy-Authorization
+            # header that Squid then rejects with 407, and Chrome on Windows never
+            # completes the re-auth challenge. No credentials = no 407 = tunnel works.
             proxy = {
                 "server": f"{parsed.scheme}://{parsed.hostname}:{parsed.port}",
-                # Empty string is correct for unauthenticated proxies
-                "username": parsed.username or "",
-                "password": parsed.password or "",
             }
             viewport = random.choice(config.PLAYWRIGHT_VIEWPORT_POOL)
             _launch_kwargs = dict(
