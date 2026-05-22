@@ -356,10 +356,11 @@ def install_browser_patch() -> None:
         _get_context(use_proxy=False)
     except Exception as exc:
         raise RuntimeError(
-            f"Failed to launch Playwright browser ({config.PLAYWRIGHT_BROWSER}, "
+            f"Failed to launch persistent browser context ({config.PLAYWRIGHT_BROWSER}, "
             f"headless={config.PLAYWRIGHT_HEADLESS}): {exc}. "
-            "Check that 'playwright install chromium' has been run and, if "
-            "headless=False, that a display is available."
+            "Check that 'playwright install chromium' has been run, that the profile "
+            f"directory {config.PLAYWRIGHT_PROFILE_DIRECT!r} is writable, and if "
+            "headless=False that a display is available."
         ) from exc
 
     # Probe proxy context if available
