@@ -23,6 +23,10 @@ _LAUNCH_ARGS = [
     "--no-first-run",
     "--no-default-browser-check",
     "--disable-infobars",
+    # QUIC (HTTP/3) is UDP-based and cannot be tunnelled through an HTTP CONNECT
+    # proxy. Chrome will attempt QUIC directly (bypassing the proxy), hang until
+    # the OS drops the UDP packet, then time out before falling back to TCP.
+    "--disable-quic",
 ]
 
 # Injected into every new page before any page scripts run.
