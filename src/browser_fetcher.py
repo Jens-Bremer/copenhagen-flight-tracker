@@ -54,11 +54,7 @@ _STEALTH_SCRIPT = """
     }
 
     // 3. navigator.plugins — empty array is an instant bot signal
-    const pluginData = [
-        { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
-        { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: '' },
-        { name: 'Native Client', filename: 'internal-nacl-plugin', description: '' },
-    ];
+    const pluginData = [];
     const pluginArray = Object.create(PluginArray.prototype);
     Object.defineProperty(pluginArray, 'length', { value: pluginData.length });
     pluginData.forEach(function (p, i) {
@@ -70,9 +66,14 @@ _STEALTH_SCRIPT = """
         Object.defineProperty(pluginArray, i, { value: plugin });
         Object.defineProperty(pluginArray, p.name, { value: plugin });
     });
-    Object.defineProperty(navigator, 'plugins', { get: function () { return pluginArray; } });
+    Object.defineProperty(navigator, 'plugins', { get: function () { return pluginArray; }, configurable: true });
     Object.defineProperty(navigator, 'mimeTypes', {
-        get: function () { return Object.create(MimeTypeArray.prototype); },
+        get: function () {
+            const mt = Object.create(MimeTypeArray.prototype);
+            Object.defineProperty(mt, 'length', { value: 0 });
+            return mt;
+        },
+        configurable: true,
     });
 
     // 4. navigator.languages
@@ -113,8 +114,8 @@ _STEALTH_SCRIPT = """
     })(window.WebGL2RenderingContext);
 
     // 7. Hardware signals — 0 is an automation giveaway
-    Object.defineProperty(navigator, 'hardwareConcurrency', { get: function () { return 8; } });
-    Object.defineProperty(navigator, 'deviceMemory', { get: function () { return 8; } });
+    Object.defineProperty(navigator, 'hardwareConcurrency', { get: function () { return 8; }, configurable: true });
+    Object.defineProperty(navigator, 'deviceMemory', { get: function () { return 8; }, configurable: true });
 
     // 8. outerWidth/Height must be >= innerWidth/Height (headless omits them)
     if (window.outerWidth === 0) {
