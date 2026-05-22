@@ -271,7 +271,7 @@ def browser_fetch(params: dict) -> BrowserResponse:
     # Routing decision: 50/50 split if proxy is available
     use_proxy = _proxy_url is not None and random.random() < config.PROXY_SPLIT_RATIO
     context = _get_context(use_proxy=use_proxy)
-    logger.debug("routing via %s", "proxy" if use_proxy else "direct")
+    logger.info("routing via %s", "proxy" if use_proxy else "direct")
 
     page = context.new_page()
     try:
