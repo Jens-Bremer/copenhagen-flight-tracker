@@ -283,6 +283,25 @@ def browser_fetch(params: dict) -> BrowserResponse:
         if response is None:
             raise NetworkError("page.goto returned no response")
 
+        # Wait for network to settle, then behave like a human reading the page.
+        try:
+            page.wait_for_load_state(
+                "networkidle",
+                timeout=config.PLAYWRIGHT_NETWORKIDLE_TIMEOUT_MS,
+            )
+        except Exception:
+            pass  # networkidle timeout is non-fatal — content may still be present
+
+        dwell_ms = random.randint(config.PLAYWRIGHT_DWELL_MIN_MS, config.PLAYWRIGHT_DWELL_MAX_MS)
+        page.wait_for_timeout(dwell_ms)
+
+        # Random mouse move to a plausible reading position
+        vp = page.viewport_size or {"width": 1280, "height": 900}
+        page.mouse.move(
+            random.randint(100, vp["width"] - 100),
+            random.randint(100, vp["height"] - 100),
+        )
+
         status = response.status
         body = page.content()
     finally:

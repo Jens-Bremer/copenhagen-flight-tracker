@@ -155,6 +155,7 @@ def _make_page(status: int = 200, content: str = "") -> MagicMock:
     mock_response.status = status
     page.goto.return_value = mock_response
     page.content.return_value = content
+    page.viewport_size = None  # triggers the fallback {"width": 1280, "height": 900}
     return page
 
 
@@ -267,6 +268,27 @@ def test_browser_fetch_passes_url_with_params_to_goto():
     assert "tfs=MYENCODED" in call_url
     assert "hl=en" in call_url
     assert call_url.startswith("https://www.google.com/travel/flights")
+
+
+def test_browser_fetch_calls_mouse_move_after_load():
+    """browser_fetch must perform a mouse move on every successful load."""
+    page = _make_page(200, _good_body())
+    with patch("src.browser_fetcher._get_context") as mock_ctx:
+        mock_ctx.return_value.new_page.return_value = page
+        browser_fetcher.browser_fetch({"tfs": "abc"})
+    page.mouse.move.assert_called_once()
+
+
+def test_browser_fetch_calls_wait_for_timeout_after_load():
+    """browser_fetch must call page.wait_for_timeout with a value in the configured dwell range."""
+    import config
+    page = _make_page(200, _good_body())
+    with patch("src.browser_fetcher._get_context") as mock_ctx:
+        mock_ctx.return_value.new_page.return_value = page
+        browser_fetcher.browser_fetch({"tfs": "abc"})
+    page.wait_for_timeout.assert_called()
+    dwell_ms = page.wait_for_timeout.call_args[0][0]
+    assert config.PLAYWRIGHT_DWELL_MIN_MS <= dwell_ms <= config.PLAYWRIGHT_DWELL_MAX_MS
 
 
 # ---------------------------------------------------------------------------
