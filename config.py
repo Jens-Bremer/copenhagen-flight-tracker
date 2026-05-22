@@ -76,3 +76,41 @@ PLAYWRIGHT_HEADLESS = False
 PLAYWRIGHT_BROWSER = "chromium"   # "chromium", "firefox", or "webkit"
 PLAYWRIGHT_TIMEOUT_MS = 20000     # page-load timeout (ms)
 PROXY_SPLIT_RATIO = 0.5            # Fraction of requests routed via proxy (0.0–1.0)
+
+# Persistent profile directories for the two browser contexts.
+# Playwright creates them on first launch; subsequent runs reuse cookies/localStorage.
+PLAYWRIGHT_PROFILE_DIRECT = "data/browser_profiles/direct"
+PLAYWRIGHT_PROFILE_PROXY  = "data/browser_profiles/proxy"
+
+# Realistic Chrome UA for Linux server. Keep in sync with sec-ch-ua header below.
+PLAYWRIGHT_USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
+
+# Client-hint headers that real Chrome always sends. Keep version numbers in
+# sync with PLAYWRIGHT_USER_AGENT above.
+PLAYWRIGHT_EXTRA_HEADERS = {
+    "Accept-Language": "en-US,en;q=0.9",
+    "sec-ch-ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Linux"',
+}
+
+# Realistic viewport pool — pick one at random per context creation.
+PLAYWRIGHT_VIEWPORT_POOL = [
+    {"width": 1920, "height": 1080},
+    {"width": 1440, "height": 900},
+    {"width": 1366, "height": 768},
+    {"width": 1536, "height": 864},
+    {"width": 1280, "height": 800},
+]
+
+# Post-navigation human dwell time range (ms). Browser waits a random amount
+# in this range after the page settles before extracting content.
+PLAYWRIGHT_DWELL_MIN_MS = 1200
+PLAYWRIGHT_DWELL_MAX_MS = 3500
+
+# networkidle timeout (ms). Playwright waits for no network requests for 500 ms
+# within this budget after domcontentloaded. Increase if Flights loads slowly.
+PLAYWRIGHT_NETWORKIDLE_TIMEOUT_MS = 15000
