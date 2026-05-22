@@ -183,6 +183,10 @@ def _get_context(use_proxy: bool) -> BrowserContext:
                 locale="en-US",
                 timezone_id="Europe/Amsterdam",
                 extra_http_headers=config.PLAYWRIGHT_EXTRA_HEADERS,
+                # Accept any certificate from the proxy tunnel. Required when the
+                # proxy does TLS inspection (ssl_bump in Squid) and re-signs the
+                # server cert with its own CA, which Chrome would otherwise reject.
+                ignore_https_errors=True,
             )
             try:
                 _context_proxy = browser_type.launch_persistent_context(
