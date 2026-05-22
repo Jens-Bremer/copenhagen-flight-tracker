@@ -12,12 +12,18 @@ from src.proxy_manager import load_proxies
 
 logger = logging.getLogger(__name__)
 
-# --- Module-level browser state (dual contexts: direct and proxy) ---
+# --- Module-level browser state (dual persistent contexts: direct and proxy) ---
 _playwright_instance = None
-_browser = None
 _context_direct: Optional[BrowserContext] = None
 _context_proxy: Optional[BrowserContext] = None
 _proxy_url: Optional[str] = None
+
+_LAUNCH_ARGS = [
+    "--disable-blink-features=AutomationControlled",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-infobars",
+]
 
 # Injected into every new page before any page scripts run.
 # Covers all major JavaScript-level bot-detection vectors. The launch arg
@@ -138,21 +144,21 @@ class BrowserResponse:
 
 
 def _get_context(use_proxy: bool) -> BrowserContext:
-    """Return a browser context, creating it on the first call for its kind.
+    """Return a persistent browser context, creating it on first call for its kind.
 
     Args:
-        use_proxy: If True, return or create _context_proxy; if False, return or create _context_direct.
+        use_proxy: If True, return or create _context_proxy; otherwise _context_direct.
 
-    Lazily initializes the shared Playwright instance and browser on the first call.
-    Adds stealth script and SOCS cookie to the context.
+    Uses launch_persistent_context so cookies and localStorage survive across
+    scrape runs. Profile directories are created by Playwright on first launch.
     """
-    global _playwright_instance, _browser, _context_direct, _context_proxy, _proxy_url
+    global _playwright_instance, _context_direct, _context_proxy, _proxy_url
 
-    # Lazy-init Playwright and browser on first call (any kind)
     if _playwright_instance is None:
         _playwright_instance = sync_playwright().start()
-        browser_type = getattr(_playwright_instance, config.PLAYWRIGHT_BROWSER)
-        _browser = browser_type.launch(headless=config.PLAYWRIGHT_HEADLESS)
+
+    browser_type = getattr(_playwright_instance, config.PLAYWRIGHT_BROWSER)
+    viewport = random.choice(config.PLAYWRIGHT_VIEWPORT_POOL)
 
     if use_proxy:
         if _context_proxy is None:
@@ -164,8 +170,15 @@ def _get_context(use_proxy: bool) -> BrowserContext:
                 "username": parsed.username or "",
                 "password": parsed.password or "",
             }
-            _context_proxy = _browser.new_context(
-                viewport={"width": 1280, "height": 900},
+            _context_proxy = browser_type.launch_persistent_context(
+                user_data_dir=config.PLAYWRIGHT_PROFILE_PROXY,
+                headless=config.PLAYWRIGHT_HEADLESS,
+                args=_LAUNCH_ARGS,
+                viewport=viewport,
+                user_agent=config.PLAYWRIGHT_USER_AGENT,
+                locale="en-US",
+                timezone_id="Europe/Amsterdam",
+                extra_http_headers=config.PLAYWRIGHT_EXTRA_HEADERS,
                 proxy=proxy,
             )
             _context_proxy.add_init_script(_STEALTH_SCRIPT)
@@ -176,12 +189,19 @@ def _get_context(use_proxy: bool) -> BrowserContext:
                 "path": "/",
                 "sameSite": "Lax",
             }])
-            logger.info("Browser context created (proxy=%s)", _proxy_url)
+            logger.info("Persistent browser context created (proxy=%s)", _proxy_url)
         return _context_proxy
     else:
         if _context_direct is None:
-            _context_direct = _browser.new_context(
-                viewport={"width": 1280, "height": 900},
+            _context_direct = browser_type.launch_persistent_context(
+                user_data_dir=config.PLAYWRIGHT_PROFILE_DIRECT,
+                headless=config.PLAYWRIGHT_HEADLESS,
+                args=_LAUNCH_ARGS,
+                viewport=viewport,
+                user_agent=config.PLAYWRIGHT_USER_AGENT,
+                locale="en-US",
+                timezone_id="Europe/Amsterdam",
+                extra_http_headers=config.PLAYWRIGHT_EXTRA_HEADERS,
             )
             _context_direct.add_init_script(_STEALTH_SCRIPT)
             _context_direct.add_cookies([{
@@ -191,22 +211,19 @@ def _get_context(use_proxy: bool) -> BrowserContext:
                 "path": "/",
                 "sameSite": "Lax",
             }])
-            logger.info("Browser context created (direct)")
+            logger.info("Persistent browser context created (direct)")
         return _context_direct
 
 
 def shutdown_browser() -> None:
-    """Close both browser contexts and clean up Playwright. Call on process exit."""
-    global _playwright_instance, _browser, _context_direct, _context_proxy, _proxy_url
+    """Close both persistent contexts and clean up Playwright. Call on process exit."""
+    global _playwright_instance, _context_direct, _context_proxy, _proxy_url
     if _context_direct:
         _context_direct.close()
         _context_direct = None
     if _context_proxy:
         _context_proxy.close()
         _context_proxy = None
-    if _browser:
-        _browser.close()
-        _browser = None
     if _playwright_instance:
         _playwright_instance.stop()
         _playwright_instance = None
