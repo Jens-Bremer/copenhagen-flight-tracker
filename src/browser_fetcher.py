@@ -158,7 +158,6 @@ def _get_context(use_proxy: bool) -> BrowserContext:
         _playwright_instance = sync_playwright().start()
 
     browser_type = getattr(_playwright_instance, config.PLAYWRIGHT_BROWSER)
-    viewport = random.choice(config.PLAYWRIGHT_VIEWPORT_POOL)
 
     if use_proxy:
         if _context_proxy is None:
@@ -167,11 +166,12 @@ def _get_context(use_proxy: bool) -> BrowserContext:
             parsed = urlparse(_proxy_url)
             proxy = {
                 "server": f"{parsed.scheme}://{parsed.hostname}:{parsed.port}",
+                # Empty string is correct for unauthenticated proxies
                 "username": parsed.username or "",
                 "password": parsed.password or "",
             }
-            _context_proxy = browser_type.launch_persistent_context(
-                user_data_dir=config.PLAYWRIGHT_PROFILE_PROXY,
+            viewport = random.choice(config.PLAYWRIGHT_VIEWPORT_POOL)
+            _launch_kwargs = dict(
                 headless=config.PLAYWRIGHT_HEADLESS,
                 args=_LAUNCH_ARGS,
                 viewport=viewport,
@@ -179,8 +179,17 @@ def _get_context(use_proxy: bool) -> BrowserContext:
                 locale="en-US",
                 timezone_id="Europe/Amsterdam",
                 extra_http_headers=config.PLAYWRIGHT_EXTRA_HEADERS,
-                proxy=proxy,
             )
+            try:
+                _context_proxy = browser_type.launch_persistent_context(
+                    config.PLAYWRIGHT_PROFILE_PROXY,
+                    proxy=proxy,
+                    **_launch_kwargs,
+                )
+            except Exception:
+                _playwright_instance.stop()
+                _playwright_instance = None
+                raise
             _context_proxy.add_init_script(_STEALTH_SCRIPT)
             _context_proxy.add_cookies([{
                 "name": "SOCS",
@@ -189,12 +198,15 @@ def _get_context(use_proxy: bool) -> BrowserContext:
                 "path": "/",
                 "sameSite": "Lax",
             }])
-            logger.info("Persistent browser context created (proxy=%s)", _proxy_url)
+            logger.info(
+                "Persistent browser context created (proxy=%s, viewport=%sx%s)",
+                _proxy_url, viewport["width"], viewport["height"],
+            )
         return _context_proxy
     else:
         if _context_direct is None:
-            _context_direct = browser_type.launch_persistent_context(
-                user_data_dir=config.PLAYWRIGHT_PROFILE_DIRECT,
+            viewport = random.choice(config.PLAYWRIGHT_VIEWPORT_POOL)
+            _launch_kwargs = dict(
                 headless=config.PLAYWRIGHT_HEADLESS,
                 args=_LAUNCH_ARGS,
                 viewport=viewport,
@@ -203,6 +215,15 @@ def _get_context(use_proxy: bool) -> BrowserContext:
                 timezone_id="Europe/Amsterdam",
                 extra_http_headers=config.PLAYWRIGHT_EXTRA_HEADERS,
             )
+            try:
+                _context_direct = browser_type.launch_persistent_context(
+                    config.PLAYWRIGHT_PROFILE_DIRECT,
+                    **_launch_kwargs,
+                )
+            except Exception:
+                _playwright_instance.stop()
+                _playwright_instance = None
+                raise
             _context_direct.add_init_script(_STEALTH_SCRIPT)
             _context_direct.add_cookies([{
                 "name": "SOCS",
@@ -211,7 +232,10 @@ def _get_context(use_proxy: bool) -> BrowserContext:
                 "path": "/",
                 "sameSite": "Lax",
             }])
-            logger.info("Persistent browser context created (direct)")
+            logger.info(
+                "Persistent browser context created (direct, viewport=%sx%s)",
+                viewport["width"], viewport["height"],
+            )
         return _context_direct
 
 
