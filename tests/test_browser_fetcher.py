@@ -39,6 +39,30 @@ def test_browser_response_text_markdown_equals_text():
 
 
 # ---------------------------------------------------------------------------
+# _STEALTH_SCRIPT content checks
+# ---------------------------------------------------------------------------
+
+def test_stealth_script_patches_webdriver():
+    assert "webdriver" in browser_fetcher._STEALTH_SCRIPT
+
+def test_stealth_script_patches_plugins():
+    assert "plugins" in browser_fetcher._STEALTH_SCRIPT
+
+def test_stealth_script_patches_languages():
+    assert "languages" in browser_fetcher._STEALTH_SCRIPT
+
+def test_stealth_script_patches_permissions():
+    assert "Permissions" in browser_fetcher._STEALTH_SCRIPT
+
+def test_stealth_script_patches_webgl():
+    assert "WebGLRenderingContext" in browser_fetcher._STEALTH_SCRIPT
+
+def test_stealth_script_has_full_chrome_object():
+    assert "loadTimes" in browser_fetcher._STEALTH_SCRIPT
+    assert "csi" in browser_fetcher._STEALTH_SCRIPT
+
+
+# ---------------------------------------------------------------------------
 # _get_context — lazy init
 # ---------------------------------------------------------------------------
 

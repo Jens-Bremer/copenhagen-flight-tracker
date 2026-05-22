@@ -20,16 +20,110 @@ _context_proxy: Optional[BrowserContext] = None
 _proxy_url: Optional[str] = None
 
 # Injected into every new page before any page scripts run.
-# Removes the navigator.webdriver flag that automation leaves behind, and
-# ensures window.chrome exists (real Chromium has it; headless Playwright doesn't).
+# Covers all major JavaScript-level bot-detection vectors. The launch arg
+# --disable-blink-features=AutomationControlled handles the C++ level;
+# this script handles the JS-observable surface.
 _STEALTH_SCRIPT = """
+(function () {
+    // 1. Remove the webdriver flag
     Object.defineProperty(navigator, 'webdriver', {
         get: () => undefined,
         configurable: true,
     });
-    if (!window.chrome) {
-        window.chrome = { runtime: {} };
+
+    // 2. Full window.chrome object — headless Chromium only stubs runtime
+    if (!window.chrome || !window.chrome.loadTimes) {
+        window.chrome = {
+            app: {
+                isInstalled: false,
+                InstallState: {
+                    DISABLED: 'disabled',
+                    INSTALLED: 'installed',
+                    NOT_INSTALLED: 'not_installed',
+                },
+                RunningState: {
+                    CANNOT_RUN: 'cannot_run',
+                    READY_TO_RUN: 'ready_to_run',
+                    RUNNING: 'running',
+                },
+            },
+            csi: function () { return {}; },
+            loadTimes: function () { return {}; },
+            runtime: {},
+        };
     }
+
+    // 3. navigator.plugins — empty array is an instant bot signal
+    const pluginData = [
+        { name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+        { name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: '' },
+        { name: 'Native Client', filename: 'internal-nacl-plugin', description: '' },
+    ];
+    const pluginArray = Object.create(PluginArray.prototype);
+    Object.defineProperty(pluginArray, 'length', { value: pluginData.length });
+    pluginData.forEach(function (p, i) {
+        const plugin = Object.create(Plugin.prototype);
+        Object.defineProperty(plugin, 'name', { value: p.name });
+        Object.defineProperty(plugin, 'filename', { value: p.filename });
+        Object.defineProperty(plugin, 'description', { value: p.description });
+        Object.defineProperty(plugin, 'length', { value: 0 });
+        Object.defineProperty(pluginArray, i, { value: plugin });
+        Object.defineProperty(pluginArray, p.name, { value: plugin });
+    });
+    Object.defineProperty(navigator, 'plugins', { get: function () { return pluginArray; } });
+    Object.defineProperty(navigator, 'mimeTypes', {
+        get: function () { return Object.create(MimeTypeArray.prototype); },
+    });
+
+    // 4. navigator.languages
+    Object.defineProperty(navigator, 'languages', {
+        get: function () { return ['en-US', 'en']; },
+        configurable: true,
+    });
+
+    // 5. Permissions API — automation returns wrong state for notifications
+    if (window.Permissions && window.Permissions.prototype.query) {
+        const originalQuery = window.Permissions.prototype.query;
+        window.Permissions.prototype.query = function (parameters) {
+            if (parameters && parameters.name === 'notifications') {
+                return Promise.resolve({ state: Notification.permission, onchange: null });
+            }
+            return originalQuery.call(this, parameters);
+        };
+    }
+
+    // 6. WebGL vendor / renderer — headless reports generic Mesa strings
+    (function patchWebGL(ctx) {
+        if (!ctx) return;
+        const getParameter = ctx.prototype.getParameter;
+        ctx.prototype.getParameter = function (parameter) {
+            if (parameter === 37445) return 'Intel Inc.';
+            if (parameter === 37446) return 'Intel Iris OpenGL Engine';
+            return getParameter.call(this, parameter);
+        };
+    })(window.WebGLRenderingContext);
+    (function patchWebGL2(ctx) {
+        if (!ctx) return;
+        const getParameter = ctx.prototype.getParameter;
+        ctx.prototype.getParameter = function (parameter) {
+            if (parameter === 37445) return 'Intel Inc.';
+            if (parameter === 37446) return 'Intel Iris OpenGL Engine';
+            return getParameter.call(this, parameter);
+        };
+    })(window.WebGL2RenderingContext);
+
+    // 7. Hardware signals — 0 is an automation giveaway
+    Object.defineProperty(navigator, 'hardwareConcurrency', { get: function () { return 8; } });
+    Object.defineProperty(navigator, 'deviceMemory', { get: function () { return 8; } });
+
+    // 8. outerWidth/Height must be >= innerWidth/Height (headless omits them)
+    if (window.outerWidth === 0) {
+        Object.defineProperty(window, 'outerWidth', { get: function () { return window.innerWidth; } });
+    }
+    if (window.outerHeight === 0) {
+        Object.defineProperty(window, 'outerHeight', { get: function () { return window.innerHeight + 74; } });
+    }
+})();
 """
 
 
