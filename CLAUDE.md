@@ -80,6 +80,8 @@ Each `src/` module imports only from `config` and stdlib/installed packages — 
 
 **Exception:** `src/browser_fetcher.py` imports from `src/flight_fetcher.py` (for `BotChallengeError`, `NetworkError`, `RateLimitedError`) and from `src/proxy_manager.py`. This is the only permitted cross-import outside the analytics chain.
 
+**`scripts/` note:** `scripts/` files are orchestrators and are not bound by the `src/` cross-import restriction. `scripts/collection.py` intentionally imports from `src/flight_fetcher.py`, `src/response_parser.py`, and `src/database.py` to provide a single reusable fetch→parse→store unit used by `run_daily.py`.
+
 ## Transport Layer: Browser Automation
 
 Scraping is done via a **real Chromium browser** (Playwright), not a raw HTTP client. `src/browser_fetcher.py` owns all of this. It is the only file that touches Playwright.

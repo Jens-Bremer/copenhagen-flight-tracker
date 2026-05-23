@@ -5,27 +5,25 @@ import os
 import sys
 import tempfile
 import time
-from datetime import date, datetime, timezone
+from datetime import date
 from typing import Callable, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
+from scripts.collection import execute_single_job
 from src.browser_fetcher import install_browser_patch, shutdown_browser
 from src.config_validator import validate_config
-from src.database import insert_observations
 from src.date_generator import generate_target_dates
 from src.flight_fetcher import (
     BotChallengeError,
     NetworkError,
     ParseError,
     RateLimitedError,
-    fetch_flights_for_date,
 )
 from src.log_config import setup_logging
 from src.price_alerter import check_and_alert_cheap_flights
 from src.request_pacer import compute_sleep_intervals, seconds_until_window_start
-from src.response_parser import parse_flights
 from src.route_expander import expand_jobs
 
 setup_logging()
@@ -150,30 +148,25 @@ def run_collection(
             idx,
             total_jobs,
         )
-        try:
-            result = fetch_flights_for_date(
-                origin, destination, departure_date, raise_on_failure=True
-            )
-            observations = parse_flights(
-                result,
+        inserted, exc = execute_single_job(origin, destination, departure_date, db_path)
+        if exc is not None:
+            logger.error(
+                "Job %s→%s %s failed: %s",
                 origin,
                 destination,
                 departure_date,
-                datetime.now(tz=timezone.utc),
-            )
-            inserted = insert_observations(db_path, observations)
-            total_observations += inserted
-            logger.info("Stored %d flights", inserted)
-            if inserted == 0:
-                failed_jobs.append(
-                    (origin, destination, departure_date, "no observations stored")
-                )
-        except Exception as exc:
-            logger.error(
-                "Job %s→%s %s failed: %s", origin, destination, departure_date, exc
+                exc,
             )
             failed_jobs.append((origin, destination, departure_date, str(exc)))
             first_pass_exceptions[(origin, destination, departure_date)] = exc
+        elif inserted == 0:
+            logger.info("Stored 0 flights")
+            failed_jobs.append(
+                (origin, destination, departure_date, "no observations stored")
+            )
+        else:
+            total_observations += inserted
+            logger.info("Stored %d flights", inserted)
 
         if idx < total_jobs and intervals:
             sleep_fn(intervals[idx - 1])
@@ -187,25 +180,10 @@ def run_collection(
         for origin, destination, departure_date, _reason in failed_jobs:
             sleep_fn(config.FETCH_RETRY_DELAY_SECONDS)
             logger.warning("Retrying %s→%s %s", origin, destination, departure_date)
-            try:
-                result = fetch_flights_for_date(
-                    origin, destination, departure_date, raise_on_failure=True
-                )
-                observations = parse_flights(
-                    result,
-                    origin,
-                    destination,
-                    departure_date,
-                    datetime.now(tz=timezone.utc),
-                )
-                inserted = insert_observations(db_path, observations)
-                total_observations += inserted
-                logger.info("Retry stored %d flights", inserted)
-                if inserted == 0:
-                    retry_results.append(
-                        (origin, destination, departure_date, "no observations stored")
-                    )
-            except Exception as exc:
+            inserted, exc = execute_single_job(
+                origin, destination, departure_date, db_path
+            )
+            if exc is not None:
                 logger.error(
                     "Retry failed %s→%s %s: %s",
                     origin,
@@ -215,6 +193,13 @@ def run_collection(
                 )
                 retry_results.append((origin, destination, departure_date, str(exc)))
                 retry_exceptions[(origin, destination, departure_date)] = exc
+            elif inserted == 0:
+                retry_results.append(
+                    (origin, destination, departure_date, "no observations stored")
+                )
+            else:
+                total_observations += inserted
+                logger.info("Retry stored %d flights", inserted)
         failed_jobs = retry_results
 
     # Tally final per-category failure counts. For each job that is still in

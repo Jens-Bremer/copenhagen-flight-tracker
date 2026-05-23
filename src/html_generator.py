@@ -331,6 +331,13 @@ def _mean(values: list[int]) -> int:
     return round(sum(values) / len(values)) if values else 0
 
 
+def _quartiles(prices: list[int]) -> tuple[int, int, int, int, int]:
+    """Return (min, Q1, median, Q3, max) for a non-empty sorted price list."""
+    s = sorted(prices)
+    n = len(s)
+    return s[0], s[n // 4], s[n // 2], s[(3 * n) // 4], s[-1]
+
+
 def _build_norm_prog_entry(days_before: int, values: list[float]) -> dict[str, Any]:
     """Compute mean, Q1, and Q3 pct_change for a normalized-progression bucket.
 
@@ -357,25 +364,15 @@ def _build_norm_prog_entry(days_before: int, values: list[float]) -> dict[str, A
     }
 
 
-def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    """Per route: lead-time curve, sweet spot, dow/month means, market trend."""
-    if not rows:
-        return {}
-
-    # Group prices by (route, days_before)
+def _group_analysis_inputs(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Single-pass grouping of rows into the six analysis data structures."""
     by_lead: dict[tuple[str, int], list[int]] = defaultdict(list)
-    # Group cheapest-per-departure by (route, dow) and (route, month)
     cheapest_per_dep: dict[tuple[str, str], int] = {}
-    # Group cheapest-per-obs-date by (route, obs_date)
     cheapest_per_obs: dict[tuple[str, str], int] = {}
-    # Group prices by (route, dow, hour) for the time-of-day heatmap
     by_time: dict[tuple[str, int, int], list[int]] = defaultdict(list)
-    # Group prices by (route, dep_date, airline, dep_time, days_before)
-    # for normalised price progression
     by_flight: dict[tuple[str, str, str, str], dict[int, list[int]]] = defaultdict(
         lambda: defaultdict(list)
     )
-    # All rows per route (for lowest_ever scan)
     rows_by_route: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
     for row in rows:
@@ -384,7 +381,6 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         dep_date = date_type.fromisoformat(row["departure_date"])
         obs_date = row["retrieved_at"].date().isoformat()
         days_before = (dep_date - row["retrieved_at"].date()).days
-        # Skip implausible buckets defensively (should not occur post-#55)
         if days_before < 0:
             continue
         by_lead[(route, days_before)].append(row["price_cents"])
@@ -395,16 +391,133 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         by_flight[(route, row["departure_date"], row["airline"], dep_time)][
             days_before
         ].append(row["price_cents"])
-
         key_dep = (route, row["departure_date"])
-        prev_dep = cheapest_per_dep.get(key_dep)
-        if prev_dep is None or row["price_cents"] < prev_dep:
+        if key_dep not in cheapest_per_dep or (
+            row["price_cents"] < cheapest_per_dep[key_dep]
+        ):
             cheapest_per_dep[key_dep] = row["price_cents"]
-
         key_obs = (route, obs_date)
-        prev_obs = cheapest_per_obs.get(key_obs)
-        if prev_obs is None or row["price_cents"] < prev_obs:
+        if key_obs not in cheapest_per_obs or (
+            row["price_cents"] < cheapest_per_obs[key_obs]
+        ):
             cheapest_per_obs[key_obs] = row["price_cents"]
+
+    return {
+        "by_lead": by_lead,
+        "by_time": by_time,
+        "by_flight": by_flight,
+        "cheapest_per_dep": cheapest_per_dep,
+        "cheapest_per_obs": cheapest_per_obs,
+        "rows_by_route": rows_by_route,
+    }
+
+
+def _build_lead_time_curve(
+    route: str,
+    by_lead: dict[tuple[str, int], list[int]],
+) -> tuple[list[dict[str, Any]], int | None]:
+    """Build the lead-time price curve and sweet-spot days for one route."""
+    curve_entries = sorted(
+        ((db, prices) for (r, db), prices in by_lead.items() if r == route),
+        key=lambda x: x[0],
+    )
+    curve = []
+    for db, prices in curve_entries:
+        mn, q1, med, q3, mx = _quartiles(prices)
+        curve.append(
+            {
+                "days_before": db,
+                "min_cents": mn,
+                "q1_cents": q1,
+                "median_cents": med,
+                "mean_cents": _mean(prices),
+                "q3_cents": q3,
+                "max_cents": mx,
+                "obs_count": len(prices),
+            }
+        )
+    min_obs = config.RELIABLE_MIN_OBSERVATIONS
+    reliable = [e for e in curve if e["obs_count"] >= min_obs]
+    sweet_spot = (
+        min(reliable, key=lambda e: e["mean_cents"])["days_before"]
+        if reliable
+        else None
+    )
+    return curve, sweet_spot
+
+
+def _build_dow_month(
+    route: str,
+    cheapest_per_dep: dict[tuple[str, str], int],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Build day-of-week and month mean-price aggregates for one route."""
+    by_dow: dict[int, list[int]] = defaultdict(list)
+    by_month: dict[int, list[int]] = defaultdict(list)
+    for (r, dep_iso), cents in cheapest_per_dep.items():
+        if r != route:
+            continue
+        d = date_type.fromisoformat(dep_iso)
+        by_dow[d.weekday()].append(cents)
+        by_month[d.month].append(cents)
+    dow_entries = [
+        {"dow": dow, "label": _DOW_LABELS[dow], "mean_cents": _mean(vals)}
+        for dow, vals in sorted(by_dow.items())
+    ]
+    month_entries = [
+        {"month": m, "label": _MONTH_LABELS[m - 1], "mean_cents": _mean(vals)}
+        for m, vals in sorted(by_month.items())
+    ]
+    return dow_entries, month_entries
+
+
+def _build_best_time_to_visit(
+    month_entries: list[dict[str, Any]],
+    dow_entries: list[dict[str, Any]],
+    route_rows: list[dict[str, Any]],
+    route: str,
+) -> dict[str, Any]:
+    """Compute cheapest month, day-of-week, and all-time lowest price for a route."""
+    cheapest_month = (
+        min(month_entries, key=lambda m: m["mean_cents"]) if month_entries else {}
+    )
+    cheapest_dow = (
+        min(dow_entries, key=lambda d: d["mean_cents"]) if dow_entries else {}
+    )
+    if route_rows:
+        min_row = min(route_rows, key=lambda r: r["price_cents"])
+        lowest_ever: dict[str, Any] = {
+            "price_cents": min_row["price_cents"],
+            "route": route,
+            "departure_date": min_row["departure_date"],
+            "airline": min_row["airline"],
+        }
+    else:
+        lowest_ever = {}
+    return {
+        "cheapest_month": {
+            "label": cheapest_month.get("label", ""),
+            "mean_cents": cheapest_month.get("mean_cents", 0),
+        },
+        "cheapest_dow": {
+            "label": cheapest_dow.get("label", ""),
+            "mean_cents": cheapest_dow.get("mean_cents", 0),
+        },
+        "lowest_ever": lowest_ever,
+    }
+
+
+def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Per route: lead-time curve, sweet spot, dow/month means, market trend."""
+    if not rows:
+        return {}
+
+    groups = _group_analysis_inputs(rows)
+    by_lead = groups["by_lead"]
+    by_time = groups["by_time"]
+    by_flight = groups["by_flight"]
+    cheapest_per_dep = groups["cheapest_per_dep"]
+    cheapest_per_obs = groups["cheapest_per_obs"]
+    rows_by_route = groups["rows_by_route"]
 
     # Normalised progression: per flight, express each obs as % change from the
     # oldest observation; aggregate across all flights per (route, days_before).
@@ -426,58 +539,10 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     routes = sorted({k[0] for k in by_lead})
     out: dict[str, dict[str, Any]] = {}
 
-    def _quartiles(prices: list[int]) -> tuple[int, int, int, int, int]:
-        s = sorted(prices)
-        n = len(s)
-        return s[0], s[n // 4], s[n // 2], s[(3 * n) // 4], s[-1]
-
     for route in routes:
-        curve_entries = sorted(
-            ((db, prices) for (r, db), prices in by_lead.items() if r == route),
-            key=lambda x: x[0],
-        )
+        curve, sweet_spot = _build_lead_time_curve(route, by_lead)
 
-        curve = []
-        for db, prices in curve_entries:
-            mn, q1, med, q3, mx = _quartiles(prices)
-            curve.append(
-                {
-                    "days_before": db,
-                    "min_cents": mn,
-                    "q1_cents": q1,
-                    "median_cents": med,
-                    "mean_cents": _mean(prices),
-                    "q3_cents": q3,
-                    "max_cents": mx,
-                    "obs_count": len(prices),
-                }
-            )
-        min_obs = config.RELIABLE_MIN_OBSERVATIONS
-        reliable = [e for e in curve if e["obs_count"] >= min_obs]
-        sweet_spot = (
-            min(reliable, key=lambda e: e["mean_cents"])["days_before"]
-            if reliable
-            else None
-        )
-
-        # day_of_week aggregates the per-departure cheapest
-        by_dow: dict[int, list[int]] = defaultdict(list)
-        by_month: dict[int, list[int]] = defaultdict(list)
-        for (r, dep_iso), cents in cheapest_per_dep.items():
-            if r != route:
-                continue
-            d = date_type.fromisoformat(dep_iso)
-            by_dow[d.weekday()].append(cents)
-            by_month[d.month].append(cents)
-
-        dow_entries = [
-            {"dow": dow, "label": _DOW_LABELS[dow], "mean_cents": _mean(vals)}
-            for dow, vals in sorted(by_dow.items())
-        ]
-        month_entries = [
-            {"month": m, "label": _MONTH_LABELS[m - 1], "mean_cents": _mean(vals)}
-            for m, vals in sorted(by_month.items())
-        ]
+        dow_entries, month_entries = _build_dow_month(route, cheapest_per_dep)
 
         trend_entries = sorted(
             (
@@ -512,35 +577,9 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         }
         market_direction = _compute_market_direction(obs_prices_for_route)
 
-        # best_time_to_visit: cheapest month/dow from aggregates + lowest ever price
-        cheapest_month = (
-            min(month_entries, key=lambda m: m["mean_cents"]) if month_entries else {}
+        best_time = _build_best_time_to_visit(
+            month_entries, dow_entries, rows_by_route.get(route, []), route
         )
-        cheapest_dow = (
-            min(dow_entries, key=lambda d: d["mean_cents"]) if dow_entries else {}
-        )
-        route_rows = rows_by_route.get(route, [])
-        if route_rows:
-            min_row = min(route_rows, key=lambda r: r["price_cents"])
-            lowest_ever: dict[str, Any] = {
-                "price_cents": min_row["price_cents"],
-                "route": route,
-                "departure_date": min_row["departure_date"],
-                "airline": min_row["airline"],
-            }
-        else:
-            lowest_ever = {}
-        best_time_to_visit = {
-            "cheapest_month": {
-                "label": cheapest_month.get("label", ""),
-                "mean_cents": cheapest_month.get("mean_cents", 0),
-            },
-            "cheapest_dow": {
-                "label": cheapest_dow.get("label", ""),
-                "mean_cents": cheapest_dow.get("mean_cents", 0),
-            },
-            "lowest_ever": lowest_ever,
-        }
 
         out[route] = {
             "lead_time_curve": curve,
@@ -551,7 +590,7 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             "time_of_day_matrix": time_matrix,
             "normalized_price_progression": norm_prog,
             "market_direction": market_direction,
-            "best_time_to_visit": best_time_to_visit,
+            "best_time_to_visit": best_time,
         }
     return out
 

@@ -154,6 +154,52 @@ _STEALTH_SCRIPT = """
 """
 
 
+_CONSENT_COOKIE = {
+    "name": "SOCS",
+    "value": "CAI",
+    "domain": ".google.com",
+    "path": "/",
+    "sameSite": "Lax",
+}
+
+
+def _context_launch_kwargs(viewport: dict, proxy_url: Optional[str] = None) -> dict:
+    """Build launch_persistent_context kwargs shared by direct and proxy contexts.
+
+    When proxy_url is provided, adds proxy server and ignore_https_errors=True.
+    Squid is configured for IP-based ACL so no credentials are passed — sending
+    Proxy-Authorization headers causes a 407 that Chrome cannot resolve.
+    """
+    kwargs: dict = dict(
+        headless=config.PLAYWRIGHT_HEADLESS,
+        args=_LAUNCH_ARGS,
+        viewport=viewport,
+        user_agent=config.PLAYWRIGHT_USER_AGENT,
+        locale="en-US",
+        timezone_id="Europe/Amsterdam",
+        extra_http_headers=config.PLAYWRIGHT_EXTRA_HEADERS,
+    )
+    if proxy_url is not None:
+        parsed = urlparse(proxy_url)
+        kwargs["proxy"] = {
+            "server": f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"
+        }
+        kwargs["ignore_https_errors"] = True
+    return kwargs
+
+
+def _configure_context(context: BrowserContext, label: str, viewport: dict) -> None:
+    """Add stealth init script, seed consent cookie, and log context creation."""
+    context.add_init_script(_STEALTH_SCRIPT)
+    context.add_cookies([_CONSENT_COOKIE])
+    logger.info(
+        "Persistent browser context created (%s, viewport=%sx%s)",
+        label,
+        viewport["width"],
+        viewport["height"],
+    )
+
+
 class BrowserResponse:
     """Minimal response interface matching what fast_flights expects from
     its fetch function."""
@@ -173,7 +219,7 @@ def _get_context(use_proxy: bool) -> BrowserContext:
     Uses launch_persistent_context so cookies and localStorage survive across
     scrape runs. Profile directories are created by Playwright on first launch.
     """
-    global _playwright_instance, _context_direct, _context_proxy, _proxy_url
+    global _playwright_instance, _context_direct, _context_proxy
 
     if _playwright_instance is None:
         _playwright_instance = sync_playwright().start()
@@ -184,97 +230,32 @@ def _get_context(use_proxy: bool) -> BrowserContext:
         if _context_proxy is None:
             if _proxy_url is None:
                 raise RuntimeError("use_proxy=True but no proxy URL was configured")
-            parsed = urlparse(_proxy_url)
-            # Squid is configured to allow the scraper IP without authentication
-            # (acl scraper_ip src <scraper-ip>/32 + http_access allow scraper_ip).
-            # Passing username/password here causes Chrome to send a Proxy-Authorization
-            # header that Squid then rejects with 407, and Chrome on Windows never
-            # completes the re-auth challenge. No credentials = no 407 = tunnel works.
-            proxy = {
-                "server": f"{parsed.scheme}://{parsed.hostname}:{parsed.port}",
-            }
             viewport = random.choice(config.PLAYWRIGHT_VIEWPORT_POOL)
-            _launch_kwargs = dict(
-                headless=config.PLAYWRIGHT_HEADLESS,
-                args=_LAUNCH_ARGS,
-                viewport=viewport,
-                user_agent=config.PLAYWRIGHT_USER_AGENT,
-                locale="en-US",
-                timezone_id="Europe/Amsterdam",
-                extra_http_headers=config.PLAYWRIGHT_EXTRA_HEADERS,
-                # Accept any certificate from the proxy tunnel. Required when the
-                # proxy does TLS inspection (ssl_bump in Squid) and re-signs the
-                # server cert with its own CA, which Chrome would otherwise reject.
-                ignore_https_errors=True,
-            )
+            kwargs = _context_launch_kwargs(viewport, proxy_url=_proxy_url)
             try:
                 _context_proxy = browser_type.launch_persistent_context(
-                    config.PLAYWRIGHT_PROFILE_PROXY,
-                    proxy=proxy,
-                    **_launch_kwargs,
+                    config.PLAYWRIGHT_PROFILE_PROXY, **kwargs
                 )
             except Exception:
                 _playwright_instance.stop()
                 _playwright_instance = None
                 raise
-            _context_proxy.add_init_script(_STEALTH_SCRIPT)
-            _context_proxy.add_cookies(
-                [
-                    {
-                        "name": "SOCS",
-                        "value": "CAI",
-                        "domain": ".google.com",
-                        "path": "/",
-                        "sameSite": "Lax",
-                    }
-                ]
-            )
-            logger.info(
-                "Persistent browser context created (proxy=%s, viewport=%sx%s)",
-                _proxy_url,
-                viewport["width"],
-                viewport["height"],
-            )
+            _configure_context(_context_proxy, f"proxy={_proxy_url}", viewport)
         return _context_proxy
-    else:
-        if _context_direct is None:
-            viewport = random.choice(config.PLAYWRIGHT_VIEWPORT_POOL)
-            _launch_kwargs = dict(
-                headless=config.PLAYWRIGHT_HEADLESS,
-                args=_LAUNCH_ARGS,
-                viewport=viewport,
-                user_agent=config.PLAYWRIGHT_USER_AGENT,
-                locale="en-US",
-                timezone_id="Europe/Amsterdam",
-                extra_http_headers=config.PLAYWRIGHT_EXTRA_HEADERS,
+
+    if _context_direct is None:
+        viewport = random.choice(config.PLAYWRIGHT_VIEWPORT_POOL)
+        kwargs = _context_launch_kwargs(viewport)
+        try:
+            _context_direct = browser_type.launch_persistent_context(
+                config.PLAYWRIGHT_PROFILE_DIRECT, **kwargs
             )
-            try:
-                _context_direct = browser_type.launch_persistent_context(
-                    config.PLAYWRIGHT_PROFILE_DIRECT,
-                    **_launch_kwargs,
-                )
-            except Exception:
-                _playwright_instance.stop()
-                _playwright_instance = None
-                raise
-            _context_direct.add_init_script(_STEALTH_SCRIPT)
-            _context_direct.add_cookies(
-                [
-                    {
-                        "name": "SOCS",
-                        "value": "CAI",
-                        "domain": ".google.com",
-                        "path": "/",
-                        "sameSite": "Lax",
-                    }
-                ]
-            )
-            logger.info(
-                "Persistent browser context created (direct, viewport=%sx%s)",
-                viewport["width"],
-                viewport["height"],
-            )
-        return _context_direct
+        except Exception:
+            _playwright_instance.stop()
+            _playwright_instance = None
+            raise
+        _configure_context(_context_direct, "direct", viewport)
+    return _context_direct
 
 
 def shutdown_browser() -> None:
