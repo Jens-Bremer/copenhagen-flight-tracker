@@ -408,6 +408,40 @@ def _group_analysis_inputs(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _build_lead_time_curve(
+    route: str,
+    by_lead: dict[tuple[str, int], list[int]],
+) -> tuple[list[dict[str, Any]], int | None]:
+    """Build the lead-time price curve and sweet-spot days for one route."""
+    curve_entries = sorted(
+        ((db, prices) for (r, db), prices in by_lead.items() if r == route),
+        key=lambda x: x[0],
+    )
+    curve = []
+    for db, prices in curve_entries:
+        mn, q1, med, q3, mx = _quartiles(prices)
+        curve.append(
+            {
+                "days_before": db,
+                "min_cents": mn,
+                "q1_cents": q1,
+                "median_cents": med,
+                "mean_cents": _mean(prices),
+                "q3_cents": q3,
+                "max_cents": mx,
+                "obs_count": len(prices),
+            }
+        )
+    min_obs = config.RELIABLE_MIN_OBSERVATIONS
+    reliable = [e for e in curve if e["obs_count"] >= min_obs]
+    sweet_spot = (
+        min(reliable, key=lambda e: e["mean_cents"])["days_before"]
+        if reliable
+        else None
+    )
+    return curve, sweet_spot
+
+
 def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Per route: lead-time curve, sweet spot, dow/month means, market trend."""
     if not rows:
@@ -442,33 +476,7 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
 
     for route in routes:
-        curve_entries = sorted(
-            ((db, prices) for (r, db), prices in by_lead.items() if r == route),
-            key=lambda x: x[0],
-        )
-
-        curve = []
-        for db, prices in curve_entries:
-            mn, q1, med, q3, mx = _quartiles(prices)
-            curve.append(
-                {
-                    "days_before": db,
-                    "min_cents": mn,
-                    "q1_cents": q1,
-                    "median_cents": med,
-                    "mean_cents": _mean(prices),
-                    "q3_cents": q3,
-                    "max_cents": mx,
-                    "obs_count": len(prices),
-                }
-            )
-        min_obs = config.RELIABLE_MIN_OBSERVATIONS
-        reliable = [e for e in curve if e["obs_count"] >= min_obs]
-        sweet_spot = (
-            min(reliable, key=lambda e: e["mean_cents"])["days_before"]
-            if reliable
-            else None
-        )
+        curve, sweet_spot = _build_lead_time_curve(route, by_lead)
 
         # day_of_week aggregates the per-departure cheapest
         by_dow: dict[int, list[int]] = defaultdict(list)
