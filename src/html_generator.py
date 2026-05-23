@@ -442,6 +442,30 @@ def _build_lead_time_curve(
     return curve, sweet_spot
 
 
+def _build_dow_month(
+    route: str,
+    cheapest_per_dep: dict[tuple[str, str], int],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Build day-of-week and month mean-price aggregates for one route."""
+    by_dow: dict[int, list[int]] = defaultdict(list)
+    by_month: dict[int, list[int]] = defaultdict(list)
+    for (r, dep_iso), cents in cheapest_per_dep.items():
+        if r != route:
+            continue
+        d = date_type.fromisoformat(dep_iso)
+        by_dow[d.weekday()].append(cents)
+        by_month[d.month].append(cents)
+    dow_entries = [
+        {"dow": dow, "label": _DOW_LABELS[dow], "mean_cents": _mean(vals)}
+        for dow, vals in sorted(by_dow.items())
+    ]
+    month_entries = [
+        {"month": m, "label": _MONTH_LABELS[m - 1], "mean_cents": _mean(vals)}
+        for m, vals in sorted(by_month.items())
+    ]
+    return dow_entries, month_entries
+
+
 def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Per route: lead-time curve, sweet spot, dow/month means, market trend."""
     if not rows:
@@ -478,24 +502,7 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     for route in routes:
         curve, sweet_spot = _build_lead_time_curve(route, by_lead)
 
-        # day_of_week aggregates the per-departure cheapest
-        by_dow: dict[int, list[int]] = defaultdict(list)
-        by_month: dict[int, list[int]] = defaultdict(list)
-        for (r, dep_iso), cents in cheapest_per_dep.items():
-            if r != route:
-                continue
-            d = date_type.fromisoformat(dep_iso)
-            by_dow[d.weekday()].append(cents)
-            by_month[d.month].append(cents)
-
-        dow_entries = [
-            {"dow": dow, "label": _DOW_LABELS[dow], "mean_cents": _mean(vals)}
-            for dow, vals in sorted(by_dow.items())
-        ]
-        month_entries = [
-            {"month": m, "label": _MONTH_LABELS[m - 1], "mean_cents": _mean(vals)}
-            for m, vals in sorted(by_month.items())
-        ]
+        dow_entries, month_entries = _build_dow_month(route, cheapest_per_dep)
 
         trend_entries = sorted(
             (
