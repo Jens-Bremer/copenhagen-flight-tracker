@@ -13,13 +13,13 @@ class TestLoadProxies:
         """host:port:user:pass → http://user:pass@host:port"""
         from src.proxy_manager import load_proxies
 
-        content = "proxy1.webshare.io:8080:userABC:passXYZ\nproxy2.webshare.io:9090:user2:pass2\n"
+        content = "proxy1.example.com:8080:userABC:passXYZ\nproxy2.example.com:9090:user2:pass2\n"
         path = self._write_temp(content)
         try:
             result = load_proxies(path)
             assert result == [
-                "http://userABC:passXYZ@proxy1.webshare.io:8080",
-                "http://user2:pass2@proxy2.webshare.io:9090",
+                "http://userABC:passXYZ@proxy1.example.com:8080",
+                "http://user2:pass2@proxy2.example.com:9090",
             ]
         finally:
             os.unlink(path)

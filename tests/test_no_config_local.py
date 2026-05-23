@@ -22,7 +22,7 @@ def test_config_local_file_does_not_exist():
 def test_no_source_references_to_config_local():
     """No tracked source file (src/, scripts/, config.py) may reference config_local."""
     result = subprocess.run(
-        ["grep", "-rn", "config_local", "src/", "scripts/", "config.py"],
+        ["grep", "-rn", "--exclude-dir=*.egg-info", "config_local", "src/", "scripts/", "config.py"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,

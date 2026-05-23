@@ -1,3 +1,4 @@
+import atexit
 import json
 import logging
 import os
@@ -10,6 +11,7 @@ from typing import Callable, Optional
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
+from src.browser_fetcher import install_browser_patch, shutdown_browser
 from src.config_validator import validate_config
 from src.database import insert_observations
 from src.date_generator import generate_target_dates
@@ -19,10 +21,8 @@ from src.flight_fetcher import (
     ParseError,
     RateLimitedError,
     fetch_flights_for_date,
-    install_fetch_patch,
 )
 from src.log_config import setup_logging
-from src.proxy_manager import ProxyRotator, load_proxies
 from src.price_alerter import check_and_alert_cheap_flights
 from src.request_pacer import compute_sleep_intervals, seconds_until_window_start
 from src.response_parser import parse_flights
@@ -115,7 +115,6 @@ def run_collection(
     heartbeat_path: str,
     intervals: Optional[list] = None,
     sleep_fn: Callable = time.sleep,
-    proxy_rotator: Optional[ProxyRotator] = None,
 ) -> tuple[int, int]:
     """Execute one full collection cycle.
 
@@ -151,10 +150,9 @@ def run_collection(
             idx,
             total_jobs,
         )
-        proxy = proxy_rotator.get_next() if proxy_rotator else None
         try:
             result = fetch_flights_for_date(
-                origin, destination, departure_date, raise_on_failure=True, proxy=proxy
+                origin, destination, departure_date, raise_on_failure=True
             )
             observations = parse_flights(
                 result,
@@ -189,10 +187,9 @@ def run_collection(
         for origin, destination, departure_date, _reason in failed_jobs:
             sleep_fn(config.FETCH_RETRY_DELAY_SECONDS)
             logger.warning("Retrying %s→%s %s", origin, destination, departure_date)
-            proxy = proxy_rotator.get_next() if proxy_rotator else None
             try:
                 result = fetch_flights_for_date(
-                    origin, destination, departure_date, raise_on_failure=True, proxy=proxy
+                    origin, destination, departure_date, raise_on_failure=True
                 )
                 observations = parse_flights(
                     result,
@@ -262,23 +259,8 @@ def run_collection(
 
 def main() -> None:
     validate_config(vars(config))
-    install_fetch_patch()
-
-    # Initialize proxy rotation
-    proxy_rotator = ProxyRotator([])
-    if config.PROXY_ENABLED:
-        try:
-            proxy_list = load_proxies(config.PROXY_LIST_PATH)
-            proxy_rotator = ProxyRotator(proxy_list)
-            logger.info("Proxy rotation enabled: %d proxies loaded", len(proxy_rotator))
-        except FileNotFoundError:
-            logger.warning(
-                "Proxy file not found at '%s' — running without proxies. "
-                "See proxies.txt.example for setup instructions.",
-                config.PROXY_LIST_PATH,
-            )
-    else:
-        logger.info("Proxy rotation disabled (config.PROXY_ENABLED = False)")
+    install_browser_patch()
+    atexit.register(shutdown_browser)
 
     logger.info("Starting daily flight price collection (%s)", date.today().isoformat())
 
@@ -302,7 +284,7 @@ def main() -> None:
     heartbeat_path = os.path.join(
         os.path.dirname(os.path.abspath(config.DATABASE_PATH)), "last_run.json"
     )
-    run_collection(jobs, config.DATABASE_PATH, heartbeat_path, intervals, proxy_rotator=proxy_rotator)
+    run_collection(jobs, config.DATABASE_PATH, heartbeat_path, intervals)
 
 
 if __name__ == "__main__":

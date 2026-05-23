@@ -43,7 +43,7 @@ def built_dashboard(tmp_path_factory) -> Path:
     """
     out_dir = tmp_path_factory.mktemp("frontend_build")
     out_html = out_dir / "index.html"
-    rows_written = generate(str(FIXTURE_CSV), str(out_html))
+    rows_written = generate(str(FIXTURE_CSV), str(out_html), inline_data=True)
     assert rows_written > 0, "fixture CSV produced no rows"
     assert out_html.exists(), "html_generator.generate() did not write the file"
     return out_html

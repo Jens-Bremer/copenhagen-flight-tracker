@@ -1,6 +1,6 @@
 # Copenhagen Flight Tracker
 
-A self-hosted Python service that tracks one-way flight prices between Copenhagen (CPH) and Amsterdam (AMS) in both directions. It scrapes Google Flights via the [`fast-flights`](https://github.com/AWeirdDev/flights) library (Protobuf-based, no browser needed), stores every observed price in SQLite, and spreads requests evenly across a configurable daily window to avoid IP bans. An overview of the data is presented on [jensbremer.nl](https://stats.jensbremer.nl/copenhagen-flight-tracker/frontend/)
+A self-hosted Python service that tracks one-way flight prices between Copenhagen (CPH) and Amsterdam (AMS) in both directions. It drives a real **Chromium browser** (Playwright) to scrape Google Flights — bypassing bot detection that defeats plain HTTP clients — and stores every observed price in SQLite. Requests are spread evenly across a configurable daily window and split 50/50 between a direct connection and a private Squid proxy for IP diversity. An overview of the data is presented on [jensbremer.nl](https://stats.jensbremer.nl/copenhagen-flight-tracker/frontend/)
 
 ## Install
 
@@ -12,6 +12,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .            # production
 # pip install -e ".[dev]"   # development (adds pytest + ruff)
+playwright install chromium # download the browser (one-time)
 python scripts/setup_db.py
 ```
 
@@ -23,6 +24,7 @@ python -m venv .venv
 .venv\Scripts\activate
 pip install -e .            :: production
 :: pip install -e ".[dev]"  :: development (adds pytest + ruff)
+playwright install chromium :: download the browser (one-time)
 python scripts\setup_db.py
 ```
 
@@ -207,7 +209,7 @@ python scripts/query_prices.py --date YYYY-MM-DD
 
 **No ntfy alerts arriving** — check `NTFY_TOPIC` in `config.py` is not the placeholder `your-topic-here`; the topic must match exactly between `config.py` and your ntfy app subscription.
 
-**Health check reports "Bot challenge today"** — Google may have rotated the cookie-consent flow. See `src/flight_fetcher.py:patched_fetch` and issue #110.
+**Health check reports "Bot challenge today"** — Google may have rotated the cookie-consent flow or updated its bot-detection heuristics. Check `src/browser_fetcher.py` (`_STEALTH_SCRIPT` and the `SOCS` cookie) and `config.BOT_CHALLENGE_TITLE_PATTERNS`.
 
 ## Architecture
 
@@ -216,7 +218,7 @@ python scripts/query_prices.py --date YYYY-MM-DD
 
 ### Note on stability
 
-The scraper depends on a hard-coded `SOCS=CAI; CONSENT=PENDING+999` cookie pair in `src/flight_fetcher.py` to bypass Google's EU consent wall. If Google changes that format, scraping silently degrades. The `#111` ban-signal classifier and `#110` cookie-consent alert are the early-warning surfaces; see `docs/FRONTEND.md` and `CLAUDE.md` for the broader architecture.
+The scraper drives a real Chromium browser with a full anti-bot stealth stack (`src/browser_fetcher.py`). The key fragile surface is the `SOCS=CAI` cookie pre-seeded on `.google.com` to bypass the EU consent wall — if Google changes that cookie format, the browser will land on a consent page instead of flight results. The ban-signal classifier (`config.BOT_CHALLENGE_TITLE_PATTERNS`) and the health check's failure-rate threshold are the early-warning surfaces. See `CLAUDE.md` → "Transport Layer" for the full picture.
 
 ## Contributing
 

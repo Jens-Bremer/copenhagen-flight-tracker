@@ -11,6 +11,7 @@ dependencies = [
     # If chrome_131 disappears upstream, bump this pin AND update
     # config.IMPERSONATION to a profile that still exists in the new version.
     "primp==0.15.0",
+    "playwright>=1.40,<2.0",
     "python-dateutil>=2.9.0.post0,<3.0",
     "schedule>=1.2.2,<2.0",
 ]
@@ -19,7 +20,6 @@ dependencies = [
 dev = [
     "pytest>=9.0.3,<10.0",
     "ruff>=0.6.0,<1.0",
-    "playwright>=1.40,<2.0",
 ]
 
 [tool.ruff]

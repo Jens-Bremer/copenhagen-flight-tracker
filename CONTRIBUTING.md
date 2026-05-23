@@ -8,6 +8,7 @@ cd copenhagen-flight-tracker
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
+playwright install chromium        # required — downloads the browser
 python scripts/setup_db.py
 pytest tests/
 ```
