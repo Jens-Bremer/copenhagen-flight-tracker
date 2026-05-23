@@ -446,6 +446,35 @@ def test_build_summary_empty_input():
     assert build_summary([]) == {}
 
 
+def test_build_summary_weekend_pairs_uses_cheapest_flight(tmp_path):
+    """When multiple airlines fly the same Friday, the cheapest wins the pair."""
+    csv_text = (
+        "retrieved_at,departure_date,origin,destination,airline,"
+        "departure_at,arrival_at,duration_minutes,price_cents,price_currency\n"
+        # Friday outbound — expensive airline
+        "2026-05-15T13:45Z,2026-06-19,CPH,AMS,KLM,"
+        "2026-06-19T10:00:00,2026-06-19T12:00:00,120,15000,EUR\n"
+        # Friday outbound — cheaper airline on same day
+        "2026-05-15T13:45Z,2026-06-19,CPH,AMS,easyJet,"
+        "2026-06-19T19:30:00,2026-06-19T21:00:00,90,8900,EUR\n"
+        # Sunday inbound — only one option
+        "2026-05-15T13:45Z,2026-06-21,AMS,CPH,KLM,"
+        "2026-06-21T17:55:00,2026-06-21T19:25:00,90,10000,EUR\n"
+    )
+    p = tmp_path / "x.csv"
+    p.write_text(csv_text)
+    rows = load_rows(str(p))
+    summary = build_summary(rows)
+
+    pairs = summary["CPH-AMS"]["weekend_pairs"]
+    assert len(pairs) == 1
+    assert pairs[0]["fri_airline"] == "easyJet", (
+        "build_summary must pick the cheapest Friday flight, not the latest-retrieved"
+    )
+    assert pairs[0]["fri_cents"] == 8900
+    assert pairs[0]["total_cents"] == 8900 + 10000
+
+
 def test_render_html_inlines_assets_and_data():
     """With inline_data=True the five JSON blobs are embedded into the HTML."""
     html = render_html(
