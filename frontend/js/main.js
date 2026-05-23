@@ -104,6 +104,7 @@ function renderAll() {
   renderHistograms();
   renderWeekendPairs();
   renderFooterCharts();
+  renderAirlineBoxplots();
   renderTimeheat();
   renderNormProgress();
 }

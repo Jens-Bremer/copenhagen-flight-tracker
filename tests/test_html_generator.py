@@ -587,13 +587,11 @@ def test_histograms_use_stacked_bars_with_airline_segments():
 
 
 def test_footer_charts_use_gentle_pricetint_palette():
-    """DOW and month bar charts must colour bars with priceTint() (soft
-    green→red alpha scale) rather than the hard-coded --color-green-ahead /
-    --color-orange pair, which renders as harsh dark/solid fills.
+    """DOW and month charts must not use old hard-coded bar-chart colours.
 
-    priceTint() returns rgba values at 0.32 alpha, matching the calendar
-    heatmap's visual language and avoiding the near-black appearance of the
-    dark-green CSS variable on some displays.
+    Since these charts are now boxplots using calendar data, the old
+    --color-green-ahead / --color-orange bar colours should be absent.
+    priceTint() continues to appear in renderCalendar.
     """
     import re
 
@@ -602,31 +600,24 @@ def test_footer_charts_use_gentle_pricetint_palette():
     assert all_scripts, "No <script> blocks found in rendered HTML"
     app_js = all_scripts[-1]
 
-    # Old hard-coded colours must be gone from bar chart backgroundColor.
+    # Old hard-coded colours must be gone.
     assert "'var(--color-green-ahead)'" not in app_js, (
-        "makeBarChart must not use --color-green-ahead as a bar colour; "
-        "use priceTint() for a consistent, gentle green-to-red scale"
+        "renderFooterCharts must not use --color-green-ahead"
     )
     assert "'var(--color-orange)'" not in app_js, (
-        "makeBarChart must not use --color-orange as a bar colour; "
-        "use priceTint() for a consistent palette"
+        "renderFooterCharts must not use --color-orange"
     )
-    # priceTint() must now be called inside renderFooterCharts/makeBarChart as
-    # well as in renderCalendar — so it appears at least twice in the source.
-    assert app_js.count("priceTint(") >= 2, (
-        "Expected priceTint() to appear at least twice — once in renderCalendar "
-        "and once inside renderFooterCharts/makeBarChart"
-    )
+    # priceTint() is still used in renderCalendar.
+    assert "priceTint(" in app_js, "priceTint() must still appear in renderCalendar"
 
 
-def test_footer_charts_show_both_routes_as_grouped_bars():
-    """DOW and month charts must show one grouped bar per route per x-axis item,
-    not a single bar averaged across both routes.
+def test_footer_charts_use_boxplots():
+    """DOW and month charts must use boxplot charts (not bar charts) to show
+    the full price distribution rather than just a single mean value.
 
-    Each route gets a distinct colour defined in ROUTE_COLORS and appears in
-    the chart legend so users can tell CPH-AMS from AMS-CPH at a glance.
-    The old aggregate() helper that averaged both routes is replaced by a
-    per-route dataset approach.
+    renderFooterCharts must extract raw price arrays from DATA.calendar and
+    pass them to a Chart with type 'boxplot'.
+    The old aggregate()/ROUTE_COLORS bar-chart approach must be gone.
     """
     import re
 
@@ -635,16 +626,18 @@ def test_footer_charts_show_both_routes_as_grouped_bars():
     assert all_scripts, "No <script> blocks found in rendered HTML"
     app_js = all_scripts[-1]
 
-    # A ROUTE_COLORS map must exist to colour each route's bars distinctly.
-    assert "ROUTE_COLORS" in app_js, (
-        "renderFooterCharts must define ROUTE_COLORS to assign a distinct "
-        "colour per route in the grouped bar charts"
+    # boxplot chart type must be used for footer charts.
+    assert "'boxplot'" in app_js, (
+        "renderFooterCharts must create charts with type: 'boxplot'"
     )
-    # The old aggregate() implementation averaged both routes into one value
-    # per key — this must be gone, replaced by per-route datasets.
+    # Calendar data (min_cents) must be the data source for spread calculation.
+    assert "min_cents" in app_js, (
+        "renderFooterCharts must read min_cents from DATA.calendar to build "
+        "raw price arrays for the boxplot"
+    )
+    # The old aggregate() helper that averaged both routes is gone.
     assert "grouped[k].values.push" not in app_js, (
-        "The aggregate() helper in renderFooterCharts must be removed; "
-        "show one dataset per route instead of averaging them together"
+        "The old aggregate() helper in renderFooterCharts must be removed"
     )
 
 
@@ -1125,7 +1118,7 @@ def test_panel_subtitles_present_in_rendered_html():
     assert "How prices have changed over time" in html
     assert "each bar is one 5 euro bin" in html or "5 euro bin" in html
     assert "Cheapest Friday to Sunday" in html
-    assert "averaged per day or month" in html
+    assert "day of week and month" in html
     assert "Cheapest hours to fly" in html
     assert "whether prices tend to rise or fall" in html
 

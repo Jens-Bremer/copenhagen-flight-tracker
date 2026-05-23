@@ -74,7 +74,7 @@
     <section class="panel" aria-label="Price trends">
       <h2 class="panel__heading">Price trends</h2>
       <p class="panel__subtitle">How prices have changed over time, and when they are typically cheapest</p>
-      <div class="trends-grid">
+      <div class="trends-stack">
         <div class="chart-wrap"><canvas id="market-trend-chart" role="img"></canvas></div>
         <div class="chart-wrap"><canvas id="leadtime-chart" role="img"></canvas></div>
       </div>
@@ -98,11 +98,18 @@
     <!-- 7. Cheapness footer (dow + month) -->
     <section class="panel" aria-label="Cheapest day of week and month">
       <h2 class="panel__heading">Cheapest days and months to fly</h2>
-      <p class="panel__subtitle">Based on all observed prices, averaged per day or month</p>
+      <p class="panel__subtitle">Price spread per day of week and month — box shows min, Q1, median, Q3, max</p>
       <div class="trends-grid">
         <div class="chart-wrap"><canvas id="dow-chart" role="img"></canvas></div>
         <div class="chart-wrap"><canvas id="month-chart" role="img"></canvas></div>
       </div>
+    </section>
+
+    <!-- 7b. Per-airline price boxplots -->
+    <section class="panel" aria-label="Price spread by airline">
+      <h2 class="panel__heading">Price spread by airline</h2>
+      <p class="panel__subtitle">Distribution of observed prices per airline, one chart per route</p>
+      <div id="airline-boxplots-container" class="trends-grid"></div>
     </section>
 
     <!-- 8. Time-of-day price heatmap -->
@@ -134,6 +141,8 @@
   <div id="data-load-error" style="display:none;position:fixed;inset:0;z-index:9999;background:#fff3cd;color:#856404;padding:2rem;font-family:sans-serif;font-size:1.1rem;"></div>
 
   <script>${INLINE_CHART_JS}</script>
+  <script>${INLINE_DATE_ADAPTER_JS}</script>
+  <script>${INLINE_BOXPLOT_JS}</script>
   <script>${INLINE_APP_JS}</script>
 </body>
 </html>

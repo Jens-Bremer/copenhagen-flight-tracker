@@ -136,15 +136,6 @@ function renderCalendar() {
       cell.setAttribute('aria-label', `${iso}, cheapest ${formatPrice(price)}`);
       if (state.selectedDate === iso) cell.classList.add('is-selected');
 
-      const dotColor = cheapestAirlineColor(iso);
-      if (dotColor) {
-        const dot = document.createElement('span');
-        dot.className = 'calendar__cell__dot';
-        dot.style.background = dotColor;
-        dot.setAttribute('aria-hidden', 'true');
-        cell.appendChild(dot);
-      }
-
       cell.addEventListener('click', () => {
         state.selectedDate = iso;
         state.selectedFlight = null;
