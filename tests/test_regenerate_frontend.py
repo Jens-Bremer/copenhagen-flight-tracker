@@ -2,8 +2,6 @@ import os
 import sys
 from unittest.mock import patch
 
-import pytest
-
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from scripts.regenerate_frontend import main
@@ -84,9 +82,7 @@ def test_main_build_all_unparseable_returns_4(tmp_path):
 def test_main_html_input_missing_returns_2(tmp_path):
     with (
         patch("scripts.regenerate_frontend.export_to_csv", return_value=100),
-        patch(
-            "scripts.regenerate_frontend.build", return_value=(95, BUILD_OK)
-        ),
+        patch("scripts.regenerate_frontend.build", return_value=(95, BUILD_OK)),
         patch(
             "scripts.regenerate_frontend.generate",
             side_effect=FileNotFoundError("input file not found: x.csv"),
@@ -99,9 +95,7 @@ def test_main_html_input_missing_returns_2(tmp_path):
 def test_main_html_asset_missing_returns_3(tmp_path):
     with (
         patch("scripts.regenerate_frontend.export_to_csv", return_value=100),
-        patch(
-            "scripts.regenerate_frontend.build", return_value=(95, BUILD_OK)
-        ),
+        patch("scripts.regenerate_frontend.build", return_value=(95, BUILD_OK)),
         patch(
             "scripts.regenerate_frontend.generate",
             side_effect=FileNotFoundError(
@@ -116,9 +110,7 @@ def test_main_html_asset_missing_returns_3(tmp_path):
 def test_main_html_runtime_error_returns_4(tmp_path):
     with (
         patch("scripts.regenerate_frontend.export_to_csv", return_value=100),
-        patch(
-            "scripts.regenerate_frontend.build", return_value=(95, BUILD_OK)
-        ),
+        patch("scripts.regenerate_frontend.build", return_value=(95, BUILD_OK)),
         patch(
             "scripts.regenerate_frontend.generate",
             side_effect=RuntimeError("boom"),
@@ -163,9 +155,7 @@ def test_main_generate_not_called_if_build_fails(tmp_path):
             "scripts.regenerate_frontend.build",
             return_value=(0, BUILD_INPUT_MISSING),
         ),
-        patch(
-            "scripts.regenerate_frontend.generate"
-        ) as mock_generate,
+        patch("scripts.regenerate_frontend.generate") as mock_generate,
         patch("scripts.regenerate_frontend.config", _cfg_patch(tmp_path)),
     ):
         main(["--data-dir", str(tmp_path)])

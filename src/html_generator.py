@@ -370,9 +370,9 @@ def _group_analysis_inputs(rows: list[dict[str, Any]]) -> dict[str, Any]:
     cheapest_per_dep: dict[tuple[str, str], int] = {}
     cheapest_per_obs: dict[tuple[str, str], int] = {}
     by_time: dict[tuple[str, int, int], list[int]] = defaultdict(list)
-    by_flight: dict[
-        tuple[str, str, str, str], dict[int, list[int]]
-    ] = defaultdict(lambda: defaultdict(list))
+    by_flight: dict[tuple[str, str, str, str], dict[int, list[int]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
     rows_by_route: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
     for row in rows:
@@ -392,10 +392,14 @@ def _group_analysis_inputs(rows: list[dict[str, Any]]) -> dict[str, Any]:
             days_before
         ].append(row["price_cents"])
         key_dep = (route, row["departure_date"])
-        if key_dep not in cheapest_per_dep or row["price_cents"] < cheapest_per_dep[key_dep]:
+        if key_dep not in cheapest_per_dep or (
+            row["price_cents"] < cheapest_per_dep[key_dep]
+        ):
             cheapest_per_dep[key_dep] = row["price_cents"]
         key_obs = (route, obs_date)
-        if key_obs not in cheapest_per_obs or row["price_cents"] < cheapest_per_obs[key_obs]:
+        if key_obs not in cheapest_per_obs or (
+            row["price_cents"] < cheapest_per_obs[key_obs]
+        ):
             cheapest_per_obs[key_obs] = row["price_cents"]
 
     return {

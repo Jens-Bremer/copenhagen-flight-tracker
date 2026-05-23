@@ -155,9 +155,7 @@ def _check_consecutive_failures_per_route(db_path: str) -> list[str]:
             ).fetchone()[0]
             if today_count > 0:
                 continue
-            streak = _count_consecutive_empty_days(
-                conn, origin, destination, yesterday
-            )
+            streak = _count_consecutive_empty_days(conn, origin, destination, yesterday)
             if streak >= config.CONSECUTIVE_FAILURE_DAYS:
                 problems.append(
                     f"[high] No observations for {origin}→{destination} "

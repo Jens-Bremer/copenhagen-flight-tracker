@@ -163,9 +163,7 @@ _CONSENT_COOKIE = {
 }
 
 
-def _context_launch_kwargs(
-    viewport: dict, proxy_url: Optional[str] = None
-) -> dict:
+def _context_launch_kwargs(viewport: dict, proxy_url: Optional[str] = None) -> dict:
     """Build launch_persistent_context kwargs shared by direct and proxy contexts.
 
     When proxy_url is provided, adds proxy server and ignore_https_errors=True.
@@ -190,9 +188,7 @@ def _context_launch_kwargs(
     return kwargs
 
 
-def _configure_context(
-    context: BrowserContext, label: str, viewport: dict
-) -> None:
+def _configure_context(context: BrowserContext, label: str, viewport: dict) -> None:
     """Add stealth init script, seed consent cookie, and log context creation."""
     context.add_init_script(_STEALTH_SCRIPT)
     context.add_cookies([_CONSENT_COOKIE])
@@ -233,9 +229,7 @@ def _get_context(use_proxy: bool) -> BrowserContext:
     if use_proxy:
         if _context_proxy is None:
             if _proxy_url is None:
-                raise RuntimeError(
-                    "use_proxy=True but no proxy URL was configured"
-                )
+                raise RuntimeError("use_proxy=True but no proxy URL was configured")
             viewport = random.choice(config.PLAYWRIGHT_VIEWPORT_POOL)
             kwargs = _context_launch_kwargs(viewport, proxy_url=_proxy_url)
             try:

@@ -30,7 +30,6 @@ from src.frontend_csv_builder import (  # noqa: E402
     BUILD_ALL_UNPARSEABLE,
     BUILD_HEADER_INVALID,
     BUILD_INPUT_MISSING,
-    BUILD_OK,
     build,
 )
 from src.html_generator import generate  # noqa: E402
@@ -43,8 +42,7 @@ def main(argv: list[str] | None = None) -> int:
     setup_logging()
     parser = argparse.ArgumentParser(
         description=(
-            "Regenerate the frontend pipeline: "
-            "DB → export CSV → slim CSV → HTML."
+            "Regenerate the frontend pipeline: DB → export CSV → slim CSV → HTML."
         )
     )
     parser.add_argument(
@@ -78,9 +76,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if status in (BUILD_HEADER_INVALID, BUILD_ALL_UNPARSEABLE):
         logger.error("Slim CSV build failed (%s): %s", status, export_csv_path)
-        print(
-            f"error: CSV build failed ({status}): {export_csv_path}", file=sys.stderr
-        )
+        print(f"error: CSV build failed ({status}): {export_csv_path}", file=sys.stderr)
         return 4
     logger.info("Slim CSV: wrote %d rows", written)
 

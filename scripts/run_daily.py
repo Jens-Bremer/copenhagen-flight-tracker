@@ -148,9 +148,7 @@ def run_collection(
             idx,
             total_jobs,
         )
-        inserted, exc = execute_single_job(
-            origin, destination, departure_date, db_path
-        )
+        inserted, exc = execute_single_job(origin, destination, departure_date, db_path)
         if exc is not None:
             logger.error(
                 "Job %s→%s %s failed: %s",
@@ -193,9 +191,7 @@ def run_collection(
                     departure_date,
                     exc,
                 )
-                retry_results.append(
-                    (origin, destination, departure_date, str(exc))
-                )
+                retry_results.append((origin, destination, departure_date, str(exc)))
                 retry_exceptions[(origin, destination, departure_date)] = exc
             elif inserted == 0:
                 retry_results.append(
