@@ -238,13 +238,18 @@ def _hhmm(dt: datetime) -> str:
 
 def build_flights(
     rows: list[dict[str, Any]],
+    generated_at: datetime | None = None,
 ) -> dict[str, dict[str, list[dict[str, Any]]]]:
     """Per (route, departure_date): list of flights with price history.
 
     A "flight" is identified by (airline, departure_time_of_day). All
     observations for that flight, sorted by retrieved_at, become its
     `history` array. `latest_cents` is the most recent observed price.
+    `is_stale` is True when the most recent observation is older than
+    config.STALE_FLIGHT_DAYS days before `generated_at`.
     """
+    if generated_at is None:
+        generated_at = datetime.now(timezone.utc)
     grouped: dict[tuple[str, str, str, str], dict[str, Any]] = {}
     for row in rows:
         route = _route_key(row)
@@ -277,6 +282,10 @@ def build_flights(
         bucket["_obs"].sort(key=lambda o: o["obs_date"])
         bucket["history"] = bucket.pop("_obs")
         bucket["latest_cents"] = bucket["history"][-1]["price_cents"]
+        latest_retrieved_at: str = bucket["history"][-1]["obs_date"]
+        bucket["latest_retrieved_at"] = latest_retrieved_at
+        days_since = (generated_at.date() - date_type.fromisoformat(latest_retrieved_at)).days
+        bucket["is_stale"] = days_since > config.STALE_FLIGHT_DAYS
         trajectory, trajectory_pct = _trajectory_from_history(bucket["history"])
         bucket["trajectory"] = trajectory
         bucket["trajectory_pct"] = trajectory_pct
@@ -733,7 +742,7 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
     now = datetime.now(timezone.utc)
     metadata = build_metadata(rows, generated_at=now)
     calendar = build_calendar(rows)
-    flights = build_flights(rows)
+    flights = build_flights(rows, generated_at=now)
     analysis = build_analysis(rows)
     summary = build_summary(rows)
 

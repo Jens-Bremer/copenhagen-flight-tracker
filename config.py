@@ -53,6 +53,11 @@ PRICE_ALERT_THRESHOLD = {
 # --- Frontend CSV ---
 FRONTEND_MAX_DURATION_MINUTES = 120
 
+# --- Stale-flight threshold ---
+# Flights whose most recent observation is older than this many days are
+# visually flagged in the dashboard as potentially outdated.
+STALE_FLIGHT_DAYS: int = 3
+
 # --- Logging ---
 LOG_DIR = "logs"
 LOG_KEEP_DAYS = 14
