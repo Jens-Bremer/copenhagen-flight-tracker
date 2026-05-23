@@ -2,7 +2,7 @@
 
 I fly CPH ↔ AMS a lot and wanted to know: *when should I buy my ticket?*
 
-So I built a scraper. It drives a real Chromium browser to hit Google Flights daily, stores every price observation in SQLite, and pings me when something cheap shows up. Requests are spread across the day (not at night) and split across two home ISP connections to look less robotic. (since those bastards at Google started throwing captachs at me)
+So I built a scraper. It drives a real Chromium browser to hit Google Flights daily, stores every price observation in SQLite, and pings me when something cheap shows up. Requests are spread across the day (not at night) and split across two home ISP connections to look less robotic. (since those bastards at Google started throwing captchas at me)
 
 Live data: [stats.jensbremer.nl](https://stats.jensbremer.nl/copenhagen-flight-tracker/frontend/)
 
