@@ -64,7 +64,12 @@ LOG_KEEP_DAYS = 14
 
 # --- Ban / rate-limit signals (issue #111) ---
 BOT_CHALLENGE_MIN_BYTES = 10000
-BOT_CHALLENGE_TITLE_PATTERNS = ["consent", "captcha", "unusual traffic", "are you a robot"]
+BOT_CHALLENGE_TITLE_PATTERNS = [
+    "consent",
+    "captcha",
+    "unusual traffic",
+    "are you a robot",
+]
 CONSECUTIVE_FAILURE_DAYS = 2
 
 # --- Sweet-spot recommendation (issue #113) ---
@@ -78,14 +83,15 @@ PROXY_ENABLED = True  # Set False to scrape without proxies (uses your own IP)
 # headless=False runs a visible Chrome window — the right default for the
 # dedicated home-PC deployment where a display is always available.
 PLAYWRIGHT_HEADLESS = False
-PLAYWRIGHT_BROWSER = "chromium"   # "chromium", "firefox", or "webkit"
-PLAYWRIGHT_TIMEOUT_MS = 60000     # page-load timeout (ms); 60 s to cover proxy 407 round-trip + TLS + page load
-PROXY_SPLIT_RATIO = 0.5            # Fraction of requests routed via proxy (0.0–1.0)
+PLAYWRIGHT_BROWSER = "chromium"  # "chromium", "firefox", or "webkit"
+# page-load timeout (ms); 60 s to cover proxy 407 round-trip + TLS + page load
+PLAYWRIGHT_TIMEOUT_MS = 60000
+PROXY_SPLIT_RATIO = 0.5  # Fraction of requests routed via proxy (0.0–1.0)
 
 # Persistent profile directories for the two browser contexts.
 # Playwright creates them on first launch; subsequent runs reuse cookies/localStorage.
 PLAYWRIGHT_PROFILE_DIRECT = "data/browser_profiles/direct"
-PLAYWRIGHT_PROFILE_PROXY  = "data/browser_profiles/proxy"
+PLAYWRIGHT_PROFILE_PROXY = "data/browser_profiles/proxy"
 
 # Realistic Chrome UA for Linux server. Keep in sync with sec-ch-ua header below.
 PLAYWRIGHT_USER_AGENT = (

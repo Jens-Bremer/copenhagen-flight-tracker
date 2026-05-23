@@ -311,9 +311,7 @@ def test_check_stale_pid_file_cleans_up_dead_pid(tmp_path, monkeypatch):
     dead_pid = 99999
     pid_file.write_text(str(dead_pid))
     monkeypatch.setattr("scripts.run_scheduler.PID_FILE", str(pid_file))
-    with patch(
-        "scripts.run_scheduler.os.kill", side_effect=ProcessLookupError
-    ):
+    with patch("scripts.run_scheduler.os.kill", side_effect=ProcessLookupError):
         result = _check_stale_pid_file()
     assert result is None
     assert not pid_file.exists()
@@ -356,9 +354,7 @@ def test_write_heartbeat_leaves_prior_content_intact_on_mid_write_crash(tmp_path
     with open(heartbeat_path, "w") as f:
         json.dump(prior, f)
 
-    with patch(
-        "scripts.run_daily.json.dump", side_effect=RuntimeError("disk full")
-    ):
+    with patch("scripts.run_daily.json.dump", side_effect=RuntimeError("disk full")):
         with pytest.raises(RuntimeError, match="disk full"):
             _write_heartbeat(
                 heartbeat_path,

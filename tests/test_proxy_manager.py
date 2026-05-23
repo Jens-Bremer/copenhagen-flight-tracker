@@ -13,7 +13,10 @@ class TestLoadProxies:
         """host:port:user:pass → http://user:pass@host:port"""
         from src.proxy_manager import load_proxies
 
-        content = "proxy1.example.com:8080:userABC:passXYZ\nproxy2.example.com:9090:user2:pass2\n"
+        content = (
+            "proxy1.example.com:8080:userABC:passXYZ\n"
+            "proxy2.example.com:9090:user2:pass2\n"
+        )
         path = self._write_temp(content)
         try:
             result = load_proxies(path)
@@ -27,7 +30,14 @@ class TestLoadProxies:
     def test_skips_blank_lines_and_comments(self):
         from src.proxy_manager import load_proxies
 
-        content = "# This is a comment\n\nhost1.com:80:u:p\n\n# Another comment\nhost2.com:80:u2:p2\n"
+        content = (
+            "# This is a comment\n"
+            "\n"
+            "host1.com:80:u:p\n"
+            "\n"
+            "# Another comment\n"
+            "host2.com:80:u2:p2\n"
+        )
         path = self._write_temp(content)
         try:
             result = load_proxies(path)

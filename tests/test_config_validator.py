@@ -499,7 +499,7 @@ def test_consecutive_failure_days_float_raises():
 
 
 def test_reliable_min_observations_valid_passes():
-    validate_config(_cfg(RELIABLE_MIN_OBSERVATIONS=1))   # minimum allowed
+    validate_config(_cfg(RELIABLE_MIN_OBSERVATIONS=1))  # minimum allowed
     validate_config(_cfg(RELIABLE_MIN_OBSERVATIONS=10))  # default
     validate_config(_cfg(RELIABLE_MIN_OBSERVATIONS=50))  # generous threshold
 
