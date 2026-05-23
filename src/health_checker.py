@@ -2,12 +2,46 @@ import json
 import logging
 import os
 import sqlite3
+from contextlib import contextmanager
 from datetime import date, timedelta
 from typing import Optional
 
 import config
 
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def _db_connection(db_path: str):
+    """Open a SQLite connection and guarantee it closes on exit."""
+    conn = sqlite3.connect(db_path)
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
+def _count_consecutive_empty_days(
+    conn: sqlite3.Connection,
+    origin: str,
+    destination: str,
+    start_date: date,
+    cap: int = 365,
+) -> int:
+    """Walk back from start_date counting days with zero observations. Capped at cap."""
+    streak = 0
+    cursor = start_date
+    while streak <= cap:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM flight_observations "
+            "WHERE origin = ? AND destination = ? AND DATE(retrieved_at) = ?",
+            (origin, destination, cursor.isoformat()),
+        ).fetchone()[0]
+        if count > 0:
+            break
+        streak += 1
+        cursor -= timedelta(days=1)
+    return streak
 
 
 def _check_heartbeat_stale(heartbeat_path: str) -> Optional[str]:
@@ -98,25 +132,14 @@ def _check_bot_challenge_today(heartbeat_path: str) -> Optional[str]:
 def _check_consecutive_failures_per_route(db_path: str) -> list[str]:
     """Per-route problem if a route has N+ consecutive empty days.
 
-    Walks back from yesterday (today is in-progress and may legitimately have
-    no rows yet at health-check time). Threshold is config.CONSECUTIVE_FAILURE_DAYS.
-
-    Routes that have never been observed are silently skipped — a brand-new
-    route on day 1 is not a "failure". Only routes with at least one historical
-    observation can trip this check, which makes it a true regression signal.
-
-    Routes that already have observations TODAY are also silently skipped:
-    the daily collection has clearly succeeded for that route, so the streak
-    is zero regardless of intermediate gaps.
+    Walks back from yesterday (today is in-progress). Routes never observed
+    and routes with observations today are silently skipped.
     """
     today = date.today()
     yesterday = today - timedelta(days=1)
     problems: list[str] = []
-    conn = sqlite3.connect(db_path)
-    try:
+    with _db_connection(db_path) as conn:
         for origin, destination in config.ROUTES:
-            # Skip routes the system has never seen — first day of a route
-            # is not a failure mode.
             route_total = conn.execute(
                 "SELECT COUNT(*) FROM flight_observations "
                 "WHERE origin = ? AND destination = ?",
@@ -124,7 +147,6 @@ def _check_consecutive_failures_per_route(db_path: str) -> list[str]:
             ).fetchone()[0]
             if route_total == 0:
                 continue
-            # Today's collection already succeeded for this route → streak 0.
             today_count = conn.execute(
                 "SELECT COUNT(*) FROM flight_observations "
                 "WHERE origin = ? AND destination = ? "
@@ -133,44 +155,25 @@ def _check_consecutive_failures_per_route(db_path: str) -> list[str]:
             ).fetchone()[0]
             if today_count > 0:
                 continue
-            streak = 0
-            cursor = yesterday
-            while True:
-                count = conn.execute(
-                    "SELECT COUNT(*) FROM flight_observations "
-                    "WHERE origin = ? AND destination = ? "
-                    "AND DATE(retrieved_at) = ?",
-                    (origin, destination, cursor.isoformat()),
-                ).fetchone()[0]
-                if count > 0:
-                    break
-                streak += 1
-                cursor -= timedelta(days=1)
-                # Cap the walk-back so an old-but-now-dead route can't loop
-                # back to the dawn of time.
-                if streak > 365:
-                    break
+            streak = _count_consecutive_empty_days(
+                conn, origin, destination, yesterday
+            )
             if streak >= config.CONSECUTIVE_FAILURE_DAYS:
                 problems.append(
                     f"[high] No observations for {origin}→{destination} "
                     f"for {streak} consecutive days"
                 )
-    finally:
-        conn.close()
     return problems
 
 
 def _check_zero_observations_today(db_path: str) -> Optional[str]:
     """Return a problem string if no observations were retrieved today."""
     today = date.today().isoformat()
-    conn = sqlite3.connect(db_path)
-    try:
+    with _db_connection(db_path) as conn:
         count = conn.execute(
             "SELECT COUNT(*) FROM flight_observations WHERE retrieved_at LIKE ?",
             (f"{today}%",),
         ).fetchone()[0]
-    finally:
-        conn.close()
     if count == 0:
         return "[urgent] Zero observations today: no rows retrieved on " + today
     return None
@@ -179,8 +182,7 @@ def _check_zero_observations_today(db_path: str) -> Optional[str]:
 def _check_observation_count_drop(db_path: str) -> Optional[str]:
     """Return a problem string if today's count is below configured 7-day threshold."""
     today = date.today().isoformat()
-    conn = sqlite3.connect(db_path)
-    try:
+    with _db_connection(db_path) as conn:
         today_count = conn.execute(
             "SELECT COUNT(*) FROM flight_observations WHERE retrieved_at LIKE ?",
             (f"{today}%",),
@@ -198,8 +200,6 @@ def _check_observation_count_drop(db_path: str) -> Optional[str]:
             """,
             (today,),
         ).fetchone()
-    finally:
-        conn.close()
     avg = avg_row[0]
     if avg and today_count < avg * config.HEALTH_COUNT_DROP_THRESHOLD:
         return (
@@ -211,8 +211,7 @@ def _check_observation_count_drop(db_path: str) -> Optional[str]:
 def _check_currency_inconsistency(db_path: str) -> Optional[str]:
     """Return a problem string if more than one currency was seen today."""
     today = date.today().isoformat()
-    conn = sqlite3.connect(db_path)
-    try:
+    with _db_connection(db_path) as conn:
         currencies = conn.execute(
             """
             SELECT DISTINCT price_currency FROM flight_observations
@@ -220,8 +219,6 @@ def _check_currency_inconsistency(db_path: str) -> Optional[str]:
             """,
             (f"{today}%",),
         ).fetchall()
-    finally:
-        conn.close()
     if len(currencies) > 1:
         found = ", ".join(r[0] for r in currencies)
         return f"[default] Currency inconsistency: multiple currencies today ({found})"
@@ -232,8 +229,7 @@ def check_missing_routes(
     db_path: str, run_date: str, expected_routes: list
 ) -> list[str]:
     """Return a problem string per route missing observations on run_date."""
-    conn = sqlite3.connect(db_path)
-    try:
+    with _db_connection(db_path) as conn:
         total = conn.execute("SELECT COUNT(*) FROM flight_observations").fetchone()[0]
         if total == 0:
             return []
@@ -242,8 +238,6 @@ def check_missing_routes(
             "FROM flight_observations WHERE DATE(retrieved_at) = ?",
             (run_date,),
         ).fetchall()
-    finally:
-        conn.close()
     present = {(r[0], r[1]) for r in rows}
     return [
         f"[high] Missing route: {origin}→{destination} not observed on {run_date}"
@@ -256,8 +250,7 @@ def check_price_variance(
     db_path: str, run_date: str, min_distinct_prices: int = 3
 ) -> list[str]:
     """Per-route problem string if distinct prices < min_distinct_prices on run_date."""
-    conn = sqlite3.connect(db_path)
-    try:
+    with _db_connection(db_path) as conn:
         rows = conn.execute(
             """
             SELECT origin, destination, COUNT(DISTINCT price_amount) AS distinct_prices
@@ -267,8 +260,6 @@ def check_price_variance(
             """,
             (run_date,),
         ).fetchall()
-    finally:
-        conn.close()
     return [
         f"[high] Price variance: only {count} distinct price(s) "
         f"for {origin}→{destination} on {run_date}"
@@ -281,8 +272,7 @@ def check_observation_count(
     db_path: str, run_date: str, expected_min: int
 ) -> list[str]:
     """Return a problem string if observations on run_date are below expected_min."""
-    conn = sqlite3.connect(db_path)
-    try:
+    with _db_connection(db_path) as conn:
         total = conn.execute("SELECT COUNT(*) FROM flight_observations").fetchone()[0]
         if total == 0:
             return []
@@ -290,8 +280,6 @@ def check_observation_count(
             "SELECT COUNT(*) FROM flight_observations WHERE DATE(retrieved_at) = ?",
             (run_date,),
         ).fetchone()[0]
-    finally:
-        conn.close()
     if count < expected_min:
         return [
             f"[high] Low observation count: {count} observations on {run_date} "
