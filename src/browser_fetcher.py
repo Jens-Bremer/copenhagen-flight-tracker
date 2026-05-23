@@ -1,7 +1,7 @@
 import logging
 import random
 import re
-from typing import Optional
+from typing import Optional, cast
 from urllib.parse import urlencode, urlparse
 
 from playwright.sync_api import BrowserContext, sync_playwright
@@ -191,7 +191,9 @@ def _context_launch_kwargs(viewport: dict, proxy_url: Optional[str] = None) -> d
 def _configure_context(context: BrowserContext, label: str, viewport: dict) -> None:
     """Add stealth init script, seed consent cookie, and log context creation."""
     context.add_init_script(_STEALTH_SCRIPT)
-    context.add_cookies([_CONSENT_COOKIE])
+    # Playwright's cookie typing is stricter than our minimal dict shape.
+    # The fields we pass are valid at runtime.
+    context.add_cookies(cast(list, [_CONSENT_COOKIE]))
     logger.info(
         "Persistent browser context created (%s, viewport=%sx%s)",
         label,
@@ -240,8 +242,10 @@ def _get_context(use_proxy: bool) -> BrowserContext:
                 _playwright_instance.stop()
                 _playwright_instance = None
                 raise
-            _configure_context(_context_proxy, f"proxy={_proxy_url}", viewport)
-        return _context_proxy
+            _configure_context(
+                cast(BrowserContext, _context_proxy), f"proxy={_proxy_url}", viewport
+            )
+        return cast(BrowserContext, _context_proxy)
 
     if _context_direct is None:
         viewport = random.choice(config.PLAYWRIGHT_VIEWPORT_POOL)
@@ -254,8 +258,8 @@ def _get_context(use_proxy: bool) -> BrowserContext:
             _playwright_instance.stop()
             _playwright_instance = None
             raise
-        _configure_context(_context_direct, "direct", viewport)
-    return _context_direct
+        _configure_context(cast(BrowserContext, _context_direct), "direct", viewport)
+    return cast(BrowserContext, _context_direct)
 
 
 def shutdown_browser() -> None:
