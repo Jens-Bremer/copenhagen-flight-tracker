@@ -466,6 +466,42 @@ def _build_dow_month(
     return dow_entries, month_entries
 
 
+def _build_best_time_to_visit(
+    month_entries: list[dict[str, Any]],
+    dow_entries: list[dict[str, Any]],
+    route_rows: list[dict[str, Any]],
+    route: str,
+) -> dict[str, Any]:
+    """Compute cheapest month, day-of-week, and all-time lowest price for a route."""
+    cheapest_month = (
+        min(month_entries, key=lambda m: m["mean_cents"]) if month_entries else {}
+    )
+    cheapest_dow = (
+        min(dow_entries, key=lambda d: d["mean_cents"]) if dow_entries else {}
+    )
+    if route_rows:
+        min_row = min(route_rows, key=lambda r: r["price_cents"])
+        lowest_ever: dict[str, Any] = {
+            "price_cents": min_row["price_cents"],
+            "route": route,
+            "departure_date": min_row["departure_date"],
+            "airline": min_row["airline"],
+        }
+    else:
+        lowest_ever = {}
+    return {
+        "cheapest_month": {
+            "label": cheapest_month.get("label", ""),
+            "mean_cents": cheapest_month.get("mean_cents", 0),
+        },
+        "cheapest_dow": {
+            "label": cheapest_dow.get("label", ""),
+            "mean_cents": cheapest_dow.get("mean_cents", 0),
+        },
+        "lowest_ever": lowest_ever,
+    }
+
+
 def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Per route: lead-time curve, sweet spot, dow/month means, market trend."""
     if not rows:
@@ -537,35 +573,9 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         }
         market_direction = _compute_market_direction(obs_prices_for_route)
 
-        # best_time_to_visit: cheapest month/dow from aggregates + lowest ever price
-        cheapest_month = (
-            min(month_entries, key=lambda m: m["mean_cents"]) if month_entries else {}
+        best_time = _build_best_time_to_visit(
+            month_entries, dow_entries, rows_by_route.get(route, []), route
         )
-        cheapest_dow = (
-            min(dow_entries, key=lambda d: d["mean_cents"]) if dow_entries else {}
-        )
-        route_rows = rows_by_route.get(route, [])
-        if route_rows:
-            min_row = min(route_rows, key=lambda r: r["price_cents"])
-            lowest_ever: dict[str, Any] = {
-                "price_cents": min_row["price_cents"],
-                "route": route,
-                "departure_date": min_row["departure_date"],
-                "airline": min_row["airline"],
-            }
-        else:
-            lowest_ever = {}
-        best_time_to_visit = {
-            "cheapest_month": {
-                "label": cheapest_month.get("label", ""),
-                "mean_cents": cheapest_month.get("mean_cents", 0),
-            },
-            "cheapest_dow": {
-                "label": cheapest_dow.get("label", ""),
-                "mean_cents": cheapest_dow.get("mean_cents", 0),
-            },
-            "lowest_ever": lowest_ever,
-        }
 
         out[route] = {
             "lead_time_curve": curve,
@@ -576,7 +586,7 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             "time_of_day_matrix": time_matrix,
             "normalized_price_progression": norm_prog,
             "market_direction": market_direction,
-            "best_time_to_visit": best_time_to_visit,
+            "best_time_to_visit": best_time,
         }
     return out
 
