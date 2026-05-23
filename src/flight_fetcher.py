@@ -1,3 +1,9 @@
+"""Transport layer for fetching Google Flights pages via fast-flights.
+
+This module defines a small error hierarchy used by the scheduler/health checks
+and installs a `fast_flights.core.fetch` monkey-patch at startup.
+"""
+
 import logging
 from datetime import date
 from typing import Optional
@@ -41,6 +47,7 @@ class NetworkError(FlightFetchError):
 
 # Patch fast_flights to avoid Google's EU cookie consent wall
 def patched_fetch(params: dict):
+    """Fetch the Google Flights HTML using primp with a consent cookie seeded."""
     # verify=False is intentional: primp manages its own TLS/browser fingerprint stack.
     # Python's default cert verification can conflict with that.
     client = Client(impersonate=config.IMPERSONATION, verify=False)

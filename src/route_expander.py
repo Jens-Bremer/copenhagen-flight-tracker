@@ -1,3 +1,5 @@
+"""Expand configured routes and dates into a shuffled job list."""
+
 import random
 from datetime import date
 from typing import Optional

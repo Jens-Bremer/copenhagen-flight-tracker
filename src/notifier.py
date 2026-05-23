@@ -1,3 +1,5 @@
+"""Notification helpers (ntfy) for alerts and health warnings."""
+
 import logging
 import urllib.request
 

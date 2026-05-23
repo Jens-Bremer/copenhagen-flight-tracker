@@ -1,3 +1,8 @@
+"""Pure analytic helpers used by the frontend HTML generator.
+
+These functions are deterministic and side-effect free.
+"""
+
 import bisect
 import sqlite3
 from typing import Optional

@@ -1,3 +1,9 @@
+"""Daily health checks for the flight tracker daemon.
+
+These checks validate that collection ran today and that key metrics (counts,
+failure rates, currencies, etc.) stay within configured thresholds.
+"""
+
 import json
 import logging
 import os

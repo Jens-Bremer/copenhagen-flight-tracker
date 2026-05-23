@@ -1,3 +1,5 @@
+"""Parse upstream fast-flights results into flat observation rows."""
+
 import logging
 import re
 from datetime import date, datetime

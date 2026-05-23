@@ -1,3 +1,5 @@
+"""Logging setup for the service and scripts."""
+
 import logging
 import logging.handlers
 import os

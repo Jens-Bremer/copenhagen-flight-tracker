@@ -1,3 +1,10 @@
+"""Validation for config values.
+
+All settings are defined in `config.py`. This module validates the loaded values
+at startup and raises clear exceptions for misconfiguration.
+"""
+
+
 def validate_config(cfg: dict) -> None:
     """Validate all tuneable config values.
 

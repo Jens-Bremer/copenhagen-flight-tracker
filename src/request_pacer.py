@@ -1,3 +1,5 @@
+"""Compute request pacing intervals to spread scraping across a daily window."""
+
 import random
 from datetime import datetime
 
