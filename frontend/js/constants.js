@@ -3,12 +3,12 @@ const AIRLINE_COLORS = {
   'KLM':                    '#00A1DE',
   'Norwegian':              '#D4001E',
   'easyJet':                '#FF6600',
-  'Scandinavian Airlines':  '#FFFFFF',
-  'SAS':                    '#FFFFFF',
+  'Scandinavian Airlines':  '#003087',
+  'SAS':                    '#003087',
   'Ryanair':                '#F1C40F',
   'Finnair':                '#00386F',
 };
-const AIRLINE_OUTLINE = new Set(['Scandinavian Airlines', 'SAS']);
+const AIRLINE_OUTLINE = new Set();
 
 const _DOW_LABELS_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
