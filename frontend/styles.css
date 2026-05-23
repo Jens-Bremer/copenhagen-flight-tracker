@@ -1,5 +1,6 @@
 /* ─── 1. Tokens ─── */
 :root {
+  color-scheme: light;
   --color-cream: #f3e7c9;
   --color-cream-mid: #f9f2e3;
   --color-cream-dark: #e8d8ae;
@@ -200,6 +201,24 @@ ol, ul { list-style: none; }
 
 /* ─── 8. Drill-down ─── */
 .drilldown-sort { display: flex; gap: var(--space-sm); margin-bottom: var(--space-sm); }
+.drilldown-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-lg);
+  align-items: start;
+}
+#drilldown-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  position: sticky;
+  top: var(--space-md);
+}
+#drilldown-rail #price-history-wrap { aspect-ratio: 4 / 3; }
+@media (max-width: 768px) {
+  .drilldown-grid { grid-template-columns: 1fr; }
+  #drilldown-rail { position: static; }
+}
 .flight-list { display: grid; gap: var(--space-sm); }
 .flight-row {
   display: grid; grid-template-columns: auto 1fr auto auto auto;
@@ -248,8 +267,13 @@ ol, ul { list-style: none; }
 .pairs-tables { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); }
 .pairs-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
 .pairs-table caption {
-  text-align: left; padding-bottom: var(--space-sm);
-  font-family: var(--font-display); color: var(--color-brown);
+  text-align: left;
+  padding: var(--space-xs) var(--space-sm);
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--color-cream);
+  border-radius: var(--radius) var(--radius) 0 0;
 }
 .pairs-table th, .pairs-table td {
   padding: 6px 10px; border-bottom: 1px solid var(--color-cream-dark); text-align: left;
@@ -273,6 +297,13 @@ ol, ul { list-style: none; }
   padding: var(--space-sm) var(--space-xl); font-weight: 500;
 }
 .is-hidden { display: none !important; }
+
+/* ─── 12a. Narrow-chart aspect ratio override (#127) ─── */
+/* At tablet widths the two-column trends grid makes charts short.
+   Override to 5/3 so charts have more vertical room on mid-size screens. */
+@media (max-width: 1024px) {
+  .trends-grid .chart-wrap { aspect-ratio: 5 / 3; }
+}
 
 /* ─── 12. Responsive (≤768px) ─── */
 @media (max-width: 768px) {
@@ -316,6 +347,9 @@ ol, ul { list-style: none; }
   padding: var(--space-md);
   font-size: 0.9rem;
   line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 .hero-card__title {
   font-family: var(--font-body);
@@ -383,4 +417,15 @@ ol, ul { list-style: none; }
 .visually-hidden {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+/* ─── 18. iOS Safari — suppress blue auto-detected links (#128) ─── */
+/* Override iOS Safari's automatic link colouring for telephone/date/address
+   detection by setting -webkit-text-fill-color on the elements most affected. */
+a, a:visited {
+  color: var(--color-red);
+  -webkit-text-fill-color: var(--color-red);
+}
+body, .panel, .pairs-table, .calendar, .hero-card, .verdict-card {
+  -webkit-text-fill-color: currentColor;
 }

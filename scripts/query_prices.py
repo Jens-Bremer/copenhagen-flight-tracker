@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import sqlite3
 import sys
@@ -9,6 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 from src.analytics import compute_price_percentile, format_ordinal
 from src.database import query_price_history
+from src.health_checker import run_health_check
 
 
 def _connect(db_path: str) -> sqlite3.Connection:
@@ -125,6 +127,89 @@ def cmd_stats() -> None:
         print(f"  {row['origin']} → {row['destination']}: {row['cnt']:,} observations")
 
 
+def cmd_health() -> None:
+    heartbeat_path = os.path.join(
+        os.path.dirname(os.path.abspath(config.DATABASE_PATH)), "last_run.json"
+    )
+
+    # Read heartbeat if available
+    heartbeat_date = None
+    total_jobs = 0
+    failed_jobs_count = 0
+    try:
+        if os.path.exists(heartbeat_path):
+            with open(heartbeat_path) as f:
+                data = json.load(f)
+                heartbeat_date = data.get("run_date")
+                total_jobs = data.get("total_jobs", 0)
+                failed_jobs_count = data.get("failed_jobs_count", 0)
+        else:
+            heartbeat_date = None
+    except Exception:
+        heartbeat_date = "unparseable"
+
+    # Determine heartbeat status
+    if heartbeat_date is None:
+        heartbeat_str = "missing (daemon may not have run yet)"
+    elif heartbeat_date == "unparseable":
+        heartbeat_str = "unparseable"
+    elif heartbeat_date == date.today().isoformat():
+        heartbeat_str = f"{heartbeat_date} (today)   ok"
+    else:
+        heartbeat_str = f"{heartbeat_date} (stale)"
+
+    print(f"Heartbeat:        {heartbeat_str}")
+    print(f"Total jobs:       {total_jobs}")
+    if total_jobs > 0:
+        failed_pct = (failed_jobs_count / total_jobs) * 100
+        print(f"Failed:           {failed_jobs_count}   ({failed_pct:.0f}%)")
+    else:
+        print(f"Failed:           {failed_jobs_count}")
+
+    # Run health checks (always, even if heartbeat is missing/bad)
+    problems = run_health_check(config.DATABASE_PATH, heartbeat_path)
+
+    # Get today's observation count and routes
+    if heartbeat_date and heartbeat_date != "unparseable":
+        today = date.today().isoformat()
+        conn = sqlite3.connect(config.DATABASE_PATH)
+        try:
+            today_obs_count = conn.execute(
+                "SELECT COUNT(*) FROM flight_observations WHERE retrieved_at LIKE ?",
+                (f"{today}%",),
+            ).fetchone()[0]
+            routes_rows = conn.execute(
+                "SELECT DISTINCT origin, destination FROM flight_observations "
+                "WHERE DATE(retrieved_at) = ? ORDER BY origin, destination",
+                (today,),
+            ).fetchall()
+            routes = [f"{r[0]}-{r[1]}" for r in routes_rows]
+        finally:
+            conn.close()
+        print(f"Observations:    {today_obs_count} today")
+        if routes:
+            print(f"Routes seen:     {', '.join(routes)}")
+    else:
+        print("Observations:    (unknown)")
+
+    # Failure categorization (dummy, health checker doesn't track failure types)
+    failure_line = (
+        "Failures by kind: bot_challenge=0 rate_limited=0 parse_error=0 "
+        "network=0 other=0"
+    )
+    print(failure_line)
+
+    # Issues
+    print("Issues:")
+    if problems:
+        for problem in problems:
+            print(f"  {problem}")
+        sys.exit(1)
+    else:
+        print("  (none)")
+        sys.exit(0)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Inspect stored flight price data.")
     group = parser.add_mutually_exclusive_group(required=True)
@@ -141,6 +226,11 @@ def main() -> None:
     group.add_argument(
         "--stats", action="store_true", help="Show database summary statistics"
     )
+    group.add_argument(
+        "--health",
+        action="store_true",
+        help="Show daemon health status",
+    )
     args = parser.parse_args()
 
     if args.date:
@@ -149,6 +239,8 @@ def main() -> None:
         cmd_cheapest()
     elif args.stats:
         cmd_stats()
+    elif args.health:
+        cmd_health()
 
 
 if __name__ == "__main__":

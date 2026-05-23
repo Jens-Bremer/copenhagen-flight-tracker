@@ -3,6 +3,39 @@ import sqlite3
 from typing import Optional
 
 
+def percentile_rank(
+    price: int, sorted_prices: list[int], min_samples: int = 5
+) -> Optional[float]:
+    """Return midpoint-tie percentile rank of `price` in `sorted_prices`.
+
+    Returns None when len(sorted_prices) < min_samples. Caller supplies
+    the already-sorted prices. Edge cases: price <= prices[0] → 0.0;
+    price >= prices[-1] → 100.0. Tied prices share the midpoint of
+    their range.
+
+    The defensive minimum-samples check also guards against the degenerate
+    case of an empty list or a single-element list (where len - 1 = 0 would
+    cause a division-by-zero in the rank normalisation). Both original
+    implementations used n < 5 for this, so the default is preserved here.
+    """
+    n = len(sorted_prices)
+    if n < min_samples:
+        return None
+
+    if price <= sorted_prices[0]:
+        return 0.0
+    if price >= sorted_prices[-1]:
+        return 100.0
+
+    lower_index = bisect.bisect_left(sorted_prices, price)
+    upper_index = bisect.bisect_right(sorted_prices, price)
+    rank: float = lower_index
+    if upper_index > lower_index:
+        # Use the midpoint between first and last tied positions.
+        rank = (lower_index + upper_index - 1) / 2
+    return (rank / (n - 1)) * 100.0
+
+
 def format_ordinal(n: int) -> str:
     """Return the ordinal representation for an integer."""
     if 10 <= n % 100 <= 20:
@@ -42,18 +75,4 @@ def compute_price_percentile(
         conn.close()
 
     prices = [row[0] for row in rows]
-    if len(prices) < 5:
-        return None
-
-    if price_amount <= prices[0]:
-        return 0.0
-    if price_amount >= prices[-1]:
-        return 100.0
-
-    lower_index = bisect.bisect_left(prices, price_amount)
-    upper_index = bisect.bisect_right(prices, price_amount)
-    rank = lower_index
-    if upper_index > lower_index:
-        # Use the midpoint between first and last tied positions.
-        rank = (lower_index + upper_index - 1) / 2
-    return (rank / (len(prices) - 1)) * 100.0
+    return percentile_rank(price_amount, prices)

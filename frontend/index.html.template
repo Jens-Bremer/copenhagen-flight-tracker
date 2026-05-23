@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#f9f2e3">
   <title>Copenhagen Flight Tracker</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
@@ -56,10 +59,14 @@
     <section class="panel" id="drilldown-panel" aria-label="Flights for selected date">
       <h2 class="panel__heading"><span id="drilldown-title">Pick a day in the calendar</span></h2>
       <div id="drilldown-sort" class="drilldown-sort"></div>
-      <div id="drilldown"></div>
-      <div id="price-history-wrap" class="chart-wrap is-hidden">
-        <div id="verdict-card" class="verdict-card is-hidden"></div>
-        <canvas id="price-history-chart" aria-label="Price over time" role="img"></canvas>
+      <div class="drilldown-grid">
+        <div id="drilldown"></div>
+        <aside id="drilldown-rail">
+          <div id="verdict-card" class="verdict-card is-hidden"></div>
+          <div id="price-history-wrap" class="chart-wrap is-hidden">
+            <canvas id="price-history-chart" aria-label="Price over time" role="img"></canvas>
+          </div>
+        </aside>
       </div>
     </section>
 
@@ -78,10 +85,7 @@
     <section class="panel" aria-label="Airline price distributions">
       <h2 class="panel__heading">Price distribution by airline</h2>
       <p class="panel__subtitle">Where prices typically fall — each bar is one 5 euro bin</p>
-      <div class="trends-grid">
-        <div class="chart-wrap"><canvas id="histogram-out" role="img"></canvas></div>
-        <div class="chart-wrap"><canvas id="histogram-back" role="img"></canvas></div>
-      </div>
+      <div id="histograms-container" class="trends-grid"></div>
     </section>
 
     <!-- 6. Weekend pairs -->
@@ -105,10 +109,7 @@
     <section class="panel" aria-labelledby="timeheat-heading">
       <h2 class="panel__heading" id="timeheat-heading">Prices by departure time</h2>
       <p class="panel__subtitle">Cheapest hours to fly, by day of week</p>
-      <div class="timeheat-wrap">
-        <canvas id="timeheat-out" aria-label="CPH-AMS price heatmap by time of day"></canvas>
-        <canvas id="timeheat-back" aria-label="AMS-CPH price heatmap by time of day"></canvas>
-      </div>
+      <div id="timeheat-container" class="timeheat-wrap"></div>
     </section>
 
     <!-- 9. How prices change as departure approaches -->
@@ -130,6 +131,7 @@
   <script type="application/json" id="DATA_FLIGHTS">${DATA_FLIGHTS}</script>
   <script type="application/json" id="DATA_ANALYSIS">${DATA_ANALYSIS}</script>
   <script type="application/json" id="DATA_SUMMARY">${DATA_SUMMARY}</script>
+  <div id="data-load-error" style="display:none;position:fixed;inset:0;z-index:9999;background:#fff3cd;color:#856404;padding:2rem;font-family:sans-serif;font-size:1.1rem;"></div>
 
   <script>${INLINE_CHART_JS}</script>
   <script>${INLINE_APP_JS}</script>

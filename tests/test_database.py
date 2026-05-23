@@ -19,6 +19,7 @@ SAMPLE = {
     "price_currency": "EUR",
     "is_best": True,
     "current_price_trend": "typical",
+    "duration_minutes": 125,
 }
 
 

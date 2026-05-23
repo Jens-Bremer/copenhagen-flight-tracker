@@ -19,6 +19,7 @@ ENV/
 # Data and logs (runtime-generated, never commit)
 data/
 data/backups/
+data/proxies.txt
 logs/
 
 # Generated frontend output (sources in frontend/ are committed; the
@@ -32,6 +33,9 @@ frontend/index.html
 # Project planning doc (local only)
 FLIGHT_TRACKER_PLAN.md
 
+# Superpowers design docs (local only)
+docs/superpowers/
+
 # macOS
 .DS_Store
 
@@ -40,6 +44,7 @@ FLIGHT_TRACKER_PLAN.md
 .idea/
 *.swp
 *.swo
+.opencode/
 
 # Worktrees
 .worktrees/
@@ -48,4 +53,3 @@ FLIGHT_TRACKER_PLAN.md
 .pytest_cache/
 .coverage
 htmlcov/
-config_local.py

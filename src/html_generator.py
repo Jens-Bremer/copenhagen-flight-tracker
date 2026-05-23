@@ -13,7 +13,6 @@ Imports only config + stdlib + json (per CLAUDE.md module contract).
 
 from __future__ import annotations
 
-import bisect
 import csv
 import json
 import string
@@ -23,11 +22,25 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+import config
+from src.analytics import percentile_rank
+
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 TEMPLATE_PATH = FRONTEND_DIR / "index.html.template"
 STYLES_PATH = FRONTEND_DIR / "styles.css"
-APP_JS_PATH = FRONTEND_DIR / "app.js"
 CHART_JS_PATH = FRONTEND_DIR / "vendor" / "chart.min.js"
+JS_SOURCE_DIR = FRONTEND_DIR / "js"
+JS_FILE_ORDER = [
+    "constants.js",
+    "state.js",
+    "utils.js",
+    "data.js",
+    "calendar.js",
+    "drilldown.js",
+    "charts.js",
+    "filters.js",
+    "main.js",
+]
 
 # ─── CSV loader ──────────────────────────────────────────────────────────────
 
@@ -144,19 +157,7 @@ def _percentile_from_history(latest_cents: int, history: list[dict]) -> float | 
     Returns None when fewer than 5 observations exist.
     """
     prices = sorted(h["price_cents"] for h in history)
-    n = len(prices)
-    if n < 5:
-        return None
-    if latest_cents <= prices[0]:
-        return 0.0
-    if latest_cents >= prices[-1]:
-        return 100.0
-    lower = bisect.bisect_left(prices, latest_cents)
-    upper = bisect.bisect_right(prices, latest_cents)
-    rank: float = lower
-    if upper > lower:
-        rank = (lower + upper - 1) / 2
-    return (rank / (n - 1)) * 100.0
+    return percentile_rank(latest_cents, prices)
 
 
 def _trajectory_from_history(
@@ -311,6 +312,32 @@ def _mean(values: list[int]) -> int:
     return round(sum(values) / len(values)) if values else 0
 
 
+def _build_norm_prog_entry(days_before: int, values: list[float]) -> dict[str, Any]:
+    """Compute mean, Q1, and Q3 pct_change for a normalized-progression bucket.
+
+    Tolerant of single-observation buckets: when len(values) == 1,
+    q1 == q3 == mean. Uses simple index-based quartile (same as _quartiles).
+    """
+    n = len(values)
+    mean_val = round(sum(values) / n, 2)
+    if n == 1:
+        return {
+            "days_before": days_before,
+            "mean_pct_change": mean_val,
+            "q1_pct_change": mean_val,
+            "q3_pct_change": mean_val,
+        }
+    s = sorted(values)
+    q1_val = round(s[n // 4], 2)
+    q3_val = round(s[(3 * n) // 4], 2)
+    return {
+        "days_before": days_before,
+        "mean_pct_change": mean_val,
+        "q1_pct_change": q1_val,
+        "q3_pct_change": q3_val,
+    }
+
+
 def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Per route: lead-time curve, sweet spot, dow/month means, market trend."""
     if not rows:
@@ -406,7 +433,13 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
                     "obs_count": len(prices),
                 }
             )
-        sweet_spot = min(curve, key=lambda e: e["mean_cents"])["days_before"]
+        min_obs = config.RELIABLE_MIN_OBSERVATIONS
+        reliable = [e for e in curve if e["obs_count"] >= min_obs]
+        sweet_spot = (
+            min(reliable, key=lambda e: e["mean_cents"])["days_before"]
+            if reliable
+            else None
+        )
 
         # day_of_week aggregates the per-departure cheapest
         by_dow: dict[int, list[int]] = defaultdict(list)
@@ -447,7 +480,7 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
 
         norm_prog = sorted(
             (
-                {"days_before": db, "mean_pct_change": round(sum(v) / len(v), 2)}
+                _build_norm_prog_entry(db, v)
                 for (r, db), v in pct_by_days.items()
                 if r == route
             ),
@@ -556,10 +589,17 @@ def build_summary(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             bins.sort(key=lambda b: b["bin_low"])
         out[route] = {"histogram": histogram, "weekend_pairs": []}
 
-    # Weekend pairs for both travel directions:
-    # CPH-AMS (Fri) + AMS-CPH (Sun) for the Copenhagen-resident traveller, and
-    # AMS-CPH (Fri) + CPH-AMS (Sun) for the Amsterdam-resident traveller.
-    for fri_route, sun_route in [("CPH-AMS", "AMS-CPH"), ("AMS-CPH", "CPH-AMS")]:
+    # Weekend pairs: for every route, pair Friday departures with the reverse
+    # route's Sunday return (origin↔destination swapped, +2 days).
+    # This generalises across any set of routes, not just CPH-AMS ↔ AMS-CPH.
+    for fri_route in list(out.keys()):
+        # Derive reverse route by swapping the origin and destination.
+        parts = fri_route.split("-", 1)
+        if len(parts) != 2:
+            continue
+        sun_route = f"{parts[1]}-{parts[0]}"
+        if sun_route not in out:
+            continue
         pairs: list[dict[str, Any]] = []
         for (route, dep_iso), fri in cheapest_dep.items():
             if route != fri_route:
@@ -585,8 +625,7 @@ def build_summary(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
                 }
             )
         pairs.sort(key=lambda p: p["total_cents"])
-        if fri_route in out:
-            out[fri_route]["weekend_pairs"] = pairs[:WEEKEND_PAIRS_TOP_N]
+        out[fri_route]["weekend_pairs"] = pairs[:WEEKEND_PAIRS_TOP_N]
     return out
 
 
@@ -594,6 +633,27 @@ def _read_text(path: Path) -> str:
     if not path.exists():
         raise FileNotFoundError(f"required frontend asset missing: {path}")
     return path.read_text(encoding="utf-8")
+
+
+def _build_app_js() -> str:
+    """Concatenate JS source files in order and wrap in an IIFE.
+
+    Each file in JS_SOURCE_DIR (in the order given by JS_FILE_ORDER) declares
+    its functions and constants at top level. Concatenation places them all in
+    the same IIFE scope, so they can call each other freely without any module
+    system. 'use strict' is added once, inside the wrapper.
+    """
+    parts: list[str] = []
+    for filename in JS_FILE_ORDER:
+        path = JS_SOURCE_DIR / filename
+        if not path.exists():
+            raise FileNotFoundError(
+                f"required JS source file missing: {path}\n"
+                f"Run 'git ls-files frontend/js/' to check the working tree."
+            )
+        parts.append(path.read_text(encoding="utf-8"))
+    body = "\n\n".join(parts)
+    return f"(function () {{\n'use strict';\n\n{body}\n}})();"
 
 
 def _safe_json(obj: Any) -> str:
@@ -613,27 +673,58 @@ def render_html(
     flights: dict[str, Any],
     analysis: dict[str, Any],
     summary: dict[str, Any],
+    inline_data: bool = False,
 ) -> str:
-    """Inline assets + JSON blobs into the template. Returns the full HTML string."""
+    """Inline assets + JSON blobs into the template. Returns the full HTML string.
+
+    When *inline_data* is True the five JSON blobs are substituted directly into
+    the ``<script type="application/json">`` elements in the template, producing
+    a fully self-contained HTML file (the original behaviour).
+
+    When *inline_data* is False (the default) the blob placeholders are replaced
+    with empty strings, so the browser's ``loadData()`` in data.js will fetch
+    ``data.json`` instead.  The caller is responsible for writing that file (see
+    :func:`generate`).
+    """
     template = _read_text(TEMPLATE_PATH)
     styles = _read_text(STYLES_PATH)
     chart_js = _read_text(CHART_JS_PATH)
-    app_js = _read_text(APP_JS_PATH)
+    app_js = _build_app_js()
+
+    if inline_data:
+        data_metadata = _safe_json(metadata)
+        data_calendar = _safe_json(calendar)
+        data_flights = _safe_json(flights)
+        data_analysis = _safe_json(analysis)
+        data_summary = _safe_json(summary)
+    else:
+        data_metadata = ""
+        data_calendar = ""
+        data_flights = ""
+        data_analysis = ""
+        data_summary = ""
 
     return string.Template(template).safe_substitute(
         INLINE_STYLES=styles,
         INLINE_CHART_JS=chart_js,
         INLINE_APP_JS=app_js,
-        DATA_METADATA=_safe_json(metadata),
-        DATA_CALENDAR=_safe_json(calendar),
-        DATA_FLIGHTS=_safe_json(flights),
-        DATA_ANALYSIS=_safe_json(analysis),
-        DATA_SUMMARY=_safe_json(summary),
+        DATA_METADATA=data_metadata,
+        DATA_CALENDAR=data_calendar,
+        DATA_FLIGHTS=data_flights,
+        DATA_ANALYSIS=data_analysis,
+        DATA_SUMMARY=data_summary,
     )
 
 
-def generate(input_path: str, output_path: str) -> int:
-    """Read CSV → run analyses → render HTML → write to disk. Returns row count."""
+def generate(input_path: str, output_path: str, inline_data: bool = False) -> int:
+    """Read CSV → run analyses → render HTML → write to disk. Returns row count.
+
+    When *inline_data* is False (default) the five JSON blobs are written to a
+    sibling file ``data.json`` next to *output_path* and the HTML references
+    them via ``fetch('data.json')``.  When *inline_data* is True the blobs are
+    embedded directly in the HTML (the original behaviour, suitable for
+    offline / USB use).
+    """
     rows = load_rows(input_path)
     now = datetime.now(timezone.utc)
     metadata = build_metadata(rows, generated_at=now)
@@ -641,12 +732,28 @@ def generate(input_path: str, output_path: str) -> int:
     flights = build_flights(rows)
     analysis = build_analysis(rows)
     summary = build_summary(rows)
+
+    if not inline_data:
+        # Write the five blobs to data.json in the same directory as output_path
+        data_payload = {
+            "metadata": metadata,
+            "calendar": calendar,
+            "flights": flights,
+            "analysis": analysis,
+            "summary": summary,
+        }
+        data_json_path = Path(output_path).parent / "data.json"
+        data_json_path.write_text(
+            json.dumps(data_payload, separators=(",", ":")), encoding="utf-8"
+        )
+
     html = render_html(
         metadata=metadata,
         calendar=calendar,
         flights=flights,
         analysis=analysis,
         summary=summary,
+        inline_data=inline_data,
     )
     Path(output_path).write_text(html, encoding="utf-8")
     return len(rows)

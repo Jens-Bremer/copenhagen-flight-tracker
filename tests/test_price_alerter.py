@@ -45,6 +45,7 @@ def _obs(
         "price_currency": "EUR",
         "is_best": True,
         "current_price_trend": "low",
+        "duration_minutes": 125,
     }
 
 

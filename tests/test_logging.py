@@ -1,6 +1,7 @@
 """Smoke tests for logging consistency across run_collection and setup_logging."""
 
 import logging
+import logging.handlers
 import os
 import sys
 from datetime import date
@@ -11,6 +12,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import config
 from scripts.run_daily import run_collection
 from src.database import initialize_database
 from src.log_config import LOG_DATEFMT, LOG_FORMAT, setup_logging
@@ -18,8 +20,49 @@ from src.log_config import LOG_DATEFMT, LOG_FORMAT, setup_logging
 # --- setup_logging ---
 
 
-def test_setup_logging_is_callable():
+def test_setup_logging_is_callable(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "LOG_DIR", str(tmp_path / "logs"))
     setup_logging()  # must not raise
+
+
+def test_setup_logging_creates_log_dir(tmp_path, monkeypatch):
+    log_dir = tmp_path / "logs"
+    monkeypatch.setattr(config, "LOG_DIR", str(log_dir))
+    setup_logging()
+    assert log_dir.is_dir()
+
+
+def test_setup_logging_attaches_stream_and_file_handlers(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "LOG_DIR", str(tmp_path / "logs"))
+    setup_logging()
+    handlers = logging.getLogger().handlers
+    assert any(
+        isinstance(h, logging.StreamHandler)
+        and not isinstance(h, logging.handlers.TimedRotatingFileHandler)
+        for h in handlers
+    )
+    assert any(
+        isinstance(h, logging.handlers.TimedRotatingFileHandler) for h in handlers
+    )
+    # Close file handler so the tmp_path can be cleaned up cleanly.
+    for h in handlers:
+        if isinstance(h, logging.handlers.TimedRotatingFileHandler):
+            h.close()
+
+
+def test_setup_logging_uses_midnight_rotation_and_keep_days(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "LOG_DIR", str(tmp_path / "logs"))
+    monkeypatch.setattr(config, "LOG_KEEP_DAYS", 14)
+    with patch("logging.handlers.TimedRotatingFileHandler") as mock_handler:
+        # The mocked handler instance must satisfy basicConfig's handler interface.
+        instance = mock_handler.return_value
+        instance.level = logging.NOTSET
+        setup_logging()
+    assert mock_handler.called
+    kwargs = mock_handler.call_args.kwargs
+    assert kwargs["when"] == "midnight"
+    assert kwargs["backupCount"] == config.LOG_KEEP_DAYS
+    assert kwargs["filename"] == os.path.join(config.LOG_DIR, "tracker.log")
 
 
 def test_log_format_contains_required_fields():

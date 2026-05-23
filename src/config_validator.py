@@ -22,6 +22,18 @@ def validate_config(cfg: dict) -> None:
         "HEALTH_COUNT_DROP_THRESHOLD", cfg.get("HEALTH_COUNT_DROP_THRESHOLD")
     )
     _check_price_alert_threshold(cfg.get("PRICE_ALERT_THRESHOLD"))
+    _check_log_dir(cfg.get("LOG_DIR"))
+    _check_log_keep_days(cfg.get("LOG_KEEP_DAYS"))
+    _check_bot_challenge_min_bytes(cfg.get("BOT_CHALLENGE_MIN_BYTES"))
+    _check_bot_challenge_title_patterns(cfg.get("BOT_CHALLENGE_TITLE_PATTERNS"))
+    _check_consecutive_failure_days(cfg.get("CONSECUTIVE_FAILURE_DAYS"))
+    _check_reliable_min_observations(cfg.get("RELIABLE_MIN_OBSERVATIONS"))
+    _check_proxy_list_path(cfg.get("PROXY_LIST_PATH"))
+    _check_proxy_enabled(cfg.get("PROXY_ENABLED"))
+    _check_playwright_headless(cfg.get("PLAYWRIGHT_HEADLESS"))
+    _check_playwright_browser(cfg.get("PLAYWRIGHT_BROWSER"))
+    _check_playwright_timeout_ms(cfg.get("PLAYWRIGHT_TIMEOUT_MS"))
+    _check_proxy_split_ratio(cfg.get("PROXY_SPLIT_RATIO"))
 
 
 def _check_routes(routes) -> None:
@@ -145,3 +157,74 @@ def _check_backup_dir(value) -> None:
 def _check_backup_keep_last_n(value) -> None:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
         raise ValueError("BACKUP_KEEP_LAST_N must be a positive integer (>= 1)")
+
+
+def _check_log_dir(value) -> None:
+    if not value or not isinstance(value, str):
+        raise ValueError("LOG_DIR must be a non-empty string")
+
+
+def _check_log_keep_days(value) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError("LOG_KEEP_DAYS must be a positive integer (>= 1)")
+
+
+def _check_bot_challenge_min_bytes(value) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError("BOT_CHALLENGE_MIN_BYTES must be a positive integer (>= 1)")
+
+
+def _check_bot_challenge_title_patterns(value) -> None:
+    if not isinstance(value, list) or len(value) == 0:
+        raise ValueError(
+            "BOT_CHALLENGE_TITLE_PATTERNS must be a non-empty list of non-empty strings"
+        )
+    for pattern in value:
+        if not isinstance(pattern, str) or pattern == "":
+            raise ValueError(
+                "BOT_CHALLENGE_TITLE_PATTERNS: each entry must be a non-empty string,"
+                f" got {pattern!r}"
+            )
+
+
+def _check_consecutive_failure_days(value) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError("CONSECUTIVE_FAILURE_DAYS must be a positive integer (>= 1)")
+
+
+def _check_reliable_min_observations(value) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError("RELIABLE_MIN_OBSERVATIONS must be a positive integer (>= 1)")
+
+
+def _check_proxy_list_path(value) -> None:
+    if not value or not isinstance(value, str):
+        raise ValueError("PROXY_LIST_PATH must be a non-empty string")
+
+
+def _check_proxy_enabled(value) -> None:
+    if not isinstance(value, bool):
+        raise ValueError("PROXY_ENABLED must be a boolean")
+
+
+def _check_playwright_headless(value) -> None:
+    if not isinstance(value, bool):
+        raise ValueError("PLAYWRIGHT_HEADLESS must be a boolean (True or False)")
+
+
+def _check_playwright_browser(value) -> None:
+    allowed = {"chromium", "firefox", "webkit"}
+    if value not in allowed:
+        raise ValueError(
+            f"PLAYWRIGHT_BROWSER must be one of {sorted(allowed)}, got {value!r}"
+        )
+
+
+def _check_playwright_timeout_ms(value) -> None:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ValueError("PLAYWRIGHT_TIMEOUT_MS must be a positive integer (milliseconds)")
+
+
+def _check_proxy_split_ratio(value) -> None:
+    if isinstance(value, bool) or not isinstance(value, float) or not (0.0 <= value <= 1.0):
+        raise ValueError("PROXY_SPLIT_RATIO must be a float between 0.0 and 1.0 (inclusive)")

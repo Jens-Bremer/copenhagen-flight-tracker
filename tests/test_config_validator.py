@@ -20,6 +20,23 @@ def _cfg(**overrides):
         "HEALTH_FAILURE_RATE_THRESHOLD": 0.25,
         "HEALTH_COUNT_DROP_THRESHOLD": 0.5,
         "PRICE_ALERT_THRESHOLD": 5000,
+        "LOG_DIR": "logs",
+        "LOG_KEEP_DAYS": 14,
+        "BOT_CHALLENGE_MIN_BYTES": 10000,
+        "BOT_CHALLENGE_TITLE_PATTERNS": [
+            "consent",
+            "captcha",
+            "unusual traffic",
+            "are you a robot",
+        ],
+        "CONSECUTIVE_FAILURE_DAYS": 2,
+        "RELIABLE_MIN_OBSERVATIONS": 10,
+        "PROXY_LIST_PATH": "data/proxies.txt",
+        "PROXY_ENABLED": True,
+        "PLAYWRIGHT_HEADLESS": False,
+        "PLAYWRIGHT_BROWSER": "chromium",
+        "PLAYWRIGHT_TIMEOUT_MS": 20000,
+        "PROXY_SPLIT_RATIO": 0.5,
     }
     base.update(overrides)
     return base
@@ -325,3 +342,373 @@ def test_backup_keep_last_n_float_raises():
 
 def test_backup_keep_last_n_one_passes():
     validate_config(_cfg(BACKUP_KEEP_LAST_N=1))  # must not raise
+
+
+# --- LOG_DIR ---
+
+
+def test_log_dir_valid_passes():
+    validate_config(_cfg(LOG_DIR="logs"))  # must not raise
+
+
+def test_log_dir_empty_string_raises():
+    with pytest.raises(ValueError, match="LOG_DIR"):
+        validate_config(_cfg(LOG_DIR=""))
+
+
+def test_log_dir_none_raises():
+    with pytest.raises(ValueError, match="LOG_DIR"):
+        validate_config(_cfg(LOG_DIR=None))
+
+
+def test_log_dir_non_string_raises():
+    with pytest.raises(ValueError, match="LOG_DIR"):
+        validate_config(_cfg(LOG_DIR=42))
+
+
+# --- LOG_KEEP_DAYS ---
+
+
+def test_log_keep_days_valid_passes():
+    validate_config(_cfg(LOG_KEEP_DAYS=14))  # must not raise
+
+
+def test_log_keep_days_one_passes():
+    validate_config(_cfg(LOG_KEEP_DAYS=1))  # must not raise
+
+
+def test_log_keep_days_zero_raises():
+    with pytest.raises(ValueError, match="LOG_KEEP_DAYS"):
+        validate_config(_cfg(LOG_KEEP_DAYS=0))
+
+
+def test_log_keep_days_negative_raises():
+    with pytest.raises(ValueError, match="LOG_KEEP_DAYS"):
+        validate_config(_cfg(LOG_KEEP_DAYS=-1))
+
+
+def test_log_keep_days_string_raises():
+    with pytest.raises(ValueError, match="LOG_KEEP_DAYS"):
+        validate_config(_cfg(LOG_KEEP_DAYS="x"))
+
+
+def test_log_keep_days_bool_raises():
+    with pytest.raises(ValueError, match="LOG_KEEP_DAYS"):
+        validate_config(_cfg(LOG_KEEP_DAYS=True))
+
+
+# --- BOT_CHALLENGE_MIN_BYTES (issue #111) ---
+
+
+def test_bot_challenge_min_bytes_valid_passes():
+    validate_config(_cfg(BOT_CHALLENGE_MIN_BYTES=1))  # must not raise
+    validate_config(_cfg(BOT_CHALLENGE_MIN_BYTES=50000))
+
+
+def test_bot_challenge_min_bytes_zero_raises():
+    with pytest.raises(ValueError, match="BOT_CHALLENGE_MIN_BYTES"):
+        validate_config(_cfg(BOT_CHALLENGE_MIN_BYTES=0))
+
+
+def test_bot_challenge_min_bytes_negative_raises():
+    with pytest.raises(ValueError, match="BOT_CHALLENGE_MIN_BYTES"):
+        validate_config(_cfg(BOT_CHALLENGE_MIN_BYTES=-1))
+
+
+def test_bot_challenge_min_bytes_none_raises():
+    with pytest.raises(ValueError, match="BOT_CHALLENGE_MIN_BYTES"):
+        validate_config(_cfg(BOT_CHALLENGE_MIN_BYTES=None))
+
+
+def test_bot_challenge_min_bytes_bool_raises():
+    with pytest.raises(ValueError, match="BOT_CHALLENGE_MIN_BYTES"):
+        validate_config(_cfg(BOT_CHALLENGE_MIN_BYTES=True))
+
+
+def test_bot_challenge_min_bytes_float_raises():
+    with pytest.raises(ValueError, match="BOT_CHALLENGE_MIN_BYTES"):
+        validate_config(_cfg(BOT_CHALLENGE_MIN_BYTES=1000.5))
+
+
+# --- BOT_CHALLENGE_TITLE_PATTERNS (issue #111) ---
+
+
+def test_bot_challenge_title_patterns_valid_passes():
+    validate_config(_cfg(BOT_CHALLENGE_TITLE_PATTERNS=["consent"]))  # must not raise
+
+
+def test_bot_challenge_title_patterns_empty_raises():
+    with pytest.raises(ValueError, match="BOT_CHALLENGE_TITLE_PATTERNS"):
+        validate_config(_cfg(BOT_CHALLENGE_TITLE_PATTERNS=[]))
+
+
+def test_bot_challenge_title_patterns_not_a_list_raises():
+    with pytest.raises(ValueError, match="BOT_CHALLENGE_TITLE_PATTERNS"):
+        validate_config(_cfg(BOT_CHALLENGE_TITLE_PATTERNS="consent"))
+
+
+def test_bot_challenge_title_patterns_empty_string_entry_raises():
+    with pytest.raises(ValueError, match="BOT_CHALLENGE_TITLE_PATTERNS"):
+        validate_config(_cfg(BOT_CHALLENGE_TITLE_PATTERNS=["consent", ""]))
+
+
+def test_bot_challenge_title_patterns_non_string_entry_raises():
+    with pytest.raises(ValueError, match="BOT_CHALLENGE_TITLE_PATTERNS"):
+        validate_config(_cfg(BOT_CHALLENGE_TITLE_PATTERNS=["consent", 42]))
+
+
+def test_bot_challenge_title_patterns_none_raises():
+    with pytest.raises(ValueError, match="BOT_CHALLENGE_TITLE_PATTERNS"):
+        validate_config(_cfg(BOT_CHALLENGE_TITLE_PATTERNS=None))
+
+
+# --- CONSECUTIVE_FAILURE_DAYS (issue #111) ---
+
+
+def test_consecutive_failure_days_valid_passes():
+    validate_config(_cfg(CONSECUTIVE_FAILURE_DAYS=1))  # must not raise
+    validate_config(_cfg(CONSECUTIVE_FAILURE_DAYS=7))
+
+
+def test_consecutive_failure_days_zero_raises():
+    with pytest.raises(ValueError, match="CONSECUTIVE_FAILURE_DAYS"):
+        validate_config(_cfg(CONSECUTIVE_FAILURE_DAYS=0))
+
+
+def test_consecutive_failure_days_negative_raises():
+    with pytest.raises(ValueError, match="CONSECUTIVE_FAILURE_DAYS"):
+        validate_config(_cfg(CONSECUTIVE_FAILURE_DAYS=-1))
+
+
+def test_consecutive_failure_days_none_raises():
+    with pytest.raises(ValueError, match="CONSECUTIVE_FAILURE_DAYS"):
+        validate_config(_cfg(CONSECUTIVE_FAILURE_DAYS=None))
+
+
+def test_consecutive_failure_days_bool_raises():
+    with pytest.raises(ValueError, match="CONSECUTIVE_FAILURE_DAYS"):
+        validate_config(_cfg(CONSECUTIVE_FAILURE_DAYS=True))
+
+
+def test_consecutive_failure_days_float_raises():
+    with pytest.raises(ValueError, match="CONSECUTIVE_FAILURE_DAYS"):
+        validate_config(_cfg(CONSECUTIVE_FAILURE_DAYS=2.5))
+
+
+# --- RELIABLE_MIN_OBSERVATIONS (issue #113) ---
+
+
+def test_reliable_min_observations_valid_passes():
+    validate_config(_cfg(RELIABLE_MIN_OBSERVATIONS=1))   # minimum allowed
+    validate_config(_cfg(RELIABLE_MIN_OBSERVATIONS=10))  # default
+    validate_config(_cfg(RELIABLE_MIN_OBSERVATIONS=50))  # generous threshold
+
+
+def test_reliable_min_observations_zero_raises():
+    with pytest.raises(ValueError, match="RELIABLE_MIN_OBSERVATIONS"):
+        validate_config(_cfg(RELIABLE_MIN_OBSERVATIONS=0))
+
+
+def test_reliable_min_observations_negative_raises():
+    with pytest.raises(ValueError, match="RELIABLE_MIN_OBSERVATIONS"):
+        validate_config(_cfg(RELIABLE_MIN_OBSERVATIONS=-1))
+
+
+def test_reliable_min_observations_string_raises():
+    with pytest.raises(ValueError, match="RELIABLE_MIN_OBSERVATIONS"):
+        validate_config(_cfg(RELIABLE_MIN_OBSERVATIONS="x"))
+
+
+def test_reliable_min_observations_bool_raises():
+    with pytest.raises(ValueError, match="RELIABLE_MIN_OBSERVATIONS"):
+        validate_config(_cfg(RELIABLE_MIN_OBSERVATIONS=True))
+
+
+# --- PROXY_LIST_PATH ---
+
+
+def test_proxy_list_path_valid_passes():
+    validate_config(_cfg(PROXY_LIST_PATH="data/proxies.txt"))  # must not raise
+
+
+def test_proxy_list_path_empty_string_raises():
+    with pytest.raises(ValueError, match="PROXY_LIST_PATH"):
+        validate_config(_cfg(PROXY_LIST_PATH=""))
+
+
+def test_proxy_list_path_none_raises():
+    with pytest.raises(ValueError, match="PROXY_LIST_PATH"):
+        validate_config(_cfg(PROXY_LIST_PATH=None))
+
+
+def test_proxy_list_path_non_string_raises():
+    with pytest.raises(ValueError, match="PROXY_LIST_PATH"):
+        validate_config(_cfg(PROXY_LIST_PATH=123))
+
+
+def test_proxy_list_path_int_raises():
+    with pytest.raises(ValueError, match="PROXY_LIST_PATH"):
+        validate_config(_cfg(PROXY_LIST_PATH=456))
+
+
+# --- PROXY_ENABLED ---
+
+
+def test_proxy_enabled_true_passes():
+    validate_config(_cfg(PROXY_ENABLED=True))  # must not raise
+
+
+def test_proxy_enabled_false_passes():
+    validate_config(_cfg(PROXY_ENABLED=False))  # must not raise
+
+
+def test_proxy_enabled_string_true_raises():
+    with pytest.raises(ValueError, match="PROXY_ENABLED"):
+        validate_config(_cfg(PROXY_ENABLED="true"))
+
+
+def test_proxy_enabled_string_false_raises():
+    with pytest.raises(ValueError, match="PROXY_ENABLED"):
+        validate_config(_cfg(PROXY_ENABLED="false"))
+
+
+def test_proxy_enabled_int_one_raises():
+    with pytest.raises(ValueError, match="PROXY_ENABLED"):
+        validate_config(_cfg(PROXY_ENABLED=1))
+
+
+def test_proxy_enabled_int_zero_raises():
+    with pytest.raises(ValueError, match="PROXY_ENABLED"):
+        validate_config(_cfg(PROXY_ENABLED=0))
+
+
+def test_proxy_enabled_none_raises():
+    with pytest.raises(ValueError, match="PROXY_ENABLED"):
+        validate_config(_cfg(PROXY_ENABLED=None))
+
+
+# --- PLAYWRIGHT_* validators ---
+
+
+def test_playwright_headless_accepts_true():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_HEADLESS"] = True
+    validate_config(cfg)  # no raise
+
+
+def test_playwright_headless_accepts_false():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_HEADLESS"] = False
+    validate_config(cfg)  # no raise
+
+
+def test_playwright_headless_rejects_non_bool():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_HEADLESS"] = "yes"
+    with pytest.raises(ValueError, match="PLAYWRIGHT_HEADLESS"):
+        validate_config(cfg)
+
+
+def test_playwright_browser_accepts_chromium():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_BROWSER"] = "chromium"
+    validate_config(cfg)  # no raise
+
+
+def test_playwright_browser_accepts_firefox():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_BROWSER"] = "firefox"
+    validate_config(cfg)  # no raise
+
+
+def test_playwright_browser_accepts_webkit():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_BROWSER"] = "webkit"
+    validate_config(cfg)  # no raise
+
+
+def test_playwright_browser_rejects_unknown():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_BROWSER"] = "ie6"
+    with pytest.raises(ValueError, match="PLAYWRIGHT_BROWSER"):
+        validate_config(cfg)
+
+
+def test_playwright_timeout_ms_accepts_positive_int():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_TIMEOUT_MS"] = 15000
+    validate_config(cfg)  # no raise
+
+
+def test_playwright_timeout_ms_rejects_zero():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_TIMEOUT_MS"] = 0
+    with pytest.raises(ValueError, match="PLAYWRIGHT_TIMEOUT_MS"):
+        validate_config(cfg)
+
+
+def test_playwright_timeout_ms_rejects_float():
+    cfg = _cfg()
+    cfg["PLAYWRIGHT_TIMEOUT_MS"] = 15000.0
+    with pytest.raises(ValueError, match="PLAYWRIGHT_TIMEOUT_MS"):
+        validate_config(cfg)
+
+
+def test_proxy_split_ratio_accepts_zero():
+    cfg = _cfg()
+    cfg["PROXY_SPLIT_RATIO"] = 0.0
+    validate_config(cfg)  # no raise — 0.0 means all direct
+
+
+def test_proxy_split_ratio_accepts_one():
+    cfg = _cfg()
+    cfg["PROXY_SPLIT_RATIO"] = 1.0
+    validate_config(cfg)  # no raise — 1.0 means all proxy
+
+
+def test_proxy_split_ratio_accepts_mid_value():
+    cfg = _cfg()
+    cfg["PROXY_SPLIT_RATIO"] = 0.5
+    validate_config(cfg)  # no raise — 0.5 means 50/50
+
+
+def test_proxy_split_ratio_rejects_negative():
+    cfg = _cfg()
+    cfg["PROXY_SPLIT_RATIO"] = -0.1
+    with pytest.raises(ValueError, match="PROXY_SPLIT_RATIO"):
+        validate_config(cfg)
+
+
+def test_proxy_split_ratio_rejects_above_one():
+    cfg = _cfg()
+    cfg["PROXY_SPLIT_RATIO"] = 1.1
+    with pytest.raises(ValueError, match="PROXY_SPLIT_RATIO"):
+        validate_config(cfg)
+
+
+def test_proxy_split_ratio_rejects_int():
+    cfg = _cfg()
+    cfg["PROXY_SPLIT_RATIO"] = 1
+    with pytest.raises(ValueError, match="PROXY_SPLIT_RATIO"):
+        validate_config(cfg)
+
+
+def test_proxy_split_ratio_rejects_bool():
+    cfg = _cfg()
+    cfg["PROXY_SPLIT_RATIO"] = True
+    with pytest.raises(ValueError, match="PROXY_SPLIT_RATIO"):
+        validate_config(cfg)
+
+
+def test_proxy_split_ratio_rejects_none():
+    cfg = _cfg()
+    cfg["PROXY_SPLIT_RATIO"] = None
+    with pytest.raises(ValueError, match="PROXY_SPLIT_RATIO"):
+        validate_config(cfg)
+
+
+def test_proxy_split_ratio_rejects_string():
+    cfg = _cfg()
+    cfg["PROXY_SPLIT_RATIO"] = "0.5"
+    with pytest.raises(ValueError, match="PROXY_SPLIT_RATIO"):
+        validate_config(cfg)

@@ -1,5 +1,6 @@
 """Tests for run_scheduler: job registration and callable job functions."""
 
+import json
 import os
 import sys
 from unittest.mock import patch
@@ -10,13 +11,17 @@ import schedule
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
+from scripts.run_daily import _write_heartbeat
 from scripts.run_scheduler import (
     _backup_job,
+    _check_stale_pid_file,
     _csv_export_job,
     _daily_job,
     _frontend_csv_job,
     _generate_html_job,
     _health_check_job,
+    _remove_pid_file,
+    _write_pid_file,
     setup_schedule,
 )
 
@@ -248,3 +253,208 @@ def test_frontend_csv_job_chains_html_generation(tmp_path):
         mock_cfg.DATABASE_PATH = str(tmp_path / "flights.db")
         _frontend_csv_job()
     mock_gen.assert_called_once()
+
+
+# --- PID file management (issue #133) ---
+
+
+def test_write_pid_file_creates_file_with_current_pid(tmp_path, monkeypatch):
+    """_write_pid_file() must create the PID file containing the current PID."""
+    pid_file = tmp_path / "run_scheduler.pid"
+    monkeypatch.setattr("scripts.run_scheduler.PID_FILE", str(pid_file))
+    _write_pid_file()
+    assert pid_file.exists()
+    assert int(pid_file.read_text().strip()) == os.getpid()
+
+
+def test_remove_pid_file_removes_existing_file(tmp_path, monkeypatch):
+    """_remove_pid_file() must delete the PID file when it exists."""
+    pid_file = tmp_path / "run_scheduler.pid"
+    pid_file.write_text(str(os.getpid()))
+    monkeypatch.setattr("scripts.run_scheduler.PID_FILE", str(pid_file))
+    _remove_pid_file()
+    assert not pid_file.exists()
+
+
+def test_remove_pid_file_tolerates_absent_file(tmp_path, monkeypatch):
+    """_remove_pid_file() must not raise when the PID file does not exist."""
+    pid_file = tmp_path / "run_scheduler.pid"
+    monkeypatch.setattr("scripts.run_scheduler.PID_FILE", str(pid_file))
+    # Should not raise
+    _remove_pid_file()
+
+
+def test_check_stale_pid_file_returns_none_when_absent(tmp_path, monkeypatch):
+    """_check_stale_pid_file() returns None when no PID file exists."""
+    pid_file = tmp_path / "run_scheduler.pid"
+    monkeypatch.setattr("scripts.run_scheduler.PID_FILE", str(pid_file))
+    assert _check_stale_pid_file() is None
+
+
+def test_check_stale_pid_file_returns_pid_when_process_alive(tmp_path, monkeypatch):
+    """_check_stale_pid_file() returns the PID when the process is alive."""
+    pid_file = tmp_path / "run_scheduler.pid"
+    live_pid = 99999
+    pid_file.write_text(str(live_pid))
+    monkeypatch.setattr("scripts.run_scheduler.PID_FILE", str(pid_file))
+    # os.kill(pid, 0) not raising means the process exists
+    with patch("scripts.run_scheduler.os.kill"):
+        result = _check_stale_pid_file()
+    assert result == live_pid
+    # File must still exist — we don't clean up a live process's PID file
+    assert pid_file.exists()
+
+
+def test_check_stale_pid_file_cleans_up_dead_pid(tmp_path, monkeypatch):
+    """_check_stale_pid_file() removes the file and returns None when PID is dead."""
+    pid_file = tmp_path / "run_scheduler.pid"
+    dead_pid = 99999
+    pid_file.write_text(str(dead_pid))
+    monkeypatch.setattr("scripts.run_scheduler.PID_FILE", str(pid_file))
+    with patch(
+        "scripts.run_scheduler.os.kill", side_effect=ProcessLookupError
+    ):
+        result = _check_stale_pid_file()
+    assert result is None
+    assert not pid_file.exists()
+
+
+def test_check_stale_pid_file_cleans_up_malformed_file(tmp_path, monkeypatch):
+    """_check_stale_pid_file() removes a malformed PID file and returns None."""
+    pid_file = tmp_path / "run_scheduler.pid"
+    pid_file.write_text("not-a-pid")
+    monkeypatch.setattr("scripts.run_scheduler.PID_FILE", str(pid_file))
+    result = _check_stale_pid_file()
+    assert result is None
+    assert not pid_file.exists()
+
+
+# --- Atomic heartbeat write (issue #115) ---
+
+
+def test_write_heartbeat_leaves_prior_content_intact_on_mid_write_crash(tmp_path):
+    """If json.dump raises mid-write, the target file must remain intact (its
+    prior content) or be absent — never a partial/empty file. This guards
+    against the failure mode where the health checker reads an empty
+    last_run.json and reports a misleading 'stale' message."""
+    heartbeat_path = str(tmp_path / "last_run.json")
+    # Seed with valid prior content from a previous successful run.
+    prior = {
+        "run_date": "2026-05-16",
+        "total_observations": 99,
+        "failed_jobs_count": 0,
+        "total_jobs": 100,
+        "duration_seconds": 1234.5,
+        "failures_by_kind": {
+            "bot_challenge": 0,
+            "rate_limited": 0,
+            "parse_error": 0,
+            "network": 0,
+            "other": 0,
+        },
+    }
+    with open(heartbeat_path, "w") as f:
+        json.dump(prior, f)
+
+    with patch(
+        "scripts.run_daily.json.dump", side_effect=RuntimeError("disk full")
+    ):
+        with pytest.raises(RuntimeError, match="disk full"):
+            _write_heartbeat(
+                heartbeat_path,
+                run_date="2026-05-17",
+                total_observations=100,
+                failed_jobs_count=0,
+                total_jobs=100,
+                duration_seconds=42.0,
+            )
+
+    # The target file must be unchanged — atomic rename never happened.
+    with open(heartbeat_path) as f:
+        actual = json.load(f)
+    assert actual == prior
+
+    # No stray temp files leaked into the directory (besides the heartbeat
+    # itself); tempfile.NamedTemporaryFile(delete=False) leaves the temp file
+    # on disk after a crash, but it must NOT have clobbered the target.
+    # The temp file is acceptable — what matters is target integrity.
+    assert os.path.exists(heartbeat_path)
+
+
+def test_write_heartbeat_persists_failures_by_kind(tmp_path):
+    """The heartbeat must persist the per-category failure counters so the
+    health checker can read them (issue #111). Default of None must serialize
+    as a fresh zero-filled dict — never absent, never null — so downstream
+    consumers can rely on the field's presence."""
+    heartbeat_path = str(tmp_path / "last_run.json")
+    failures = {
+        "bot_challenge": 4,
+        "rate_limited": 1,
+        "parse_error": 0,
+        "network": 2,
+        "other": 0,
+    }
+    _write_heartbeat(
+        heartbeat_path,
+        run_date="2026-05-17",
+        total_observations=42,
+        failed_jobs_count=7,
+        total_jobs=100,
+        duration_seconds=10.0,
+        failures_by_kind=failures,
+    )
+    with open(heartbeat_path) as f:
+        data = json.load(f)
+    assert data["failures_by_kind"] == failures
+
+
+def test_write_heartbeat_defaults_failures_by_kind_to_zero_counts(tmp_path):
+    """Omitting failures_by_kind must still write a zero-filled dict so
+    consumers never see a missing field."""
+    heartbeat_path = str(tmp_path / "last_run.json")
+    _write_heartbeat(
+        heartbeat_path,
+        run_date="2026-05-17",
+        total_observations=42,
+        failed_jobs_count=0,
+        total_jobs=100,
+        duration_seconds=10.0,
+    )
+    with open(heartbeat_path) as f:
+        data = json.load(f)
+    assert data["failures_by_kind"] == {
+        "bot_challenge": 0,
+        "rate_limited": 0,
+        "parse_error": 0,
+        "network": 0,
+        "other": 0,
+    }
+
+
+def test_write_heartbeat_calls_os_replace_once_with_temp_and_target(tmp_path):
+    """The atomic-write idiom must use os.replace exactly once, with the temp
+    path as source and the target heartbeat path as destination. This guards
+    against accidental regressions to a naive open()+write that would bypass
+    the atomic-rename step."""
+    heartbeat_path = str(tmp_path / "last_run.json")
+
+    with patch("scripts.run_daily.os.replace") as mock_replace:
+        _write_heartbeat(
+            heartbeat_path,
+            run_date="2026-05-17",
+            total_observations=100,
+            failed_jobs_count=0,
+            total_jobs=100,
+            duration_seconds=42.0,
+        )
+
+    mock_replace.assert_called_once()
+    args, _kwargs = mock_replace.call_args
+    src, dst = args
+    # Source must be a temp file in the same directory as the target — a
+    # cross-filesystem rename is non-atomic on POSIX.
+    assert os.path.dirname(src) == os.path.dirname(os.path.abspath(heartbeat_path))
+    assert os.path.basename(src).startswith(".last_run.")
+    assert os.path.basename(src).endswith(".tmp")
+    # Destination must be exactly the target heartbeat path.
+    assert dst == heartbeat_path

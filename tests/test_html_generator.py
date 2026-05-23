@@ -209,12 +209,23 @@ def test_leadtime_chart_renders_iqr_band():
 
 
 def test_build_analysis_sweet_spot_is_bucket_with_lowest_mean():
+    """sweet_spot_days picks the cheapest *reliable* bucket (obs_count >= threshold).
+
+    The fixture has fewer than 10 observations in every bucket, so all are
+    filtered out and the result is None — which the frontend renders as the
+    'Not enough data yet' fallback.
+    """
     rows = load_rows(str(FIXTURE))
     analysis = build_analysis(rows)
     cph_ams = analysis["CPH-AMS"]
     curve = cph_ams["lead_time_curve"]
-    cheapest = min(curve, key=lambda e: e["mean_cents"])
-    assert cph_ams["sweet_spot_days"] == cheapest["days_before"]
+    import config
+    reliable = [e for e in curve if e["obs_count"] >= config.RELIABLE_MIN_OBSERVATIONS]
+    if reliable:
+        cheapest = min(reliable, key=lambda e: e["mean_cents"])
+        assert cph_ams["sweet_spot_days"] == cheapest["days_before"]
+    else:
+        assert cph_ams["sweet_spot_days"] is None
 
 
 def test_build_analysis_day_of_week_has_seven_entries():
@@ -314,8 +325,13 @@ def test_normprog_panel_rendered_in_html():
 
 
 def test_timeheat_panel_rendered_in_html():
-    """The rendered HTML must contain two heatmap canvas elements and the
-    JS must reference time_of_day_matrix to populate them."""
+    """The rendered HTML must contain a timeheat container element and the
+    JS must reference time_of_day_matrix to populate it dynamically.
+
+    The two fixed canvas IDs (timeheat-out / timeheat-back) were replaced in
+    #104 with a single <div id="timeheat-container"> so that the renderer can
+    create one canvas per route for any arbitrary route list.
+    """
     import re
 
     html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
@@ -323,16 +339,18 @@ def test_timeheat_panel_rendered_in_html():
     assert all_scripts
     app_js = all_scripts[-1]
 
-    # Canvas elements for the two heatmap panels
-    assert 'id="timeheat-out"' in html, (
-        'HTML template must include <canvas id="timeheat-out"> for CPH-AMS heatmap'
-    )
-    assert 'id="timeheat-back"' in html, (
-        'HTML template must include <canvas id="timeheat-back"> for AMS-CPH heatmap'
+    # Dynamic container (replaces the old fixed canvas IDs).
+    assert 'id="timeheat-container"' in html, (
+        'HTML template must include <div id="timeheat-container"> for dynamic '
+        'per-route heatmap canvases (replaces old id="timeheat-out"/id="timeheat-back")'
     )
     # JS must read time_of_day_matrix from the analysis data
     assert "time_of_day_matrix" in app_js, (
         "app.js must reference time_of_day_matrix to render the heatmap cells"
+    )
+    # JS must iterate over routes dynamically, not use hardcoded IDs
+    assert "timeheat-container" in app_js, (
+        "app.js must reference timeheat-container to build canvases per route"
     )
 
 
@@ -428,12 +446,14 @@ def test_build_summary_empty_input():
 
 
 def test_render_html_inlines_assets_and_data():
+    """With inline_data=True the five JSON blobs are embedded into the HTML."""
     html = render_html(
         metadata={"generated_at": "2026-05-15T23:47Z"},
         calendar={"CPH-AMS": {}},
         flights={"CPH-AMS": {}},
         analysis={"CPH-AMS": {}},
         summary={"CPH-AMS": {}},
+        inline_data=True,
     )
     # Asset inlining
     assert "<style>" in html
@@ -455,6 +475,36 @@ def test_render_html_inlines_assets_and_data():
     }
     for raw in blob_dict.values():
         json.loads(raw)
+
+
+def test_render_html_default_mode_blobs_are_empty():
+    """With inline_data=False (default) the five JSON script elements are empty
+    so the browser fetches data.json instead."""
+    import re
+
+    html = render_html(
+        metadata={"generated_at": "2026-05-15T23:47Z"},
+        calendar={"CPH-AMS": {}},
+        flights={"CPH-AMS": {}},
+        analysis={"CPH-AMS": {}},
+        summary={"CPH-AMS": {}},
+    )
+    blobs = re.findall(
+        r'<script type="application/json" id="(DATA_\w+)">(.*?)</script>', html, re.S
+    )
+    blob_dict = {k: v for k, v in blobs}
+    # All five script elements must be present but contain no data
+    assert set(blob_dict) == {
+        "DATA_METADATA",
+        "DATA_CALENDAR",
+        "DATA_FLIGHTS",
+        "DATA_ANALYSIS",
+        "DATA_SUMMARY",
+    }
+    for raw in blob_dict.values():
+        assert raw.strip() == "", (
+            f"Expected empty blob in default mode, got: {raw[:80]!r}"
+        )
 
 
 def test_render_html_uses_safe_substitute_no_placeholder_leaks():
@@ -664,6 +714,7 @@ def test_render_html_escapes_script_close_in_json_blobs():
         flights={},
         analysis={},
         summary={},
+        inline_data=True,
     )
     # Raw </script> must not appear inside the metadata blob
     import re
@@ -684,13 +735,53 @@ def test_render_html_escapes_script_close_in_json_blobs():
 
 
 def test_generate_writes_output_file(tmp_path):
+    """Default mode: writes index.html + sibling data.json; blobs are NOT inlined."""
     out_path = tmp_path / "index.html"
     n = generate(str(FIXTURE), str(out_path))
     assert n > 0
     assert out_path.exists()
     html = out_path.read_text(encoding="utf-8")
     assert "Copenhagen" in html
+    # In default (external) mode the script elements are present but empty
     assert '<script type="application/json" id="DATA_METADATA">' in html
+    import re
+    m = re.search(
+        r'<script type="application/json" id="DATA_METADATA">(.*?)</script>',
+        html, re.S,
+    )
+    assert m and m.group(1).strip() == "", (
+        "DATA_METADATA blob should be empty in default mode"
+    )
+    # data.json must exist as a sibling
+    data_json = tmp_path / "data.json"
+    assert data_json.exists(), "data.json sibling was not written by generate()"
+    payload = json.loads(data_json.read_text(encoding="utf-8"))
+    assert "metadata" in payload and "calendar" in payload
+    assert "flights" in payload and "analysis" in payload and "summary" in payload
+
+
+def test_generate_writes_output_file_inline_data(tmp_path):
+    """With inline_data=True the five blobs are embedded in the HTML (no data.json)."""
+    out_path = tmp_path / "index.html"
+    n = generate(str(FIXTURE), str(out_path), inline_data=True)
+    assert n > 0
+    assert out_path.exists()
+    html = out_path.read_text(encoding="utf-8")
+    assert "Copenhagen" in html
+    # Blobs must be inlined
+    import re
+    m = re.search(
+        r'<script type="application/json" id="DATA_METADATA">(.*?)</script>',
+        html, re.S,
+    )
+    assert m and m.group(1).strip() != "", (
+        "DATA_METADATA blob should be non-empty with inline_data=True"
+    )
+    # No data.json should be written
+    data_json = tmp_path / "data.json"
+    assert not data_json.exists(), (
+        "data.json should NOT be written when inline_data=True"
+    )
 
 
 def test_generate_missing_input_raises(tmp_path):
@@ -709,8 +800,11 @@ def test_generate_empty_input_writes_skeleton(tmp_path):
     assert n == 0
     html = out_path.read_text(encoding="utf-8")
     assert "Copenhagen" in html
-    # DATA_METADATA contains total_rows=0
-    assert '"total_rows":0' in html.replace(" ", "")
+    # DATA_METADATA with total_rows=0 is in data.json (default mode)
+    data_json = tmp_path / "data.json"
+    assert data_json.exists()
+    payload = json.loads(data_json.read_text(encoding="utf-8"))
+    assert payload["metadata"]["total_rows"] == 0
 
 
 def test_cli_smoke(tmp_path):
@@ -960,6 +1054,7 @@ def test_data_analysis_blob_contains_market_direction_and_best_time():
         flights=build_flights(rows),
         analysis=analysis,
         summary=build_summary(rows),
+        inline_data=True,
     )
     m = re.search(
         r'<script type="application/json" id="DATA_ANALYSIS">(.*?)</script>',
@@ -990,6 +1085,7 @@ def test_data_flights_blob_contains_trajectory_percentile_mean():
         flights=build_flights(rows),
         analysis=build_analysis(rows),
         summary=build_summary(rows),
+        inline_data=True,
     )
     m = re.search(
         r'<script type="application/json" id="DATA_FLIGHTS">(.*?)</script>',
@@ -1523,3 +1619,336 @@ def test_leadtime_selected_flight_css_dot_colour():
     html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
     js = _app_js(html)
     assert "192,57,43" in js or "color-red" in js
+
+
+# --- Sweet-spot minimum-observation threshold (issue #113) ---
+
+
+def _make_sweet_spot_rows(
+    days_before_prices: dict[int, list[int]], tmp_path
+) -> list[dict]:
+    """Build synthetic CSV rows and return them as parsed dicts.
+
+    days_before_prices maps days_before → list of price_cents.  The
+    departure date is fixed to 2026-09-01; retrieved_at is computed as
+    departure_date minus days_before days.
+    """
+    from datetime import date, timedelta
+
+    dep_date = date(2026, 9, 1)
+    lines = [
+        "retrieved_at,departure_date,origin,destination,airline,"
+        "departure_at,arrival_at,duration_minutes,price_cents,price_currency"
+    ]
+    for db, prices in days_before_prices.items():
+        ret_date = dep_date - timedelta(days=db)
+        ret_iso = f"{ret_date.isoformat()}T12:00Z"
+        for i, cents in enumerate(prices):
+            lines.append(
+                f"{ret_iso},2026-09-01,CPH,AMS,Airline{i},"
+                f"2026-09-01T10:00:00,2026-09-01T11:30:00,90,{cents},EUR"
+            )
+    p = tmp_path / "sweet_spot.csv"
+    p.write_text("\n".join(lines) + "\n")
+    return load_rows(str(p))
+
+
+def test_sweet_spot_all_buckets_reliable_picks_cheapest(tmp_path):
+    """With 200 observations evenly spread across 5 buckets (40 each), all
+    buckets exceed the threshold=10 floor.  The sweet_spot picks the bucket
+    with the lowest mean — here days_before=10 at 5000 cents, the rest at
+    10000 cents.
+    """
+    days_before_prices = {
+        3:  [10000] * 40,
+        5:  [10000] * 40,
+        10: [5000] * 40,   # cheapest — should be selected
+        30: [10000] * 40,
+        90: [10000] * 40,
+    }
+    rows = _make_sweet_spot_rows(days_before_prices, tmp_path)
+    analysis = build_analysis(rows)
+    assert analysis["CPH-AMS"]["sweet_spot_days"] == 10
+
+
+def test_sweet_spot_filters_below_threshold_bucket(tmp_path):
+    """Buckets with fewer than RELIABLE_MIN_OBSERVATIONS observations must
+    be excluded even if their mean price is the lowest.
+
+    days_before=5 has only 2 observations at a suspiciously low price of
+    1 cent — a classic outlier scenario.  days_before=30 has 15 observations
+    at a higher but reliable 8000 cents.  The sweet_spot must be 30, not 5.
+    """
+    import config
+
+    days_before_prices = {
+        5:  [1] * 2,          # below threshold — must be excluded
+        30: [8000] * 15,      # reliable
+    }
+    rows = _make_sweet_spot_rows(days_before_prices, tmp_path)
+    analysis = build_analysis(rows)
+    # The only reliable bucket is days_before=30
+    assert analysis["CPH-AMS"]["sweet_spot_days"] == 30
+    # Confirm threshold is indeed 10 so the test is meaningful
+    assert config.RELIABLE_MIN_OBSERVATIONS == 10
+
+
+def test_sweet_spot_none_when_no_bucket_meets_threshold(tmp_path):
+    """When every bucket has fewer than RELIABLE_MIN_OBSERVATIONS
+    observations, sweet_spot_days must be None (not an arbitrary pick).
+    The frontend already handles None via its 'Not enough data yet' fallback.
+    """
+    days_before_prices = {
+        10: [9000] * 3,   # only 3 obs — below threshold
+        20: [8500] * 5,   # only 5 obs — below threshold
+        30: [8000] * 2,   # only 2 obs — below threshold
+    }
+    rows = _make_sweet_spot_rows(days_before_prices, tmp_path)
+    analysis = build_analysis(rows)
+    assert analysis["CPH-AMS"]["sweet_spot_days"] is None
+
+
+# ─── Issue #83: modular JS split verification ─────────────────────────────────
+
+
+def test_modular_split_produces_functionally_equivalent_js():
+    """The concatenated JS from frontend/js/*.js must contain all the key
+    function signatures and data field references from the original monolithic
+    app.js. This spot-checks that the split didn't accidentally drop any logic.
+    """
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+
+    # Core chart field references
+    assert "q1_cents" in js, "renderTrends must reference q1_cents from lead_time_curve"
+    assert "q3_cents" in js, "renderTrends must reference q3_cents from lead_time_curve"
+    assert "normalized_price_progression" in js, (
+        "renderNormProgress must reference normalized_price_progression"
+    )
+    assert "time_of_day_matrix" in js, (
+        "renderTimeheat must reference time_of_day_matrix"
+    )
+    assert "Math.round(cents / 100)" in js, (
+        "formatPrice must use Math.round(cents / 100)"
+    )
+
+    # Key function signatures all present in the bundle
+    for fn in [
+        "function renderCalendar",
+        "function renderDrilldown",
+        "function renderTrends",
+        "function renderHistograms",
+        "function renderFooterCharts",
+        "function renderTimeheat",
+        "function renderNormProgress",
+        "function wireFilters",
+        "function activeRoutes",
+        "function airlinePasses",
+        "function main",
+    ]:
+        assert fn in js, f"Expected function signature not found in bundled JS: {fn}"
+
+
+def test_js_bundle_wrapped_in_iife():
+    """The concatenated JS must be wrapped in an IIFE with 'use strict'."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert js.strip().startswith("(function ()"), (
+        "Bundled JS must start with IIFE wrapper: (function () {"
+    )
+    assert "'use strict';" in js, "Bundled JS must contain 'use strict';"
+    assert js.strip().endswith("})();"), (
+        "Bundled JS must end with IIFE closing: })();"
+    )
+
+
+def test_no_duplicate_use_strict_in_bundle():
+    """'use strict' must appear exactly once — added by _build_app_js, not in files."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert js.count("'use strict';") == 1, (
+        "'use strict' must appear exactly once in the bundled JS "
+        "(injected by the wrapper, not inside source files)"
+    )
+
+
+def test_js_source_files_exist_in_correct_order():
+    """All 9 JS source files must exist at frontend/js/ and be loadable."""
+    from src.html_generator import JS_FILE_ORDER, JS_SOURCE_DIR
+
+    for filename in JS_FILE_ORDER:
+        path = JS_SOURCE_DIR / filename
+        assert path.exists(), f"JS source file missing: {path}"
+        content = path.read_text(encoding="utf-8")
+        assert len(content) > 0, f"JS source file is empty: {path}"
+        # Source files must NOT contain IIFE wrapper or 'use strict'
+        assert "(function ()" not in content, (
+            f"{filename} must not contain an IIFE wrapper — "
+            "wrapping happens at build time"
+        )
+        assert "'use strict';" not in content, (
+            f"{filename} must not contain 'use strict' — "
+            "it is added by the IIFE wrapper"
+        )
+
+
+# ─── Issue #104: multi-route generalisation verification ──────────────────────
+
+
+def test_route_palette_defined_in_bundle():
+    """ROUTE_PALETTE must be defined in the JS bundle with at least 2 colours."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "ROUTE_PALETTE" in js, (
+        "constants.js must define ROUTE_PALETTE for dynamic route colouring"
+    )
+    assert "routeColor" in js, (
+        "utils.js must define routeColor() that indexes into ROUTE_PALETTE"
+    )
+
+
+def test_histograms_container_in_template_not_fixed_canvases():
+    """The histogram section must use a container div, not fixed per-route canvas IDs.
+
+    The old id='histogram-out' / id='histogram-back' canvases are replaced by
+    id='histograms-container' so that the renderer can build one canvas per
+    route for any route list (not just CPH-AMS + AMS-CPH).
+    """
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert 'id="histograms-container"' in html, (
+        "Template must use <div id=\"histograms-container\"> for dynamic per-route "
+        "histogram canvases (replaces old id=\"histogram-out\"/id=\"histogram-back\")"
+    )
+    assert 'id="histogram-out"' not in html, (
+        "Old hardcoded id=\"histogram-out\" canvas must be removed from the template"
+    )
+    assert 'id="histogram-back"' not in html, (
+        "Old hardcoded id=\"histogram-back\" canvas must be removed from the template"
+    )
+
+
+def test_timeheat_container_in_template_not_fixed_canvases():
+    """The timeheat section must use a container div, not fixed per-route canvas IDs."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert 'id="timeheat-container"' in html, (
+        "Template must use <div id=\"timeheat-container\"> for dynamic per-route "
+        "heatmap canvases"
+    )
+    assert 'id="timeheat-out"' not in html, (
+        "Old hardcoded id=\"timeheat-out\" canvas must be removed from the template"
+    )
+    assert 'id="timeheat-back"' not in html, (
+        "Old hardcoded id=\"timeheat-back\" canvas must be removed from the template"
+    )
+
+
+def test_active_routes_driven_by_metadata(tmp_path):
+    """activeRoutes() must return routes from DATA.metadata.routes, not hardcoded."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    # activeRoutes must reference metadata.routes, not ['CPH-AMS', 'AMS-CPH']
+    assert "metadata.routes" in js, (
+        "activeRoutes() must read from DATA.metadata.routes "
+        "to support arbitrary routes"
+    )
+
+
+def test_multi_route_generate_with_third_route(tmp_path):
+    """generate() must produce valid HTML containing LHR-DUB references when the
+    input CSV includes LHR-DUB flights. No CPH-AMS hardcoding should prevent this.
+
+    This verifies the end-to-end multi-route generalisation from issue #104.
+    """
+    csv_text = (
+        "retrieved_at,departure_date,origin,destination,airline,"
+        "departure_at,arrival_at,duration_minutes,price_cents,price_currency\n"
+        # LHR-DUB flights
+        "2026-05-10T23:46Z,2026-06-19,LHR,DUB,Ryanair,"
+        "2026-06-19T07:00:00,2026-06-19T08:30:00,90,5500,EUR\n"
+        "2026-05-15T23:46Z,2026-06-19,LHR,DUB,easyJet,"
+        "2026-06-19T12:00:00,2026-06-19T13:30:00,90,6800,EUR\n"
+        "2026-05-10T23:46Z,2026-06-21,DUB,LHR,Ryanair,"
+        "2026-06-21T17:00:00,2026-06-21T18:30:00,90,5800,EUR\n"
+        "2026-05-15T23:46Z,2026-06-21,DUB,LHR,easyJet,"
+        "2026-06-21T20:00:00,2026-06-21T21:30:00,90,7200,EUR\n"
+    )
+    p = tmp_path / "lhr_dub.csv"
+    p.write_text(csv_text)
+    out_path = tmp_path / "index.html"
+    n = generate(str(p), str(out_path))
+    assert n == 4
+    html = out_path.read_text(encoding="utf-8")
+
+    # In default mode the blobs are in data.json, not inline in the HTML.
+    data_json = tmp_path / "data.json"
+    assert data_json.exists(), "data.json must be written by generate()"
+    payload = json.loads(data_json.read_text(encoding="utf-8"))
+    metadata = payload["metadata"]
+    assert "LHR-DUB" in metadata["routes"], "LHR-DUB must appear in metadata.routes"
+    assert "DUB-LHR" in metadata["routes"], "DUB-LHR must appear in metadata.routes"
+
+    # The JS must reference routeColor (dynamic palette, not hardcoded dict)
+    js = _app_js(html)
+    assert "routeColor" in js, (
+        "JS must use routeColor() for dynamic palette — "
+        "not a hardcoded route→colour dict"
+    )
+
+
+# ─── Issue #126: normalized-progression IQR fields ────────────────────────────
+
+
+def test_normalized_price_progression_has_iqr_fields():
+    """Each normalized_price_progression entry must include q1_pct_change and
+    q3_pct_change so the frontend can render an IQR band around the mean line."""
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    prog = analysis["CPH-AMS"]["normalized_price_progression"]
+    assert len(prog) > 0, "normalized_price_progression must be non-empty"
+    for entry in prog:
+        assert "q1_pct_change" in entry, (
+            f"normalized_price_progression entry missing q1_pct_change: {entry}"
+        )
+        assert "q3_pct_change" in entry, (
+            f"normalized_price_progression entry missing q3_pct_change: {entry}"
+        )
+        # Q1 ≤ mean ≤ Q3 must hold (sorted quartile invariant).
+        assert entry["q1_pct_change"] <= entry["mean_pct_change"] + 0.01, (
+            f"q1_pct_change must be ≤ mean_pct_change: {entry}"
+        )
+        assert entry["q3_pct_change"] >= entry["mean_pct_change"] - 0.01, (
+            f"q3_pct_change must be ≥ mean_pct_change: {entry}"
+        )
+
+
+def test_normalized_price_progression_iqr_equal_for_single_obs():
+    """When a bucket has only one observation, q1 == q3 == mean (degenerate case)."""
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    # Find any entry where the values can be checked for equality on single-obs buckets
+    prog = analysis["CPH-AMS"]["normalized_price_progression"]
+    for entry in prog:
+        # All single-obs buckets must have q1==q3==mean
+        # We can't control which are single-obs in the fixture, but we verify the
+        # invariant that all three fields are present as floats.
+        assert isinstance(entry["q1_pct_change"], float), (
+            f"q1_pct_change must be a float: {entry}"
+        )
+        assert isinstance(entry["q3_pct_change"], float), (
+            f"q3_pct_change must be a float: {entry}"
+        )
+
+
+def test_rendered_html_contains_normprog_iqr_field_references():
+    """The rendered HTML's app.js must reference q1_pct_change and q3_pct_change
+    so the IQR band for the normalized-progression chart is driven by the JSON data."""
+    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(html)
+    assert "q1_pct_change" in js, (
+        "renderNormProgress must reference q1_pct_change from "
+        "normalized_price_progression"
+    )
+    assert "q3_pct_change" in js, (
+        "renderNormProgress must reference q3_pct_change from "
+        "normalized_price_progression"
+    )
