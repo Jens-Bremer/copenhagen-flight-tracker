@@ -19,7 +19,7 @@ const REQUIRED_DOM_IDS = [
   'cal-prev', 'cal-month-label', 'cal-next',
   'calendar', 'drilldown-panel', 'drilldown-title', 'drilldown-sort', 'drilldown',
   'price-history-wrap', 'verdict-card', 'price-history-chart',
-  'market-trend-chart', 'leadtime-chart', 'sweet-spot-headline',
+  'leadtime-chart', 'sweet-spot-headline',
   'histograms-container',
   'weekend-pairs',
   'dow-chart', 'month-chart',

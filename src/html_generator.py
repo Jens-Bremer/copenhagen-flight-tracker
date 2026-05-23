@@ -135,31 +135,31 @@ def build_calendar(rows: list[dict[str, Any]]) -> dict[str, dict[str, dict[str, 
     """Per (route, departure_date): latest observed price + distinct flight count.
 
     Flight identity = (airline, dep_time_of_day). Multiple retrieved_at
-    snapshots for the same flight collapse into one for the count, and
-    the price shown is from the most recent observation (not the all-time low).
+    snapshots for the same flight collapse into one; min_cents is the
+    cheapest latest price across all distinct flights on that date.
     """
-    out: dict[str, dict[str, dict[str, Any]]] = {}
+    # Step 1: per (route, date, flight_id) — keep only the most recent price.
+    per_flight: dict[tuple, tuple[int, Any]] = {}
     for row in rows:
-        route = _route_key(row)
-        date = row["departure_date"]
-        flight_id = (row["airline"], row["departure_at"].time())
-        cell = out.setdefault(route, {}).setdefault(
-            date,
-            {
-                "min_cents": row["price_cents"],
-                "_latest_at": row["retrieved_at"],
-                "_flights": set(),
-            },
+        key = (
+            _route_key(row),
+            row["departure_date"],
+            row["airline"],
+            row["departure_at"].time(),
         )
-        if row["retrieved_at"] >= cell["_latest_at"]:
-            cell["_latest_at"] = row["retrieved_at"]
-            cell["min_cents"] = row["price_cents"]
-        cell["_flights"].add(flight_id)
-    # Materialise the count and drop the working sets
-    for route_cells in out.values():
-        for cell in route_cells.values():
-            cell["flight_count"] = len(cell.pop("_flights"))
-            cell.pop("_latest_at")
+        existing = per_flight.get(key)
+        if existing is None or row["retrieved_at"] >= existing[1]:
+            per_flight[key] = (row["price_cents"], row["retrieved_at"])
+
+    # Step 2: aggregate to (route, date) — minimum latest price + flight count.
+    out: dict[str, dict[str, dict[str, Any]]] = {}
+    for (route, date, _airline, _dep_time), (price, _) in per_flight.items():
+        cell = out.setdefault(route, {}).setdefault(
+            date, {"min_cents": price, "flight_count": 0}
+        )
+        if price < cell["min_cents"]:
+            cell["min_cents"] = price
+        cell["flight_count"] += 1
     return out
 
 

@@ -74,10 +74,7 @@
     <section class="panel" aria-label="Price trends">
       <h2 class="panel__heading">Price trends</h2>
       <p class="panel__subtitle">How prices have changed over time, and when they are typically cheapest</p>
-      <div class="trends-stack">
-        <div class="chart-wrap"><canvas id="market-trend-chart" role="img"></canvas></div>
-        <div class="chart-wrap"><canvas id="leadtime-chart" role="img"></canvas></div>
-      </div>
+      <div class="chart-wrap"><canvas id="leadtime-chart" role="img"></canvas></div>
       <p id="sweet-spot-headline" class="headline"></p>
     </section>
 
