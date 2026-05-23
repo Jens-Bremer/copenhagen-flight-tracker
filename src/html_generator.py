@@ -364,25 +364,15 @@ def _build_norm_prog_entry(days_before: int, values: list[float]) -> dict[str, A
     }
 
 
-def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    """Per route: lead-time curve, sweet spot, dow/month means, market trend."""
-    if not rows:
-        return {}
-
-    # Group prices by (route, days_before)
+def _group_analysis_inputs(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Single-pass grouping of rows into the six analysis data structures."""
     by_lead: dict[tuple[str, int], list[int]] = defaultdict(list)
-    # Group cheapest-per-departure by (route, dow) and (route, month)
     cheapest_per_dep: dict[tuple[str, str], int] = {}
-    # Group cheapest-per-obs-date by (route, obs_date)
     cheapest_per_obs: dict[tuple[str, str], int] = {}
-    # Group prices by (route, dow, hour) for the time-of-day heatmap
     by_time: dict[tuple[str, int, int], list[int]] = defaultdict(list)
-    # Group prices by (route, dep_date, airline, dep_time, days_before)
-    # for normalised price progression
-    by_flight: dict[tuple[str, str, str, str], dict[int, list[int]]] = defaultdict(
-        lambda: defaultdict(list)
-    )
-    # All rows per route (for lowest_ever scan)
+    by_flight: dict[
+        tuple[str, str, str, str], dict[int, list[int]]
+    ] = defaultdict(lambda: defaultdict(list))
     rows_by_route: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
     for row in rows:
@@ -391,7 +381,6 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         dep_date = date_type.fromisoformat(row["departure_date"])
         obs_date = row["retrieved_at"].date().isoformat()
         days_before = (dep_date - row["retrieved_at"].date()).days
-        # Skip implausible buckets defensively (should not occur post-#55)
         if days_before < 0:
             continue
         by_lead[(route, days_before)].append(row["price_cents"])
@@ -402,16 +391,35 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         by_flight[(route, row["departure_date"], row["airline"], dep_time)][
             days_before
         ].append(row["price_cents"])
-
         key_dep = (route, row["departure_date"])
-        prev_dep = cheapest_per_dep.get(key_dep)
-        if prev_dep is None or row["price_cents"] < prev_dep:
+        if key_dep not in cheapest_per_dep or row["price_cents"] < cheapest_per_dep[key_dep]:
             cheapest_per_dep[key_dep] = row["price_cents"]
-
         key_obs = (route, obs_date)
-        prev_obs = cheapest_per_obs.get(key_obs)
-        if prev_obs is None or row["price_cents"] < prev_obs:
+        if key_obs not in cheapest_per_obs or row["price_cents"] < cheapest_per_obs[key_obs]:
             cheapest_per_obs[key_obs] = row["price_cents"]
+
+    return {
+        "by_lead": by_lead,
+        "by_time": by_time,
+        "by_flight": by_flight,
+        "cheapest_per_dep": cheapest_per_dep,
+        "cheapest_per_obs": cheapest_per_obs,
+        "rows_by_route": rows_by_route,
+    }
+
+
+def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Per route: lead-time curve, sweet spot, dow/month means, market trend."""
+    if not rows:
+        return {}
+
+    groups = _group_analysis_inputs(rows)
+    by_lead = groups["by_lead"]
+    by_time = groups["by_time"]
+    by_flight = groups["by_flight"]
+    cheapest_per_dep = groups["cheapest_per_dep"]
+    cheapest_per_obs = groups["cheapest_per_obs"]
+    rows_by_route = groups["rows_by_route"]
 
     # Normalised progression: per flight, express each obs as % change from the
     # oldest observation; aggregate across all flights per (route, days_before).
