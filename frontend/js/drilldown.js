@@ -25,10 +25,10 @@ function renderVerdict(flight) {
     verdictText = 'Not enough data yet to assess this price';
     verdictCls = '';
   } else if (percentile <= 15) {
-    verdictText = 'Great time to buy';
+    verdictText = 'Well below historical average';
     verdictCls = 'is-good';
   } else if (percentile <= 25) {
-    verdictText = 'Good time to buy';
+    verdictText = 'Below historical average';
     verdictCls = 'is-good';
   } else if (percentile <= 75) {
     verdictText = 'Fair price';

@@ -1183,8 +1183,8 @@ def test_verdict_card_thresholds_all_present():
     """JS must implement all four percentile thresholds from the spec."""
     html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
     js = _app_js(html)
-    assert "Great time to buy" in js
-    assert "Good time to buy" in js
+    assert "Well below historical average" in js
+    assert "Below historical average" in js
     assert "Fair price" in js
     assert "Above average" in js
 
