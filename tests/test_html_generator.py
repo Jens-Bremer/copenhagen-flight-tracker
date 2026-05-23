@@ -1952,3 +1952,61 @@ def test_rendered_html_contains_normprog_iqr_field_references():
         "renderNormProgress must reference q3_pct_change from "
         "normalized_price_progression"
     )
+
+
+# ── build_flights: is_stale ───────────────────────────────────────────────────
+
+
+def test_build_flights_is_stale_false_when_recent(tmp_path):
+    """Flight observed today must not be stale."""
+    rows = _make_rows(
+        "2026-05-20T10:00Z,2026-06-19,CPH,AMS,KLM,"
+        "2026-06-19T08:00:00,2026-06-19T10:30:00,150,10000,EUR\n",
+        tmp_path,
+    )
+    generated_at = datetime(2026, 5, 20, 12, 0, tzinfo=timezone.utc)
+    flights = build_flights(rows, generated_at=generated_at)
+    flight = flights["CPH-AMS"]["2026-06-19"][0]
+    assert flight["is_stale"] is False
+    assert flight["latest_retrieved_at"] == "2026-05-20"
+
+
+def test_build_flights_is_stale_false_at_boundary(tmp_path):
+    """Flight observed exactly 3 days ago is not stale (threshold is strictly > 3)."""
+    rows = _make_rows(
+        "2026-05-17T10:00Z,2026-06-19,CPH,AMS,KLM,"
+        "2026-06-19T08:00:00,2026-06-19T10:30:00,150,10000,EUR\n",
+        tmp_path,
+    )
+    generated_at = datetime(2026, 5, 20, 12, 0, tzinfo=timezone.utc)
+    flights = build_flights(rows, generated_at=generated_at)
+    assert flights["CPH-AMS"]["2026-06-19"][0]["is_stale"] is False
+
+
+def test_build_flights_is_stale_true_when_old(tmp_path):
+    """Flight whose last observation is more than 3 days before generated_at is stale."""
+    rows = _make_rows(
+        "2026-05-10T10:00Z,2026-06-19,CPH,AMS,KLM,"
+        "2026-06-19T08:00:00,2026-06-19T10:30:00,150,10000,EUR\n",
+        tmp_path,
+    )
+    generated_at = datetime(2026, 5, 20, 12, 0, tzinfo=timezone.utc)  # 10 days later
+    flights = build_flights(rows, generated_at=generated_at)
+    assert flights["CPH-AMS"]["2026-06-19"][0]["is_stale"] is True
+
+
+def test_build_flights_is_stale_uses_latest_obs(tmp_path):
+    """Staleness is computed from the most recent observation, not the oldest."""
+    rows = _make_rows(
+        "2026-05-10T10:00Z,2026-06-19,CPH,AMS,KLM,"
+        "2026-06-19T08:00:00,2026-06-19T10:30:00,150,10000,EUR\n"
+        "2026-05-19T10:00Z,2026-06-19,CPH,AMS,KLM,"
+        "2026-06-19T08:00:00,2026-06-19T10:30:00,150,9500,EUR\n",
+        tmp_path,
+    )
+    generated_at = datetime(2026, 5, 20, 12, 0, tzinfo=timezone.utc)
+    flights = build_flights(rows, generated_at=generated_at)
+    flight = flights["CPH-AMS"]["2026-06-19"][0]
+    # Latest obs is 2026-05-19 (1 day before generated_at) → not stale
+    assert flight["is_stale"] is False
+    assert flight["latest_retrieved_at"] == "2026-05-19"

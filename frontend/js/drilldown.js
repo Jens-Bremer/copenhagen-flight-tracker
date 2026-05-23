@@ -148,13 +148,16 @@ function renderDrilldown() {
   flights.forEach((f) => {
     const row = document.createElement('button');
     row.type = 'button';
-    row.className = 'flight-row' + (
-      state.selectedFlight &&
-      state.selectedFlight.airline === f.airline &&
-      state.selectedFlight.dep_time === f.dep_time &&
-      state.selectedFlight.route === f.route ? ' is-selected' : ''
-    );
+    row.className = 'flight-row' +
+      (state.selectedFlight &&
+       state.selectedFlight.airline === f.airline &&
+       state.selectedFlight.dep_time === f.dep_time &&
+       state.selectedFlight.route === f.route ? ' is-selected' : '') +
+      (f.is_stale ? ' flight-stale' : '');
     const overnight = f.overnight ? `<span class="flight-row__overnight">+1</span>` : '';
+    const staleBadge = f.is_stale
+      ? `<span class="stale-badge" title="Last seen ${escapeHtml(f.latest_retrieved_at)} — price may be outdated">⚠ Outdated</span>`
+      : '';
     // Trajectory arrow: green ↓ for down, red ↑ for up, gray → for stable, none for null.
     let trajectoryHtml = '';
     if (f.trajectory === 'down') {
@@ -174,7 +177,7 @@ function renderDrilldown() {
       <span>${escapeHtml(f.airline)} <small>(${escapeHtml(f.route)})</small></span>
       <span class="flight-row__time">${escapeHtml(f.dep_time)} → ${escapeHtml(f.arr_time)} ${overnight}</span>
       <span class="flight-row__time">${Math.floor(f.duration_minutes / 60)}h ${f.duration_minutes % 60}m</span>
-      <span><strong>${formatPrice(f.latest_cents)}</strong>${trajectoryHtml}</span>
+      <span><strong>${formatPrice(f.latest_cents)}</strong>${trajectoryHtml}${staleBadge}</span>
     `;
     row.addEventListener('click', () => {
       state.selectedFlight = { airline: f.airline, dep_time: f.dep_time, route: f.route };
