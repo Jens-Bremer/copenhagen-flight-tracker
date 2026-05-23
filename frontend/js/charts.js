@@ -11,14 +11,35 @@ function renderTrends() {
 
   // Market trend — one line per active route, X = obs_date, Y = min_cents/100
   // Odd-indexed routes (second route, fourth, …) get a dashed line for distinction.
+  // Build a continuous date range so Chart.js renders visible gaps for missing days.
+  const allObservedDates = routes.flatMap((r) =>
+    (DATA.analysis[r].market_trend || []).map((t) => t.obs_date)
+  );
+  const minDate = allObservedDates.reduce((a, b) => (a < b ? a : b), allObservedDates[0]);
+  const maxDate = allObservedDates.reduce((a, b) => (a > b ? a : b), allObservedDates[0]);
+
+  function dateRange(start, end) {
+    const dates = [];
+    const cur = new Date(start + 'T00:00:00Z');
+    const last = new Date(end + 'T00:00:00Z');
+    while (cur <= last) {
+      dates.push(cur.toISOString().slice(0, 10));
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+    return dates;
+  }
+
+  const allDates = (minDate && maxDate) ? dateRange(minDate, maxDate) : [];
+
   const marketDatasets = routes.map((r) => {
     const trend = DATA.analysis[r].market_trend || [];
+    const priceByDate = Object.fromEntries(trend.map((t) => [t.obs_date, t.min_cents / 100]));
     const color = routeColor(r);
     const routeIdx = DATA.metadata.routes.indexOf(r);
     const isDashed = routeIdx % 2 === 1;
     return {
       label: r,
-      data: trend.map((t) => ({ x: t.obs_date, y: t.min_cents / 100 })),
+      data: allDates.map((d) => ({ x: d, y: priceByDate[d] ?? null })),
       borderColor: color,
       backgroundColor: hexToRgba(color, 0.10),
       borderDash: isDashed ? [6, 4] : [],
@@ -27,10 +48,6 @@ function renderTrends() {
       pointRadius: 2,
     };
   });
-
-  const allDates = Array.from(new Set(
-    routes.flatMap((r) => (DATA.analysis[r].market_trend || []).map((t) => t.obs_date))
-  )).sort();
   charts.marketTrend = new Chart($('market-trend-chart'), {
     type: 'line',
     data: { labels: allDates, datasets: marketDatasets },
