@@ -66,6 +66,11 @@ ignore = [
 "scripts/**/*.py" = ["D100", "D101", "D102", "D103", "D105", "D107"]
 "tests/**/*.py" = ["D100", "D101", "D102", "D103", "D105", "D107"]
 
+[tool.ruff.lint.extend-per-file-ignores]
+# Scripts and tests are intentionally pragmatic; keep signal high.
+"scripts/**/*.py" = ["RUF046", "RUF100"]
+"tests/**/*.py" = ["SIM117"]
+
 [tool.ruff.lint.mccabe]
 max-complexity = 18
 
