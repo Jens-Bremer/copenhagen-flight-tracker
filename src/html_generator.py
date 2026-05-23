@@ -128,11 +128,11 @@ def _route_key(row: dict[str, Any]) -> str:
 
 
 def build_calendar(rows: list[dict[str, Any]]) -> dict[str, dict[str, dict[str, int]]]:
-    """Per (route, departure_date): min observed price + distinct flight count.
+    """Per (route, departure_date): latest observed price + distinct flight count.
 
     Flight identity = (airline, dep_time_of_day). Multiple retrieved_at
-    snapshots for the same flight collapse into one for the count, but
-    every observation participates in the min.
+    snapshots for the same flight collapse into one for the count, and
+    the price shown is from the most recent observation (not the all-time low).
     """
     out: dict[str, dict[str, dict[str, Any]]] = {}
     for row in rows:
@@ -140,14 +140,17 @@ def build_calendar(rows: list[dict[str, Any]]) -> dict[str, dict[str, dict[str, 
         date = row["departure_date"]
         flight_id = (row["airline"], row["departure_at"].time())
         cell = out.setdefault(route, {}).setdefault(
-            date, {"min_cents": row["price_cents"], "_flights": set()}
+            date, {"min_cents": row["price_cents"], "_latest_at": row["retrieved_at"], "_flights": set()}
         )
-        cell["min_cents"] = min(cell["min_cents"], row["price_cents"])
+        if row["retrieved_at"] >= cell["_latest_at"]:
+            cell["_latest_at"] = row["retrieved_at"]
+            cell["min_cents"] = row["price_cents"]
         cell["_flights"].add(flight_id)
-    # Materialise the count and drop the working set
+    # Materialise the count and drop the working sets
     for route_cells in out.values():
         for cell in route_cells.values():
             cell["flight_count"] = len(cell.pop("_flights"))
+            cell.pop("_latest_at")
     return out
 
 
@@ -561,8 +564,8 @@ def build_summary(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
 
     # Histogram bins keyed by (route, airline, bin_low)
     hist_counts: dict[tuple[str, str, int], int] = defaultdict(int)
-    # Cheapest-per-(route, departure_date) for weekend-pair join
-    cheapest_dep: dict[tuple[str, str], dict[str, Any]] = {}
+    # Latest-observed-per-(route, departure_date) for weekend-pair join
+    latest_dep: dict[tuple[str, str], dict[str, Any]] = {}
 
     for row in rows:
         route = _route_key(row)
@@ -571,12 +574,13 @@ def build_summary(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         hist_counts[(route, airline, bin_lo)] += 1
 
         key = (route, row["departure_date"])
-        current = cheapest_dep.get(key)
-        if current is None or row["price_cents"] < current["price_cents"]:
-            cheapest_dep[key] = {
+        current = latest_dep.get(key)
+        if current is None or row["retrieved_at"] >= current["_retrieved_at"]:
+            latest_dep[key] = {
                 "airline": airline,
                 "dep_time": _hhmm(row["departure_at"]),
                 "price_cents": row["price_cents"],
+                "_retrieved_at": row["retrieved_at"],
             }
 
     out: dict[str, dict[str, Any]] = {}
@@ -610,14 +614,14 @@ def build_summary(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         if sun_route not in out:
             continue
         pairs: list[dict[str, Any]] = []
-        for (route, dep_iso), fri in cheapest_dep.items():
+        for (route, dep_iso), fri in latest_dep.items():
             if route != fri_route:
                 continue
             dep_date = date_type.fromisoformat(dep_iso)
             if dep_date.weekday() != 4:  # 4 = Friday
                 continue
             sun_iso = (dep_date + timedelta(days=2)).isoformat()
-            sun = cheapest_dep.get((sun_route, sun_iso))
+            sun = latest_dep.get((sun_route, sun_iso))
             if sun is None:
                 continue
             pairs.append(

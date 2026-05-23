@@ -235,7 +235,7 @@ ol, ul { list-style: none; }
 .flight-row__time { font-variant-numeric: tabular-nums; }
 .flight-row__overnight { font-size: 0.7rem; padding: 2px 6px; border-radius: 999px;
                          background: var(--color-orange); color: var(--color-cream); }
-.flight-row__trajectory { font-size: 13px; font-weight: 600; margin-left: 4px; }
+.flight-row__trajectory { font-size: 13px; font-weight: 600; margin-left: 4px; display: inline-block; min-width: 1.5ch; text-align: center; }
 .flight-row.flight-stale { opacity: 0.45; filter: grayscale(60%); }
 .flight-row.flight-stale:hover { opacity: 1; filter: none; }
 .stale-badge {
