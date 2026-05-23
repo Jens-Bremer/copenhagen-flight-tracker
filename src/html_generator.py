@@ -30,7 +30,9 @@ TEMPLATE_PATH = FRONTEND_DIR / "index.html.template"
 STYLES_PATH = FRONTEND_DIR / "styles.css"
 CHART_JS_PATH = FRONTEND_DIR / "vendor" / "chart.min.js"
 BOXPLOT_JS_PATH = FRONTEND_DIR / "vendor" / "chartjs-chart-boxplot.min.js"
-DATE_ADAPTER_JS_PATH = FRONTEND_DIR / "vendor" / "chartjs-adapter-date-fns.bundle.min.js"
+DATE_ADAPTER_JS_PATH = (
+    FRONTEND_DIR / "vendor" / "chartjs-adapter-date-fns.bundle.min.js"
+)
 JS_SOURCE_DIR = FRONTEND_DIR / "js"
 JS_FILE_ORDER = [
     "constants.js",
