@@ -65,6 +65,7 @@ class ProxyRotator:
     """
 
     def __init__(self, proxies: list[str]):
+        """Create a rotator over an already-parsed list of proxy URLs."""
         self._proxies = proxies
         self._cycle = cycle(proxies) if proxies else None
 
@@ -79,4 +80,5 @@ class ProxyRotator:
         return len(self._proxies)
 
     def __repr__(self) -> str:
+        """Return a concise debug representation."""
         return f"ProxyRotator(count={len(self._proxies)})"

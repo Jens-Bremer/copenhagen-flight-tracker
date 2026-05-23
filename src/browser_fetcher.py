@@ -1,3 +1,9 @@
+"""Playwright-based transport for scraping Google Flights.
+
+This replaces `fast_flights.core.fetch` with a real Chromium page load, using
+persistent browser profiles to retain cookies and other state between runs.
+"""
+
 import logging
 import random
 import re
@@ -207,6 +213,7 @@ class BrowserResponse:
     its fetch function."""
 
     def __init__(self, status_code: int, text: str) -> None:
+        """Create a response wrapper with status + HTML body."""
         self.status_code = status_code
         self.text = text
         self.text_markdown = text

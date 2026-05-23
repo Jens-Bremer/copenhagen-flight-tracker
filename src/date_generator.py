@@ -1,3 +1,5 @@
+"""Generate candidate departure dates based on configuration."""
+
 from datetime import date, timedelta
 
 from dateutil.relativedelta import relativedelta

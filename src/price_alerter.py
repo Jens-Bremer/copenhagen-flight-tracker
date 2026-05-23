@@ -1,3 +1,5 @@
+"""Detect and alert on unusually cheap flights in the latest scrape."""
+
 import logging
 import sqlite3
 from datetime import date

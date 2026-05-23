@@ -28,7 +28,46 @@ line-length = 88
 target-version = "py39"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+
+    # Higher-signal maintainability/correctness checks.
+    "C90", # mccabe complexity
+    "RET", # flake8-return
+    "RUF", # Ruff-specific rules
+    "SIM", # flake8-simplify
+
+    # Docstring existence (production code only; style is intentionally not enforced).
+    "D100",
+    "D101",
+    "D102",
+    "D103",
+    "D105",
+    "D107",
+]
+
+ignore = [
+    # Avoid forcing refactors purely to satisfy lint.
+    "SIM105",
+    "SIM102",
+    # Avoid churn over Unicode punctuation in existing strings/docstrings.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"config.py" = ["D100"]
+"src/__init__.py" = ["D104"]
+"scripts/**/*.py" = ["D100", "D101", "D102", "D103", "D105", "D107"]
+"tests/**/*.py" = ["D100", "D101", "D102", "D103", "D105", "D107"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 18
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
