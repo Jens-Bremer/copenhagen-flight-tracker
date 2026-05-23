@@ -1,5 +1,4 @@
 function renderTrends() {
-  destroyChart('marketTrend');
   destroyChart('leadtime');
 
   const headline = $('sweet-spot-headline');
@@ -8,78 +7,6 @@ function renderTrends() {
     headline.textContent = '';
     return;
   }
-
-  // Market trend — one line per active route, X = obs_date, Y = min_cents/100
-  // Odd-indexed routes (second route, fourth, …) get a dashed line for distinction.
-  // Build a continuous date range so Chart.js renders visible gaps for missing days.
-  const allObservedDates = routes.flatMap((r) =>
-    (DATA.analysis[r].market_trend || []).map((t) => t.obs_date)
-  );
-  const minDate = allObservedDates.reduce((a, b) => (a < b ? a : b), allObservedDates[0]);
-  const maxDate = allObservedDates.reduce((a, b) => (a > b ? a : b), allObservedDates[0]);
-
-  function dateRange(start, end) {
-    const dates = [];
-    const cur = new Date(start + 'T00:00:00Z');
-    const last = new Date(end + 'T00:00:00Z');
-    while (cur <= last) {
-      dates.push(cur.toISOString().slice(0, 10));
-      cur.setUTCDate(cur.getUTCDate() + 1);
-    }
-    return dates;
-  }
-
-  const allDates = (minDate && maxDate) ? dateRange(minDate, maxDate) : [];
-
-  const marketDatasets = routes.map((r) => {
-    const trend = DATA.analysis[r].market_trend || [];
-    const priceByDate = Object.fromEntries(trend.map((t) => [t.obs_date, t.min_cents / 100]));
-    const color = routeColor(r);
-    const routeIdx = DATA.metadata.routes.indexOf(r);
-    const isDashed = routeIdx % 2 === 1;
-    return {
-      label: r,
-      data: allDates.map((d) => ({ x: d, y: priceByDate[d] ?? null })),
-      borderColor: color,
-      backgroundColor: hexToRgba(color, 0.10),
-      borderDash: isDashed ? [6, 4] : [],
-      spanGaps: true,
-      borderWidth: 2,
-      pointRadius: 2,
-    };
-  });
-  charts.marketTrend = new Chart($('market-trend-chart'), {
-    type: 'line',
-    data: { datasets: marketDatasets },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        title: { display: true, text: 'Market trend — cheapest seen on each scrape day' },
-        tooltip: { callbacks: { label: (c) => `${c.dataset.label}: €${Math.round(c.parsed.y)}` } },
-      },
-      scales: {
-        x: {
-          type: 'time',
-          time: {
-            unit: 'month',
-            displayFormats: { month: 'MMM' },
-            tooltipFormat: 'MMM d, yyyy',
-          },
-          ticks: {
-            maxRotation: 0,
-            callback: function(value, index, ticks) {
-              const date = new Date(ticks[index].value);
-              if (date.getMonth() === 0) {
-                return date.toLocaleDateString('en', { month: 'short', year: 'numeric' });
-              }
-              return date.toLocaleDateString('en', { month: 'short' });
-            },
-          },
-        },
-        y: { title: { display: true, text: 'Price (€)' } },
-      },
-    },
-  });
 
   // Three datasets per route: Q1 boundary, Q3 boundary (filled back to Q1 = IQR band), mean line.
   // Odd-indexed routes get a dashed border for visual distinction.
