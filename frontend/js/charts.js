@@ -43,21 +43,41 @@ function renderTrends() {
       borderColor: color,
       backgroundColor: hexToRgba(color, 0.10),
       borderDash: isDashed ? [6, 4] : [],
-      spanGaps: false,
+      spanGaps: true,
       borderWidth: 2,
       pointRadius: 2,
     };
   });
   charts.marketTrend = new Chart($('market-trend-chart'), {
     type: 'line',
-    data: { labels: allDates, datasets: marketDatasets },
+    data: { datasets: marketDatasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
         title: { display: true, text: 'Market trend — cheapest seen on each scrape day' },
         tooltip: { callbacks: { label: (c) => `${c.dataset.label}: €${Math.round(c.parsed.y)}` } },
       },
-      scales: { y: { title: { display: true, text: 'Price (€)' } } },
+      scales: {
+        x: {
+          type: 'time',
+          time: {
+            unit: 'month',
+            displayFormats: { month: 'MMM' },
+            tooltipFormat: 'MMM d, yyyy',
+          },
+          ticks: {
+            maxRotation: 0,
+            callback: function(value, index, ticks) {
+              const date = new Date(ticks[index].value);
+              if (date.getMonth() === 0) {
+                return date.toLocaleDateString('en', { month: 'short', year: 'numeric' });
+              }
+              return date.toLocaleDateString('en', { month: 'short' });
+            },
+          },
+        },
+        y: { title: { display: true, text: 'Price (€)' } },
+      },
     },
   });
 
@@ -313,58 +333,150 @@ function renderFooterCharts() {
   destroyChart('dow');
   destroyChart('month');
 
-  const routes = activeRoutes().filter((r) => DATA.analysis[r]);
+  const routes = activeRoutes().filter((r) => DATA.calendar[r]);
   if (routes.length === 0) return;
 
-  const ROUTE_COLORS = Object.fromEntries(
-    (DATA.metadata.routes || []).map((r) => [r, hexToRgba(routeColor(r), 0.65)])
+  // Build raw price arrays per group key from calendar min prices across all active routes.
+  function buildPriceGroups(keyFn) {
+    const groups = {};
+    routes.forEach((route) => {
+      Object.entries(DATA.calendar[route] || {}).forEach(([dateStr, info]) => {
+        if (!info.min_cents) return;
+        const k = keyFn(dateStr);
+        if (k === null) return;
+        (groups[k] = groups[k] || []).push(info.min_cents / 100);
+      });
+    });
+    return groups;
+  }
+
+  const DOW_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  const dowGroups = buildPriceGroups(
+    (d) => (new Date(d + 'T00:00:00').getDay() + 6) % 7  // JS Sun=0 → Mon=0…Sun=6
+  );
+  const monthGroups = buildPriceGroups(
+    (d) => new Date(d + 'T00:00:00').getMonth()  // 0=Jan…11=Dec
   );
 
-  function makeGroupedChart(canvas, field, keyField, title) {
-    const allKeys = Array.from(new Set(
-      routes.flatMap((r) => (DATA.analysis[r][field] || []).map((e) => e[keyField]))
-    )).sort((a, b) => a - b);
-
-    const labels = allKeys.map((k) => {
-      for (const r of routes) {
-        const entry = (DATA.analysis[r][field] || []).find((e) => e[keyField] === k);
-        if (entry) return entry.label;
-      }
-      return String(k);
-    });
-
-    const datasets = routes.map((r) => {
-      const byKey = Object.fromEntries(
-        (DATA.analysis[r][field] || []).map((e) => [e[keyField], e.mean_cents])
-      );
-      return {
-        label: r,
-        data: allKeys.map((k) => byKey[k] != null ? byKey[k] / 100 : null),
-        backgroundColor: ROUTE_COLORS[r] || 'rgba(107,62,38,0.5)',
-        borderColor: 'rgba(107,62,38,0.4)',
-        borderWidth: 1,
-      };
-    });
-
+  function makeBoxplotChart(canvas, groups, allLabels, title) {
+    const keys = allLabels.map((_, i) => i).filter((k) => (groups[k] || []).length > 0);
     return new Chart(canvas, {
-      type: 'bar',
-      data: { labels, datasets },
+      type: 'boxplot',
+      data: {
+        labels: keys.map((k) => allLabels[k]),
+        datasets: [{
+          label: 'Price (€)',
+          data: keys.map((k) => groups[k]),
+          backgroundColor: 'rgba(107,62,38,0.2)',
+          borderColor: 'rgba(107,62,38,0.7)',
+          borderWidth: 1.5,
+          outlierBackgroundColor: 'rgba(192,57,43,0.6)',
+          outlierRadius: 3,
+          medianColor: 'rgba(43,26,16,0.9)',
+        }],
+      },
       options: {
         responsive: true, maintainAspectRatio: false,
         plugins: {
-          legend: { display: true, position: 'top' },
+          legend: { display: false },
           title: { display: true, text: title },
           tooltip: {
-            callbacks: { label: (c) => `${c.dataset.label}: €${Math.round(c.parsed.y)}` },
+            callbacks: {
+              label: (c) => {
+                const s = c.parsed;
+                if (!s) return '';
+                return [
+                  `Median: €${Math.round(s.median ?? s.y ?? 0)}`,
+                  `Q1–Q3: €${Math.round(s.q1 ?? 0)}–€${Math.round(s.q3 ?? 0)}`,
+                  `Min/Max: €${Math.round(s.min ?? 0)} / €${Math.round(s.max ?? 0)}`,
+                ];
+              },
+            },
           },
         },
-        scales: { y: { beginAtZero: false, title: { display: true, text: 'Mean price (€)' } } },
+        scales: { y: { beginAtZero: false, title: { display: true, text: 'Price (€)' } } },
       },
     });
   }
 
-  charts.dow   = makeGroupedChart($('dow-chart'),   'day_of_week', 'dow',   'Mean price by day of week');
-  charts.month = makeGroupedChart($('month-chart'), 'month',       'month', 'Mean price by month');
+  charts.dow   = makeBoxplotChart($('dow-chart'),   dowGroups,   DOW_LABELS,   'Price spread by day of week');
+  charts.month = makeBoxplotChart($('month-chart'), monthGroups, MONTH_LABELS, 'Price spread by month');
+}
+
+function renderAirlineBoxplots() {
+  (DATA.metadata.routes || []).forEach((r) => {
+    const slot = 'airlineBox_' + r;
+    if (charts[slot]) { charts[slot].destroy(); charts[slot] = null; }
+  });
+
+  const container = $('airline-boxplots-container');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const routes = activeRoutes();
+  if (routes.length === 0) return;
+
+  routes.forEach((route) => {
+    const byAirline = {};
+    Object.values(DATA.flights[route] || {}).forEach((flightList) => {
+      flightList.forEach((f) => {
+        if (!airlinePasses(f.airline) || !f.latest_cents) return;
+        (byAirline[f.airline] = byAirline[f.airline] || []).push(f.latest_cents / 100);
+      });
+    });
+
+    const airlines = Object.keys(byAirline).sort();
+    if (airlines.length === 0) return;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'chart-wrap';
+    const canvas = document.createElement('canvas');
+    canvas.setAttribute('role', 'img');
+    canvas.setAttribute('aria-label', `${route} price spread by airline`);
+    wrap.appendChild(canvas);
+    container.appendChild(wrap);
+
+    const slot = 'airlineBox_' + route;
+    charts[slot] = new Chart(canvas, {
+      type: 'boxplot',
+      data: {
+        labels: airlines,
+        datasets: [{
+          label: route,
+          data: airlines.map((a) => byAirline[a]),
+          backgroundColor: airlines.map((a) => hexToRgba(airlineColor(a), 0.3)),
+          borderColor: airlines.map((a) => airlineColor(a)),
+          borderWidth: 1.5,
+          outlierBackgroundColor: 'rgba(192,57,43,0.5)',
+          outlierRadius: 3,
+          medianColor: 'rgba(43,26,16,0.9)',
+        }],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          title: { display: true, text: `${route} — price spread by airline` },
+          tooltip: {
+            callbacks: {
+              label: (c) => {
+                const s = c.parsed;
+                if (!s) return '';
+                return [
+                  `Median: €${Math.round(s.median ?? s.y ?? 0)}`,
+                  `Q1–Q3: €${Math.round(s.q1 ?? 0)}–€${Math.round(s.q3 ?? 0)}`,
+                  `Min/Max: €${Math.round(s.min ?? 0)} / €${Math.round(s.max ?? 0)}`,
+                ];
+              },
+            },
+          },
+        },
+        scales: { y: { beginAtZero: false, title: { display: true, text: 'Price (€)' } } },
+      },
+    });
+  });
 }
 
 function renderTimeheat() {

@@ -29,6 +29,10 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 TEMPLATE_PATH = FRONTEND_DIR / "index.html.template"
 STYLES_PATH = FRONTEND_DIR / "styles.css"
 CHART_JS_PATH = FRONTEND_DIR / "vendor" / "chart.min.js"
+BOXPLOT_JS_PATH = FRONTEND_DIR / "vendor" / "chartjs-chart-boxplot.min.js"
+DATE_ADAPTER_JS_PATH = (
+    FRONTEND_DIR / "vendor" / "chartjs-adapter-date-fns.bundle.min.js"
+)
 JS_SOURCE_DIR = FRONTEND_DIR / "js"
 JS_FILE_ORDER = [
     "constants.js",
@@ -748,6 +752,8 @@ def render_html(
     template = _read_text(TEMPLATE_PATH)
     styles = _read_text(STYLES_PATH)
     chart_js = _read_text(CHART_JS_PATH)
+    date_adapter_js = _read_text(DATE_ADAPTER_JS_PATH)
+    boxplot_js = _read_text(BOXPLOT_JS_PATH)
     app_js = _build_app_js()
 
     if inline_data:
@@ -766,6 +772,8 @@ def render_html(
     return string.Template(template).safe_substitute(
         INLINE_STYLES=styles,
         INLINE_CHART_JS=chart_js,
+        INLINE_DATE_ADAPTER_JS=date_adapter_js,
+        INLINE_BOXPLOT_JS=boxplot_js,
         INLINE_APP_JS=app_js,
         DATA_METADATA=data_metadata,
         DATA_CALENDAR=data_calendar,

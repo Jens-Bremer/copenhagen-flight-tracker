@@ -23,6 +23,7 @@ const REQUIRED_DOM_IDS = [
   'histograms-container',
   'weekend-pairs',
   'dow-chart', 'month-chart',
+  'airline-boxplots-container',
   'timeheat-container',
   'normprog-chart',
 ];

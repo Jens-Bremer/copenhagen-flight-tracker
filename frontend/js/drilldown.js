@@ -64,13 +64,14 @@ function drawPriceHistory(flight) {
   charts.priceHistory = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: flight.history.map((h) => h.obs_date),
       datasets: [{
         label: `${flight.airline} ${flight.dep_time}`,
-        data: flight.history.map((h) => h.price_cents / 100),
+        data: flight.history
+          .filter((h) => h.price_cents != null)
+          .map((h) => ({ x: h.obs_date, y: h.price_cents / 100 })),
         borderColor: airlineColor(flight.airline),
         backgroundColor: 'rgba(192, 57, 43, 0.10)',
-        spanGaps: false,
+        spanGaps: true,
         borderWidth: 2,
         pointRadius: 3,
         pointHoverRadius: 5,
@@ -83,12 +84,27 @@ function drawPriceHistory(flight) {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: (ctx) => `€${Math.round(ctx.parsed.y)} (${flight.history[ctx.dataIndex].days_before} days before)`,
+            label: (ctx) => {
+              const dataPoint = flight.history.find((h) => h.obs_date === ctx.raw.x);
+              return `€${Math.round(ctx.parsed.y)} (${dataPoint?.days_before} days before)`;
+            },
           },
         },
       },
       scales: {
-        x: { title: { display: true, text: 'Observation date' } },
+        x: {
+          type: 'time',
+          time: {
+            unit: 'month',
+            displayFormats: { month: 'MMM' },
+            tooltipFormat: 'MMM d, yyyy',
+          },
+          ticks: {
+            source: 'auto',
+            maxRotation: 0,
+          },
+          title: { display: true, text: 'Observation date' },
+        },
         y: { title: { display: true, text: 'Price (€)' }, beginAtZero: false },
       },
     },
