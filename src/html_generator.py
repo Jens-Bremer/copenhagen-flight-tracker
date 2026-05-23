@@ -331,6 +331,13 @@ def _mean(values: list[int]) -> int:
     return round(sum(values) / len(values)) if values else 0
 
 
+def _quartiles(prices: list[int]) -> tuple[int, int, int, int, int]:
+    """Return (min, Q1, median, Q3, max) for a non-empty sorted price list."""
+    s = sorted(prices)
+    n = len(s)
+    return s[0], s[n // 4], s[n // 2], s[(3 * n) // 4], s[-1]
+
+
 def _build_norm_prog_entry(days_before: int, values: list[float]) -> dict[str, Any]:
     """Compute mean, Q1, and Q3 pct_change for a normalized-progression bucket.
 
@@ -425,11 +432,6 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     # Build lead-time curve per route, sorted by days_before
     routes = sorted({k[0] for k in by_lead})
     out: dict[str, dict[str, Any]] = {}
-
-    def _quartiles(prices: list[int]) -> tuple[int, int, int, int, int]:
-        s = sorted(prices)
-        n = len(s)
-        return s[0], s[n // 4], s[n // 2], s[(3 * n) // 4], s[-1]
 
     for route in routes:
         curve_entries = sorted(
