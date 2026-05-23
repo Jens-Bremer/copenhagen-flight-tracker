@@ -39,35 +39,56 @@ def test_browser_response_text_markdown_equals_text():
 
 
 # ---------------------------------------------------------------------------
+# _STEALTH_SCRIPT content checks
+# ---------------------------------------------------------------------------
+
+def test_stealth_script_patches_webdriver():
+    assert "webdriver" in browser_fetcher._STEALTH_SCRIPT
+
+def test_stealth_script_patches_plugins():
+    assert "plugins" in browser_fetcher._STEALTH_SCRIPT
+
+def test_stealth_script_patches_languages():
+    assert "languages" in browser_fetcher._STEALTH_SCRIPT
+
+def test_stealth_script_patches_permissions():
+    assert "Permissions" in browser_fetcher._STEALTH_SCRIPT
+
+def test_stealth_script_patches_webgl():
+    assert "WebGLRenderingContext" in browser_fetcher._STEALTH_SCRIPT
+
+def test_stealth_script_has_full_chrome_object():
+    assert "loadTimes" in browser_fetcher._STEALTH_SCRIPT
+    assert "csi" in browser_fetcher._STEALTH_SCRIPT
+
+
+# ---------------------------------------------------------------------------
 # _get_context — lazy init
 # ---------------------------------------------------------------------------
 
 
 def test_get_context_creates_browser_and_context(monkeypatch):
-    """_get_context(use_proxy=False) must launch browser and create a context on first call."""
-    # Reset module-level state before test
+    """_get_context(use_proxy=False) must call launch_persistent_context on first call."""
     monkeypatch.setattr(browser_fetcher, "_playwright_instance", None)
-    monkeypatch.setattr(browser_fetcher, "_browser", None)
     monkeypatch.setattr(browser_fetcher, "_context_direct", None)
     monkeypatch.setattr(browser_fetcher, "_context_proxy", None)
 
     mock_context = MagicMock()
-    mock_browser = MagicMock()
-    mock_browser.new_context.return_value = mock_context
     mock_browser_type = MagicMock()
-    mock_browser_type.launch.return_value = mock_browser
+    mock_browser_type.launch_persistent_context.return_value = mock_context
     mock_playwright = MagicMock()
     mock_playwright.chromium = mock_browser_type
     mock_sync_playwright = MagicMock()
-    mock_sync_playwright.return_value.__enter__ = MagicMock(return_value=mock_playwright)
     mock_sync_playwright.return_value.start.return_value = mock_playwright
 
     with patch("src.browser_fetcher.sync_playwright", mock_sync_playwright):
         ctx = browser_fetcher._get_context(use_proxy=False)
 
     assert ctx is mock_context
-    mock_browser_type.launch.assert_called_once()
-    mock_browser.new_context.assert_called_once()
+    mock_browser_type.launch_persistent_context.assert_called_once()
+    call_kwargs = mock_browser_type.launch_persistent_context.call_args[1]
+    launch_args = call_kwargs.get("args", [])
+    assert "--disable-blink-features=AutomationControlled" in launch_args
     mock_context.add_init_script.assert_called_once()
 
 
@@ -75,7 +96,6 @@ def test_get_context_returns_same_instance_on_second_call(monkeypatch):
     """_get_context(use_proxy=False) must NOT re-launch the browser on subsequent calls."""
     mock_context = MagicMock()
     monkeypatch.setattr(browser_fetcher, "_playwright_instance", MagicMock())
-    monkeypatch.setattr(browser_fetcher, "_browser", MagicMock())
     monkeypatch.setattr(browser_fetcher, "_context_direct", mock_context)
     monkeypatch.setattr(browser_fetcher, "_context_proxy", None)
 
@@ -90,30 +110,25 @@ def test_get_context_returns_same_instance_on_second_call(monkeypatch):
 
 def test_shutdown_browser_closes_context_browser_and_playwright(monkeypatch):
     mock_context = MagicMock()
-    mock_browser = MagicMock()
     mock_pw = MagicMock()
     monkeypatch.setattr(browser_fetcher, "_playwright_instance", mock_pw)
-    monkeypatch.setattr(browser_fetcher, "_browser", mock_browser)
     monkeypatch.setattr(browser_fetcher, "_context_direct", mock_context)
     monkeypatch.setattr(browser_fetcher, "_context_proxy", None)
 
     browser_fetcher.shutdown_browser()
 
     mock_context.close.assert_called_once()
-    mock_browser.close.assert_called_once()
     mock_pw.stop.assert_called_once()
 
 
 def test_shutdown_browser_clears_module_state(monkeypatch):
     monkeypatch.setattr(browser_fetcher, "_playwright_instance", MagicMock())
-    monkeypatch.setattr(browser_fetcher, "_browser", MagicMock())
     monkeypatch.setattr(browser_fetcher, "_context_direct", MagicMock())
     monkeypatch.setattr(browser_fetcher, "_context_proxy", MagicMock())
 
     browser_fetcher.shutdown_browser()
 
     assert browser_fetcher._playwright_instance is None
-    assert browser_fetcher._browser is None
     assert browser_fetcher._context_direct is None
     assert browser_fetcher._context_proxy is None
 
@@ -121,7 +136,6 @@ def test_shutdown_browser_clears_module_state(monkeypatch):
 def test_shutdown_browser_is_idempotent(monkeypatch):
     """Calling shutdown_browser() twice must not raise."""
     monkeypatch.setattr(browser_fetcher, "_playwright_instance", None)
-    monkeypatch.setattr(browser_fetcher, "_browser", None)
     monkeypatch.setattr(browser_fetcher, "_context_direct", None)
     monkeypatch.setattr(browser_fetcher, "_context_proxy", None)
 
@@ -141,6 +155,7 @@ def _make_page(status: int = 200, content: str = "") -> MagicMock:
     mock_response.status = status
     page.goto.return_value = mock_response
     page.content.return_value = content
+    page.viewport_size = None  # triggers the fallback {"width": 1280, "height": 900}
     return page
 
 
@@ -253,6 +268,27 @@ def test_browser_fetch_passes_url_with_params_to_goto():
     assert "tfs=MYENCODED" in call_url
     assert "hl=en" in call_url
     assert call_url.startswith("https://www.google.com/travel/flights")
+
+
+def test_browser_fetch_calls_mouse_move_after_load():
+    """browser_fetch must perform a mouse move on every successful load."""
+    page = _make_page(200, _good_body())
+    with patch("src.browser_fetcher._get_context") as mock_ctx:
+        mock_ctx.return_value.new_page.return_value = page
+        browser_fetcher.browser_fetch({"tfs": "abc"})
+    page.mouse.move.assert_called_once()
+
+
+def test_browser_fetch_calls_wait_for_timeout_after_load():
+    """browser_fetch must call page.wait_for_timeout with a value in the configured dwell range."""
+    import config
+    page = _make_page(200, _good_body())
+    with patch("src.browser_fetcher._get_context") as mock_ctx:
+        mock_ctx.return_value.new_page.return_value = page
+        browser_fetcher.browser_fetch({"tfs": "abc"})
+    page.wait_for_timeout.assert_called()
+    dwell_ms = page.wait_for_timeout.call_args[0][0]
+    assert config.PLAYWRIGHT_DWELL_MIN_MS <= dwell_ms <= config.PLAYWRIGHT_DWELL_MAX_MS
 
 
 # ---------------------------------------------------------------------------
@@ -385,7 +421,6 @@ def test_shutdown_browser_closes_both_contexts(monkeypatch):
     ctx_proxy = MagicMock()
     monkeypatch.setattr(browser_fetcher, "_context_direct", ctx_direct)
     monkeypatch.setattr(browser_fetcher, "_context_proxy", ctx_proxy)
-    monkeypatch.setattr(browser_fetcher, "_browser", MagicMock())
     monkeypatch.setattr(browser_fetcher, "_playwright_instance", MagicMock())
     browser_fetcher.shutdown_browser()
     ctx_direct.close.assert_called_once()
@@ -396,6 +431,5 @@ def test_shutdown_browser_no_crash_with_only_direct_context(monkeypatch):
     """shutdown_browser() does not crash if proxy context was never initialized."""
     monkeypatch.setattr(browser_fetcher, "_context_direct", MagicMock())
     monkeypatch.setattr(browser_fetcher, "_context_proxy", None)
-    monkeypatch.setattr(browser_fetcher, "_browser", MagicMock())
     monkeypatch.setattr(browser_fetcher, "_playwright_instance", MagicMock())
     browser_fetcher.shutdown_browser()  # Must not raise

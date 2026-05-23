@@ -1,6 +1,6 @@
-"""Webshare proxy rotation for flight scraping.
+"""Proxy rotation for flight scraping.
 
-Loads a proxy list file (Webshare download format: host:port:username:password)
+Loads a proxy list file (format: host:port:username:password)
 and provides round-robin rotation. Each call to ProxyRotator.get_next() returns
 the next proxy URL in the cycle.
 
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 def load_proxies(path: str) -> list[str]:
-    """Load proxies from a Webshare-format file.
+    """Load proxies from a file.
 
     File format: one proxy per line as host:port:username:password
     Lines starting with # and blank lines are skipped.
