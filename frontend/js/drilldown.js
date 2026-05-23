@@ -94,6 +94,7 @@ function drawPriceHistory(flight) {
       scales: {
         x: {
           type: 'time',
+          max: new Date().toISOString().split('T')[0],
           time: {
             unit: 'month',
             displayFormats: { month: 'MMM' },

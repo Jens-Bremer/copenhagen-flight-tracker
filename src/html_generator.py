@@ -614,8 +614,10 @@ def build_summary(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
 
     # Histogram bins keyed by (route, airline, bin_low)
     hist_counts: dict[tuple[str, str, int], int] = defaultdict(int)
-    # Latest-observed-per-(route, departure_date) for weekend-pair join
-    latest_dep: dict[tuple[str, str], dict[str, Any]] = {}
+    # Step 1: latest price per distinct flight (route, date, airline, dep_time).
+    # Mirrors build_calendar: multiple snapshots of the same flight collapse to
+    # the most recent observation before we compare prices across flights.
+    latest_per_flight: dict[tuple[str, str, str, Any], dict[str, Any]] = {}
 
     for row in rows:
         route = _route_key(row)
@@ -623,15 +625,24 @@ def build_summary(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         bin_lo = _bin_low(row["price_cents"])
         hist_counts[(route, airline, bin_lo)] += 1
 
-        key = (route, row["departure_date"])
-        current = latest_dep.get(key)
+        key = (route, row["departure_date"], airline, row["departure_at"].time())
+        current = latest_per_flight.get(key)
         if current is None or row["retrieved_at"] >= current["_retrieved_at"]:
-            latest_dep[key] = {
+            latest_per_flight[key] = {
                 "airline": airline,
                 "dep_time": _hhmm(row["departure_at"]),
                 "price_cents": row["price_cents"],
                 "_retrieved_at": row["retrieved_at"],
             }
+
+    # Step 2: cheapest latest flight per (route, departure_date).
+    # This ensures weekend pairs always show the best available price on each leg.
+    latest_dep: dict[tuple[str, str], dict[str, Any]] = {}
+    for (route, dep_iso, _airline, _dep_time), info in latest_per_flight.items():
+        dep_key = (route, dep_iso)
+        current = latest_dep.get(dep_key)
+        if current is None or info["price_cents"] < current["price_cents"]:
+            latest_dep[dep_key] = info
 
     out: dict[str, dict[str, Any]] = {}
     routes = sorted({k[0] for k in hist_counts})
