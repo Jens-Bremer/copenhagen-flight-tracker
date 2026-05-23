@@ -36,10 +36,7 @@ def _check_heartbeat_stale(heartbeat_path: str) -> Optional[str]:
             f"JSON ({exc}); likely a mid-write crash or disk corruption"
         )
     except Exception as exc:
-        return (
-            f"[urgent] Heartbeat unreadable: could not open {heartbeat_path} "
-            f"({exc})"
-        )
+        return f"[urgent] Heartbeat unreadable: could not open {heartbeat_path} ({exc})"
     run_date = data.get("run_date")
     if run_date != today:
         return (
@@ -67,9 +64,7 @@ def _check_high_failure_rate(heartbeat_path: str) -> Optional[str]:
                 f"({failed / total_jobs:.0%})"
             )
     except Exception as exc:
-        logger.warning(
-            "Could not read heartbeat for failure-rate check: %s", exc
-        )
+        logger.warning("Could not read heartbeat for failure-rate check: %s", exc)
         return None
     return None
 
@@ -88,9 +83,7 @@ def _check_bot_challenge_today(heartbeat_path: str) -> Optional[str]:
         with open(heartbeat_path) as f:
             data = json.load(f)
     except Exception as exc:
-        logger.warning(
-            "Could not read heartbeat for bot-challenge check: %s", exc
-        )
+        logger.warning("Could not read heartbeat for bot-challenge check: %s", exc)
         return None
     failures = data.get("failures_by_kind") or {}
     count = failures.get("bot_challenge", 0)

@@ -76,7 +76,10 @@ _STEALTH_SCRIPT = """
         Object.defineProperty(pluginArray, i, { value: plugin });
         Object.defineProperty(pluginArray, p.name, { value: plugin });
     });
-    Object.defineProperty(navigator, 'plugins', { get: function () { return pluginArray; }, configurable: true });
+    Object.defineProperty(navigator, 'plugins', {
+        get: function () { return pluginArray; },
+        configurable: true,
+    });
     Object.defineProperty(navigator, 'mimeTypes', {
         get: function () {
             const mt = Object.create(MimeTypeArray.prototype);
@@ -97,7 +100,10 @@ _STEALTH_SCRIPT = """
         const originalQuery = window.Permissions.prototype.query;
         window.Permissions.prototype.query = function (parameters) {
             if (parameters && parameters.name === 'notifications') {
-                return Promise.resolve({ state: Notification.permission, onchange: null });
+                return Promise.resolve({
+                    state: Notification.permission,
+                    onchange: null,
+                });
             }
             return originalQuery.call(this, parameters);
         };
@@ -124,22 +130,33 @@ _STEALTH_SCRIPT = """
     })(window.WebGL2RenderingContext);
 
     // 7. Hardware signals — 0 is an automation giveaway
-    Object.defineProperty(navigator, 'hardwareConcurrency', { get: function () { return 8; }, configurable: true });
-    Object.defineProperty(navigator, 'deviceMemory', { get: function () { return 8; }, configurable: true });
+    Object.defineProperty(navigator, 'hardwareConcurrency', {
+        get: function () { return 8; },
+        configurable: true,
+    });
+    Object.defineProperty(navigator, 'deviceMemory', {
+        get: function () { return 8; },
+        configurable: true,
+    });
 
     // 8. outerWidth/Height must be >= innerWidth/Height (headless omits them)
     if (window.outerWidth === 0) {
-        Object.defineProperty(window, 'outerWidth', { get: function () { return window.innerWidth; } });
+        Object.defineProperty(window, 'outerWidth', {
+            get: function () { return window.innerWidth; },
+        });
     }
     if (window.outerHeight === 0) {
-        Object.defineProperty(window, 'outerHeight', { get: function () { return window.innerHeight + 74; } });
+        Object.defineProperty(window, 'outerHeight', {
+            get: function () { return window.innerHeight + 74; },
+        });
     }
 })();
 """
 
 
 class BrowserResponse:
-    """Minimal response interface matching what fast_flights expects from its fetch function."""
+    """Minimal response interface matching what fast_flights expects from
+    its fetch function."""
 
     def __init__(self, status_code: int, text: str) -> None:
         self.status_code = status_code
@@ -201,16 +218,22 @@ def _get_context(use_proxy: bool) -> BrowserContext:
                 _playwright_instance = None
                 raise
             _context_proxy.add_init_script(_STEALTH_SCRIPT)
-            _context_proxy.add_cookies([{
-                "name": "SOCS",
-                "value": "CAI",
-                "domain": ".google.com",
-                "path": "/",
-                "sameSite": "Lax",
-            }])
+            _context_proxy.add_cookies(
+                [
+                    {
+                        "name": "SOCS",
+                        "value": "CAI",
+                        "domain": ".google.com",
+                        "path": "/",
+                        "sameSite": "Lax",
+                    }
+                ]
+            )
             logger.info(
                 "Persistent browser context created (proxy=%s, viewport=%sx%s)",
-                _proxy_url, viewport["width"], viewport["height"],
+                _proxy_url,
+                viewport["width"],
+                viewport["height"],
             )
         return _context_proxy
     else:
@@ -235,16 +258,21 @@ def _get_context(use_proxy: bool) -> BrowserContext:
                 _playwright_instance = None
                 raise
             _context_direct.add_init_script(_STEALTH_SCRIPT)
-            _context_direct.add_cookies([{
-                "name": "SOCS",
-                "value": "CAI",
-                "domain": ".google.com",
-                "path": "/",
-                "sameSite": "Lax",
-            }])
+            _context_direct.add_cookies(
+                [
+                    {
+                        "name": "SOCS",
+                        "value": "CAI",
+                        "domain": ".google.com",
+                        "path": "/",
+                        "sameSite": "Lax",
+                    }
+                ]
+            )
             logger.info(
                 "Persistent browser context created (direct, viewport=%sx%s)",
-                viewport["width"], viewport["height"],
+                viewport["width"],
+                viewport["height"],
             )
         return _context_direct
 
@@ -269,8 +297,9 @@ def browser_fetch(params: dict) -> BrowserResponse:
 
     Replaces patched_fetch as the transport layer. fast_flights' URL construction
     and response parsing are unchanged — only the HTTP layer is swapped.
-    Routing decision: randomly choose direct or proxy context based on _proxy_url and PROXY_SPLIT_RATIO.
-    page.close() is always called via finally so no pages leak between requests.
+    Routing decision: randomly choose direct or proxy context based on _proxy_url
+    and PROXY_SPLIT_RATIO. page.close() is always called via finally so no pages
+    leak between requests.
     """
     url = "https://www.google.com/travel/flights?" + urlencode(params)
 
@@ -302,7 +331,9 @@ def browser_fetch(params: dict) -> BrowserResponse:
         except Exception:
             pass  # networkidle timeout is non-fatal — content may still be present
 
-        dwell_ms = random.randint(config.PLAYWRIGHT_DWELL_MIN_MS, config.PLAYWRIGHT_DWELL_MAX_MS)
+        dwell_ms = random.randint(
+            config.PLAYWRIGHT_DWELL_MIN_MS, config.PLAYWRIGHT_DWELL_MAX_MS
+        )
         page.wait_for_timeout(dwell_ms)
 
         # Random mouse move to a plausible reading position
@@ -330,7 +361,9 @@ def browser_fetch(params: dict) -> BrowserResponse:
     # "captcha" appears in script URLs even on clean responses. A real block
     # page has a suspicious title ("Unusual Traffic Detected", "Before you
     # continue"); a real Flights page title never contains these words.
-    title_match = re.search(r"<title[^>]*>(.*?)</title>", body, re.IGNORECASE | re.DOTALL)
+    title_match = re.search(
+        r"<title[^>]*>(.*?)</title>", body, re.IGNORECASE | re.DOTALL
+    )
     title = title_match.group(1).lower() if title_match else ""
     for pattern in config.BOT_CHALLENGE_TITLE_PATTERNS:
         if pattern.lower() in title:
@@ -343,11 +376,13 @@ def install_browser_patch() -> None:
     """Probe the browser config and patch fast_flights.core.fetch with browser_fetch.
 
     Loads proxies if available, probes both direct and proxy contexts, then patches
-    fast_flights.core.fetch. Must be called once at process startup. Raises RuntimeError
-    if the browser cannot be launched (missing display, bad PLAYWRIGHT_BROWSER value, etc.)
-    so that misconfigurations are immediately visible rather than silently degrading.
+    fast_flights.core.fetch. Must be called once at process startup. Raises
+    RuntimeError if the browser cannot be launched (missing display, bad
+    PLAYWRIGHT_BROWSER value, etc.) so that misconfigurations are immediately
+    visible rather than silently degrading.
     """
     import fast_flights.core
+
     global _proxy_url
 
     # Load proxies: if file missing or empty, log warning and continue direct-only
@@ -357,18 +392,24 @@ def install_browser_patch() -> None:
             _proxy_url = proxies[0]
             logger.info("Loaded %d proxies; using first: %s", len(proxies), _proxy_url)
         else:
-            logger.warning("Proxy file %s is empty; running direct-only", config.PROXY_LIST_PATH)
+            logger.warning(
+                "Proxy file %s is empty; running direct-only", config.PROXY_LIST_PATH
+            )
     except FileNotFoundError:
-        logger.warning("Proxy file %s not found; running direct-only", config.PROXY_LIST_PATH)
+        logger.warning(
+            "Proxy file %s not found; running direct-only", config.PROXY_LIST_PATH
+        )
 
     # Probe direct context
     try:
         _get_context(use_proxy=False)
     except Exception as exc:
         raise RuntimeError(
-            f"Failed to launch persistent browser context ({config.PLAYWRIGHT_BROWSER}, "
+            f"Failed to launch persistent browser context "
+            f"({config.PLAYWRIGHT_BROWSER}, "
             f"headless={config.PLAYWRIGHT_HEADLESS}): {exc}. "
-            "Check that 'playwright install chromium' has been run, that the profile "
+            "Check that 'playwright install chromium' has been run, that the "
+            "profile "
             f"directory {config.PLAYWRIGHT_PROFILE_DIRECT!r} is writable, and if "
             "headless=False that a display is available."
         ) from exc

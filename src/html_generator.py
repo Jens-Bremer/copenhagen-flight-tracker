@@ -140,7 +140,12 @@ def build_calendar(rows: list[dict[str, Any]]) -> dict[str, dict[str, dict[str, 
         date = row["departure_date"]
         flight_id = (row["airline"], row["departure_at"].time())
         cell = out.setdefault(route, {}).setdefault(
-            date, {"min_cents": row["price_cents"], "_latest_at": row["retrieved_at"], "_flights": set()}
+            date,
+            {
+                "min_cents": row["price_cents"],
+                "_latest_at": row["retrieved_at"],
+                "_flights": set(),
+            },
         )
         if row["retrieved_at"] >= cell["_latest_at"]:
             cell["_latest_at"] = row["retrieved_at"]
@@ -284,7 +289,9 @@ def build_flights(
         bucket["latest_cents"] = bucket["history"][-1]["price_cents"]
         latest_retrieved_at: str = bucket["history"][-1]["obs_date"]
         bucket["latest_retrieved_at"] = latest_retrieved_at
-        days_since = (generated_at.date() - date_type.fromisoformat(latest_retrieved_at)).days
+        days_since = (
+            generated_at.date() - date_type.fromisoformat(latest_retrieved_at)
+        ).days
         bucket["is_stale"] = days_since > config.STALE_FLIGHT_DAYS
         trajectory, trajectory_pct = _trajectory_from_history(bucket["history"])
         bucket["trajectory"] = trajectory

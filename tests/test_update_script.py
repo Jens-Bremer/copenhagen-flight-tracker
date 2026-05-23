@@ -60,8 +60,7 @@ def test_update_sh_does_not_use_pkill():
     """update.sh must not contain 'pkill -f' (forbidden anti-pattern)."""
     content = _read_script(UPDATE_SH)
     assert "pkill -f" not in content, (
-        "update.sh contains 'pkill -f'. "
-        "Use the PID file mechanism instead."
+        "update.sh contains 'pkill -f'. Use the PID file mechanism instead."
     )
 
 
@@ -69,8 +68,7 @@ def test_update_ps1_does_not_use_pkill():
     """update.ps1 must not contain 'pkill -f' (forbidden anti-pattern)."""
     content = _read_script(UPDATE_PS1)
     assert "pkill -f" not in content, (
-        "update.ps1 contains 'pkill -f'. "
-        "Use the PID file mechanism instead."
+        "update.ps1 contains 'pkill -f'. Use the PID file mechanism instead."
     )
 
 

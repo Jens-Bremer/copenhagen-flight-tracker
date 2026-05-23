@@ -222,9 +222,17 @@ def _check_playwright_browser(value) -> None:
 
 def _check_playwright_timeout_ms(value) -> None:
     if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-        raise ValueError("PLAYWRIGHT_TIMEOUT_MS must be a positive integer (milliseconds)")
+        raise ValueError(
+            "PLAYWRIGHT_TIMEOUT_MS must be a positive integer (milliseconds)"
+        )
 
 
 def _check_proxy_split_ratio(value) -> None:
-    if isinstance(value, bool) or not isinstance(value, float) or not (0.0 <= value <= 1.0):
-        raise ValueError("PROXY_SPLIT_RATIO must be a float between 0.0 and 1.0 (inclusive)")
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, float)
+        or not (0.0 <= value <= 1.0)
+    ):
+        raise ValueError(
+            "PROXY_SPLIT_RATIO must be a float between 0.0 and 1.0 (inclusive)"
+        )

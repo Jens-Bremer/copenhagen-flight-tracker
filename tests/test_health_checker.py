@@ -387,9 +387,7 @@ def test_consecutive_failures_silent_for_route_never_seen(ctx):
     routes the system has never observed are skipped."""
     db_path, _ = ctx
     # Insert obs for a route OTHER than the configured routes.
-    insert_observations(
-        db_path, [_obs(origin="ZZZ", destination="YYY")]
-    )
+    insert_observations(db_path, [_obs(origin="ZZZ", destination="YYY")])
     # The configured routes (CPH→AMS, AMS→CPH) have never been seen → silent.
     assert _check_consecutive_failures_per_route(db_path) == []
 

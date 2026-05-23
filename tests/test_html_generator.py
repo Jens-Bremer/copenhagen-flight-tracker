@@ -220,6 +220,7 @@ def test_build_analysis_sweet_spot_is_bucket_with_lowest_mean():
     cph_ams = analysis["CPH-AMS"]
     curve = cph_ams["lead_time_curve"]
     import config
+
     reliable = [e for e in curve if e["obs_count"] >= config.RELIABLE_MIN_OBSERVATIONS]
     if reliable:
         cheapest = min(reliable, key=lambda e: e["mean_cents"])
@@ -745,9 +746,11 @@ def test_generate_writes_output_file(tmp_path):
     # In default (external) mode the script elements are present but empty
     assert '<script type="application/json" id="DATA_METADATA">' in html
     import re
+
     m = re.search(
         r'<script type="application/json" id="DATA_METADATA">(.*?)</script>',
-        html, re.S,
+        html,
+        re.S,
     )
     assert m and m.group(1).strip() == "", (
         "DATA_METADATA blob should be empty in default mode"
@@ -770,9 +773,11 @@ def test_generate_writes_output_file_inline_data(tmp_path):
     assert "Copenhagen" in html
     # Blobs must be inlined
     import re
+
     m = re.search(
         r'<script type="application/json" id="DATA_METADATA">(.*?)</script>',
-        html, re.S,
+        html,
+        re.S,
     )
     assert m and m.group(1).strip() != "", (
         "DATA_METADATA blob should be non-empty with inline_data=True"
@@ -1660,9 +1665,9 @@ def test_sweet_spot_all_buckets_reliable_picks_cheapest(tmp_path):
     10000 cents.
     """
     days_before_prices = {
-        3:  [10000] * 40,
-        5:  [10000] * 40,
-        10: [5000] * 40,   # cheapest — should be selected
+        3: [10000] * 40,
+        5: [10000] * 40,
+        10: [5000] * 40,  # cheapest — should be selected
         30: [10000] * 40,
         90: [10000] * 40,
     }
@@ -1682,8 +1687,8 @@ def test_sweet_spot_filters_below_threshold_bucket(tmp_path):
     import config
 
     days_before_prices = {
-        5:  [1] * 2,          # below threshold — must be excluded
-        30: [8000] * 15,      # reliable
+        5: [1] * 2,  # below threshold — must be excluded
+        30: [8000] * 15,  # reliable
     }
     rows = _make_sweet_spot_rows(days_before_prices, tmp_path)
     analysis = build_analysis(rows)
@@ -1699,9 +1704,9 @@ def test_sweet_spot_none_when_no_bucket_meets_threshold(tmp_path):
     The frontend already handles None via its 'Not enough data yet' fallback.
     """
     days_before_prices = {
-        10: [9000] * 3,   # only 3 obs — below threshold
-        20: [8500] * 5,   # only 5 obs — below threshold
-        30: [8000] * 2,   # only 2 obs — below threshold
+        10: [9000] * 3,  # only 3 obs — below threshold
+        20: [8500] * 5,  # only 5 obs — below threshold
+        30: [8000] * 2,  # only 2 obs — below threshold
     }
     rows = _make_sweet_spot_rows(days_before_prices, tmp_path)
     analysis = build_analysis(rows)
@@ -1757,9 +1762,7 @@ def test_js_bundle_wrapped_in_iife():
         "Bundled JS must start with IIFE wrapper: (function () {"
     )
     assert "'use strict';" in js, "Bundled JS must contain 'use strict';"
-    assert js.strip().endswith("})();"), (
-        "Bundled JS must end with IIFE closing: })();"
-    )
+    assert js.strip().endswith("})();"), "Bundled JS must end with IIFE closing: })();"
 
 
 def test_no_duplicate_use_strict_in_bundle():
@@ -1816,14 +1819,14 @@ def test_histograms_container_in_template_not_fixed_canvases():
     """
     html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
     assert 'id="histograms-container"' in html, (
-        "Template must use <div id=\"histograms-container\"> for dynamic per-route "
-        "histogram canvases (replaces old id=\"histogram-out\"/id=\"histogram-back\")"
+        'Template must use <div id="histograms-container"> for dynamic per-route '
+        'histogram canvases (replaces old id="histogram-out"/id="histogram-back")'
     )
     assert 'id="histogram-out"' not in html, (
-        "Old hardcoded id=\"histogram-out\" canvas must be removed from the template"
+        'Old hardcoded id="histogram-out" canvas must be removed from the template'
     )
     assert 'id="histogram-back"' not in html, (
-        "Old hardcoded id=\"histogram-back\" canvas must be removed from the template"
+        'Old hardcoded id="histogram-back" canvas must be removed from the template'
     )
 
 
@@ -1831,14 +1834,14 @@ def test_timeheat_container_in_template_not_fixed_canvases():
     """The timeheat section must use a container div, not fixed per-route canvas IDs."""
     html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
     assert 'id="timeheat-container"' in html, (
-        "Template must use <div id=\"timeheat-container\"> for dynamic per-route "
+        'Template must use <div id="timeheat-container"> for dynamic per-route '
         "heatmap canvases"
     )
     assert 'id="timeheat-out"' not in html, (
-        "Old hardcoded id=\"timeheat-out\" canvas must be removed from the template"
+        'Old hardcoded id="timeheat-out" canvas must be removed from the template'
     )
     assert 'id="timeheat-back"' not in html, (
-        "Old hardcoded id=\"timeheat-back\" canvas must be removed from the template"
+        'Old hardcoded id="timeheat-back" canvas must be removed from the template'
     )
 
 
@@ -1848,8 +1851,7 @@ def test_active_routes_driven_by_metadata(tmp_path):
     js = _app_js(html)
     # activeRoutes must reference metadata.routes, not ['CPH-AMS', 'AMS-CPH']
     assert "metadata.routes" in js, (
-        "activeRoutes() must read from DATA.metadata.routes "
-        "to support arbitrary routes"
+        "activeRoutes() must read from DATA.metadata.routes to support arbitrary routes"
     )
 
 
@@ -1984,7 +1986,8 @@ def test_build_flights_is_stale_false_at_boundary(tmp_path):
 
 
 def test_build_flights_is_stale_true_when_old(tmp_path):
-    """Flight whose last observation is more than 3 days before generated_at is stale."""
+    """Flight whose last observation is more than 3 days before
+    generated_at is stale."""
     rows = _make_rows(
         "2026-05-10T10:00Z,2026-06-19,CPH,AMS,KLM,"
         "2026-06-19T08:00:00,2026-06-19T10:30:00,150,10000,EUR\n",

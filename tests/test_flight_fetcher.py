@@ -292,5 +292,3 @@ def test_fetch_flights_for_date_swallows_classified_exceptions_without_raise():
         side_effect=flight_fetcher.BotChallengeError("blocked"),
     ):
         assert fetch_flights_for_date(ORIGIN, DESTINATION, DEPARTURE) is None
-
-

@@ -1,11 +1,9 @@
-import importlib
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import fast_flights.core
 import pytest
 
 import src.browser_fetcher as browser_fetcher
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -14,7 +12,8 @@ import src.browser_fetcher as browser_fetcher
 
 @pytest.fixture(autouse=True)
 def reset_proxy_url(monkeypatch):
-    """Ensure _proxy_url = None for all tests that don't explicitly test proxy routing."""
+    """Ensure _proxy_url = None for all tests that don't explicitly
+    test proxy routing."""
     monkeypatch.setattr(browser_fetcher, "_proxy_url", None)
 
 
@@ -42,20 +41,26 @@ def test_browser_response_text_markdown_equals_text():
 # _STEALTH_SCRIPT content checks
 # ---------------------------------------------------------------------------
 
+
 def test_stealth_script_patches_webdriver():
     assert "webdriver" in browser_fetcher._STEALTH_SCRIPT
+
 
 def test_stealth_script_patches_plugins():
     assert "plugins" in browser_fetcher._STEALTH_SCRIPT
 
+
 def test_stealth_script_patches_languages():
     assert "languages" in browser_fetcher._STEALTH_SCRIPT
+
 
 def test_stealth_script_patches_permissions():
     assert "Permissions" in browser_fetcher._STEALTH_SCRIPT
 
+
 def test_stealth_script_patches_webgl():
     assert "WebGLRenderingContext" in browser_fetcher._STEALTH_SCRIPT
+
 
 def test_stealth_script_has_full_chrome_object():
     assert "loadTimes" in browser_fetcher._STEALTH_SCRIPT
@@ -68,7 +73,8 @@ def test_stealth_script_has_full_chrome_object():
 
 
 def test_get_context_creates_browser_and_context(monkeypatch):
-    """_get_context(use_proxy=False) must call launch_persistent_context on first call."""
+    """_get_context(use_proxy=False) must call launch_persistent_context
+    on first call."""
     monkeypatch.setattr(browser_fetcher, "_playwright_instance", None)
     monkeypatch.setattr(browser_fetcher, "_context_direct", None)
     monkeypatch.setattr(browser_fetcher, "_context_proxy", None)
@@ -93,7 +99,8 @@ def test_get_context_creates_browser_and_context(monkeypatch):
 
 
 def test_get_context_returns_same_instance_on_second_call(monkeypatch):
-    """_get_context(use_proxy=False) must NOT re-launch the browser on subsequent calls."""
+    """_get_context(use_proxy=False) must NOT re-launch the browser on
+    subsequent calls."""
     mock_context = MagicMock()
     monkeypatch.setattr(browser_fetcher, "_playwright_instance", MagicMock())
     monkeypatch.setattr(browser_fetcher, "_context_direct", mock_context)
@@ -161,6 +168,7 @@ def _make_page(status: int = 200, content: str = "") -> MagicMock:
 
 def _good_body() -> str:
     import config
+
     return "x" * (config.BOT_CHALLENGE_MIN_BYTES + 1000)
 
 
@@ -237,7 +245,9 @@ def test_browser_fetch_raises_bot_challenge_on_short_body():
     page = _make_page(200, "tiny")
     with patch("src.browser_fetcher._get_context") as mock_ctx:
         mock_ctx.return_value.new_page.return_value = page
-        with pytest.raises(browser_fetcher.BotChallengeError, match="below minimum length"):
+        with pytest.raises(
+            browser_fetcher.BotChallengeError, match="below minimum length"
+        ):
             browser_fetcher.browser_fetch({"tfs": "abc"})
 
 
@@ -280,8 +290,10 @@ def test_browser_fetch_calls_mouse_move_after_load():
 
 
 def test_browser_fetch_calls_wait_for_timeout_after_load():
-    """browser_fetch must call page.wait_for_timeout with a value in the configured dwell range."""
+    """browser_fetch must call page.wait_for_timeout with a value in the
+    configured dwell range."""
     import config
+
     page = _make_page(200, _good_body())
     with patch("src.browser_fetcher._get_context") as mock_ctx:
         mock_ctx.return_value.new_page.return_value = page
@@ -323,9 +335,7 @@ def test_install_browser_patch_does_not_rebind_on_context_failure(monkeypatch):
 
 def test_install_browser_patch_raises_runtime_error_with_helpful_message(monkeypatch):
     monkeypatch.setattr(fast_flights.core, "fetch", object())
-    with patch(
-        "src.browser_fetcher._get_context", side_effect=Exception("no display")
-    ):
+    with patch("src.browser_fetcher._get_context", side_effect=Exception("no display")):
         with pytest.raises(RuntimeError, match="no display"):
             browser_fetcher.install_browser_patch()
 
@@ -338,8 +348,10 @@ def test_install_browser_patch_raises_runtime_error_with_helpful_message(monkeyp
 def test_install_browser_patch_direct_only_when_proxies_file_missing(monkeypatch):
     """Missing proxies.txt → _proxy_url stays None, only direct context probed."""
     monkeypatch.setattr(browser_fetcher, "_proxy_url", None)
-    with patch("src.browser_fetcher._get_context") as mock_gc, \
-         patch("src.browser_fetcher.load_proxies", side_effect=FileNotFoundError):
+    with (
+        patch("src.browser_fetcher._get_context") as mock_gc,
+        patch("src.browser_fetcher.load_proxies", side_effect=FileNotFoundError),
+    ):
         browser_fetcher.install_browser_patch()
     # Only direct context probed (use_proxy=False)
     mock_gc.assert_called_once_with(use_proxy=False)
@@ -349,8 +361,10 @@ def test_install_browser_patch_direct_only_when_proxies_file_missing(monkeypatch
 def test_install_browser_patch_direct_only_when_proxies_file_empty(monkeypatch):
     """Empty proxies.txt → _proxy_url stays None, only direct context probed."""
     monkeypatch.setattr(browser_fetcher, "_proxy_url", None)
-    with patch("src.browser_fetcher._get_context") as mock_gc, \
-         patch("src.browser_fetcher.load_proxies", return_value=[]):
+    with (
+        patch("src.browser_fetcher._get_context") as mock_gc,
+        patch("src.browser_fetcher.load_proxies", return_value=[]),
+    ):
         browser_fetcher.install_browser_patch()
     mock_gc.assert_called_once_with(use_proxy=False)
     assert browser_fetcher._proxy_url is None
@@ -360,8 +374,10 @@ def test_install_browser_patch_sets_proxy_url_and_probes_both(monkeypatch):
     """Valid proxies.txt → _proxy_url set, both direct and proxy contexts probed."""
     monkeypatch.setattr(browser_fetcher, "_proxy_url", None)
     proxy = "http://user:pass@host:8080"
-    with patch("src.browser_fetcher._get_context") as mock_gc, \
-         patch("src.browser_fetcher.load_proxies", return_value=[proxy]):
+    with (
+        patch("src.browser_fetcher._get_context") as mock_gc,
+        patch("src.browser_fetcher.load_proxies", return_value=[proxy]),
+    ):
         browser_fetcher.install_browser_patch()
     assert browser_fetcher._proxy_url == proxy
     mock_gc.assert_any_call(use_proxy=False)
@@ -378,8 +394,10 @@ def test_browser_fetch_uses_proxy_context_when_random_below_ratio(monkeypatch):
     """random.random() < PROXY_SPLIT_RATIO → use_proxy=True, proxy context selected."""
     page = _make_page(200, _good_body())
     monkeypatch.setattr(browser_fetcher, "_proxy_url", "http://u:p@h:1")
-    with patch("src.browser_fetcher.random") as mock_random, \
-         patch("src.browser_fetcher._get_context") as mock_gc:
+    with (
+        patch("src.browser_fetcher.random") as mock_random,
+        patch("src.browser_fetcher._get_context") as mock_gc,
+    ):
         mock_random.random.return_value = 0.1  # < 0.5
         mock_gc.return_value.new_page.return_value = page
         browser_fetcher.browser_fetch({"tfs": "abc"})
@@ -387,11 +405,14 @@ def test_browser_fetch_uses_proxy_context_when_random_below_ratio(monkeypatch):
 
 
 def test_browser_fetch_uses_direct_context_when_random_above_ratio(monkeypatch):
-    """random.random() >= PROXY_SPLIT_RATIO → use_proxy=False, direct context selected."""
+    """random.random() >= PROXY_SPLIT_RATIO → use_proxy=False, direct
+    context selected."""
     page = _make_page(200, _good_body())
     monkeypatch.setattr(browser_fetcher, "_proxy_url", "http://u:p@h:1")
-    with patch("src.browser_fetcher.random") as mock_random, \
-         patch("src.browser_fetcher._get_context") as mock_gc:
+    with (
+        patch("src.browser_fetcher.random") as mock_random,
+        patch("src.browser_fetcher._get_context") as mock_gc,
+    ):
         mock_random.random.return_value = 0.9  # >= 0.5
         mock_gc.return_value.new_page.return_value = page
         browser_fetcher.browser_fetch({"tfs": "abc"})
@@ -402,8 +423,10 @@ def test_browser_fetch_always_direct_when_no_proxy_url(monkeypatch):
     """_proxy_url = None → always direct regardless of random value."""
     page = _make_page(200, _good_body())
     monkeypatch.setattr(browser_fetcher, "_proxy_url", None)
-    with patch("src.browser_fetcher.random") as mock_random, \
-         patch("src.browser_fetcher._get_context") as mock_gc:
+    with (
+        patch("src.browser_fetcher.random") as mock_random,
+        patch("src.browser_fetcher._get_context") as mock_gc,
+    ):
         mock_random.random.return_value = 0.1  # Would be proxy if _proxy_url were set
         mock_gc.return_value.new_page.return_value = page
         browser_fetcher.browser_fetch({"tfs": "abc"})
