@@ -45,6 +45,15 @@ function availableMonths() {
   return months;
 }
 
+function cellFlightCount(iso) {
+  let total = 0;
+  activeRoutes().forEach((route) => {
+    const v = (DATA.calendar[route] || {})[iso];
+    if (v) total += (v.flight_count || 0);
+  });
+  return total;
+}
+
 function renderCalendar() {
   const root = $('calendar');
   root.innerHTML = '';
@@ -124,9 +133,14 @@ function renderCalendar() {
       ? `<span class="calendar__cell__trajectory calendar__cell__trajectory--${cellTrajectory}"
              aria-label="${trajectoryAriaLabel}">${trajectoryGlyph}</span>`
       : '';
+    const count = cellFlightCount(iso);
+    const countHtml = (price !== null && count > 0)
+      ? `<span class="calendar__cell__count">${count === 1 ? '1 flight' : `${count} flights`}</span>`
+      : '';
     cell.innerHTML = `
       <span class="calendar__cell__day">${cursor.getDate()}</span>
       <span class="calendar__cell__price">${price !== null ? formatPrice(price) : '—'}</span>
+      ${countHtml}
       ${trajectoryHtmlStr}
     `;
     if (price !== null) {
