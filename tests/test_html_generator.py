@@ -248,6 +248,14 @@ def test_build_analysis_market_trend_is_sorted_by_obs_date():
     assert dates == sorted(dates)
 
 
+def test_render_trends_tooltip_shows_obs_count():
+    """renderTrends tooltip callback must reference obs_count from lead_time_curve."""
+    js = Path("frontend/js/charts.js").read_text()
+    assert "obs_count" in js, (
+        "charts.js renderTrends tooltip must show n = obs_count per bucket"
+    )
+
+
 def test_build_analysis_empty_input():
     out = build_analysis([])
     assert out == {}

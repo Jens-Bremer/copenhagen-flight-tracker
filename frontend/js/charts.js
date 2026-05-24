@@ -8,14 +8,36 @@ function renderTrends() {
     return;
   }
 
-  // Three datasets per route: Q1 boundary, Q3 boundary (filled back to Q1 = IQR band), mean line.
+  // Five datasets per route: min boundary, max band, Q1 boundary, IQR fill, mean line.
   // Odd-indexed routes get a dashed border for visual distinction.
+  // Mean line segments with obs_count < 10 are rendered dashed to signal low confidence.
   const leadDatasets = routes.flatMap((r) => {
     const curve = DATA.analysis[r].lead_time_curve || [];
     const color = routeColor(r);
     const routeIdx = DATA.metadata.routes.indexOf(r);
     const isDashed = routeIdx % 2 === 1;
     return [
+      // Min band (very faint, bottom boundary)
+      {
+        label: `${r} min`,
+        data: curve.map((c) => ({ x: c.days_before, y: c.min_cents / 100 })),
+        borderColor: hexToRgba(color, 0),
+        backgroundColor: hexToRgba(color, 0),
+        fill: false,
+        pointRadius: 0,
+        spanGaps: false,
+      },
+      // Max band (very faint fill back to min)
+      {
+        label: `${r} max`,
+        data: curve.map((c) => ({ x: c.days_before, y: c.max_cents / 100 })),
+        borderColor: hexToRgba(color, 0),
+        backgroundColor: hexToRgba(color, 0.06),
+        fill: '-1',
+        pointRadius: 0,
+        spanGaps: false,
+      },
+      // Q1 boundary (invisible, anchor for IQR fill)
       {
         label: `${r} Q1`,
         data: curve.map((c) => ({ x: c.days_before, y: c.q1_cents / 100 })),
@@ -25,6 +47,7 @@ function renderTrends() {
         pointRadius: 0,
         spanGaps: false,
       },
+      // IQR band (fill from Q1 to Q3)
       {
         label: `${r} IQR`,
         data: curve.map((c) => ({ x: c.days_before, y: c.q3_cents / 100 })),
@@ -34,15 +57,25 @@ function renderTrends() {
         pointRadius: 0,
         spanGaps: false,
       },
+      // Mean line — dashed where obs_count < 10
       {
         label: r,
         data: curve.map((c) => ({ x: c.days_before, y: c.mean_cents / 100 })),
         borderColor: color,
-        borderDash: isDashed ? [6, 4] : [],
         fill: false,
         spanGaps: false,
         borderWidth: 2,
-        pointRadius: 2,
+        pointRadius: (ctx) => (curve[ctx.dataIndex]?.obs_count ?? 10) < 10 ? 4 : 2,
+        pointBackgroundColor: (ctx) => (curve[ctx.dataIndex]?.obs_count ?? 10) < 10
+          ? 'transparent' : color,
+        pointBorderColor: color,
+        segment: {
+          borderDash: (ctx) => {
+            const obs = curve[ctx.p0DataIndex]?.obs_count ?? 10;
+            const baseDash = isDashed ? [6, 4] : [];
+            return obs < 10 ? [3, 3] : baseDash;
+          },
+        },
       },
     ];
   });
@@ -102,7 +135,28 @@ function renderTrends() {
         },
         legend: {
           labels: {
-            filter: (item) => !item.text.endsWith(' Q1') && !item.text.endsWith(' IQR'),
+            filter: (item) =>
+              !item.text.endsWith(' Q1') &&
+              !item.text.endsWith(' IQR') &&
+              !item.text.endsWith(' min') &&
+              !item.text.endsWith(' max'),
+          },
+        },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              if (
+                ctx.dataset.label.endsWith(' Q1') ||
+                ctx.dataset.label.endsWith(' IQR') ||
+                ctx.dataset.label.endsWith(' min') ||
+                ctx.dataset.label.endsWith(' max')
+              ) return null;
+              const route = ctx.dataset.label;
+              const curve = DATA.analysis[route]?.lead_time_curve || [];
+              const entry = curve[ctx.dataIndex];
+              const n = entry?.obs_count ?? '?';
+              return `${route}: €${ctx.parsed.y.toFixed(0)} (n=${n})`;
+            },
           },
         },
       },
