@@ -58,9 +58,59 @@ function renderVerdict(flight) {
   card.classList.remove('is-hidden');
 }
 
+function historyQuartiles(history) {
+  const prices = history
+    .filter((h) => h.price_cents != null)
+    .map((h) => h.price_cents)
+    .sort((a, b) => a - b);
+  if (prices.length === 0) return null;
+  const n = prices.length;
+  return {
+    p25:    prices[Math.floor(n * 0.25)] / 100,
+    median: prices[Math.floor(n * 0.5)]  / 100,
+    p75:    prices[Math.floor(n * 0.75)] / 100,
+  };
+}
+
 function drawPriceHistory(flight) {
   destroyChart('priceHistory');
   const ctx = $('price-history-chart');
+
+  const q = historyQuartiles(flight.history);
+  const avgEur = flight.historical_mean_cents ? flight.historical_mean_cents / 100 : null;
+
+  const refLinesPlugin = {
+    id: 'refLines',
+    afterDraw(chart) {
+      const { ctx: canvasCtx, chartArea, scales } = chart;
+      const refs = [
+        avgEur != null && { value: avgEur,      label: `Avg: €${Math.round(avgEur)}`,    color: 'rgba(100,100,100,0.7)', dash: [6, 3] },
+        q && { value: q.median, label: `Med: €${Math.round(q.median)}`, color: 'rgba(80,120,80,0.7)',  dash: [4, 3] },
+        q && { value: q.p25,    label: `P25: €${Math.round(q.p25)}`,    color: 'rgba(50,150,50,0.5)',  dash: [2, 3] },
+        q && { value: q.p75,    label: `P75: €${Math.round(q.p75)}`,    color: 'rgba(180,80,80,0.5)',  dash: [2, 3] },
+      ].filter(Boolean);
+
+      canvasCtx.save();
+      refs.forEach(({ value, label, color, dash }) => {
+        if (value == null) return;
+        const y = scales.y.getPixelForValue(value);
+        if (y < chartArea.top || y > chartArea.bottom) return;
+        canvasCtx.setLineDash(dash);
+        canvasCtx.strokeStyle = color;
+        canvasCtx.lineWidth = 1.2;
+        canvasCtx.beginPath();
+        canvasCtx.moveTo(chartArea.left, y);
+        canvasCtx.lineTo(chartArea.right, y);
+        canvasCtx.stroke();
+        canvasCtx.setLineDash([]);
+        canvasCtx.fillStyle = color;
+        canvasCtx.font = '10px sans-serif';
+        canvasCtx.fillText(label, chartArea.left + 4, y - 3);
+      });
+      canvasCtx.restore();
+    },
+  };
+
   charts.priceHistory = new Chart(ctx, {
     type: 'line',
     data: {
@@ -77,6 +127,7 @@ function drawPriceHistory(flight) {
         pointHoverRadius: 5,
       }],
     },
+    plugins: [refLinesPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
