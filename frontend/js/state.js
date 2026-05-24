@@ -6,6 +6,7 @@ const state = {
   selectedFlight: null,   // { airline, dep_time } | null
   airlineFilter: new Set(), // empty Set = all airlines visible
   drilldownSort: 'price', // 'price' | 'time'
+  airlineLeadTimeVisible: null,   // Set of visible airline names, null = initialise on first render
 };
 
 // ───── Chart registry — destroy before re-render to avoid leaks ────────────
@@ -16,6 +17,7 @@ const charts = {
   dow: null,
   month: null,
   normProg: null,
+  airlineLeadtime: null,
 };
 
 // Histogram and timeheat charts are keyed dynamically by route slug (e.g. 'CPH-AMS').

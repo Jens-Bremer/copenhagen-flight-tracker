@@ -107,6 +107,7 @@ function renderAll() {
   renderAirlineBoxplots();
   renderTimeheat();
   renderNormProgress();
+  renderAirlineLeadTime();
 }
 
 // ───── Boot ────────────────────────────────────────────────────────────────

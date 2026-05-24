@@ -273,6 +273,7 @@ ol, ul { list-style: none; }
 
 /* ─── 10. Weekend pairs tables ─── */
 .pairs-tables { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); }
+.airline-pill-legend { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
 .pairs-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
 .pairs-table caption {
   text-align: left;

@@ -46,6 +46,7 @@ function wireFilters() {
       state.route = r;
       state.selectedDate = null;
       state.selectedFlight = null;
+      state.airlineLeadTimeVisible = null;
       Array.from(routeContainer.children).forEach((c) => {
         c.classList.toggle('is-active', c.dataset.route === r);
       });
