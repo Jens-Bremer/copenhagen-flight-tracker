@@ -369,8 +369,9 @@ def _build_norm_prog_entry(days_before: int, values: list[float]) -> dict[str, A
 
 
 def _group_analysis_inputs(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    """Single-pass grouping of rows into the six analysis data structures."""
+    """Single-pass grouping of rows into the seven analysis data structures."""
     by_lead: dict[tuple[str, int], list[int]] = defaultdict(list)
+    by_lead_airline: dict[tuple[str, int, str], list[int]] = defaultdict(list)
     cheapest_per_dep: dict[tuple[str, str], int] = {}
     cheapest_per_obs: dict[tuple[str, str], int] = {}
     by_time: dict[tuple[str, int, int], list[int]] = defaultdict(list)
@@ -388,6 +389,7 @@ def _group_analysis_inputs(rows: list[dict[str, Any]]) -> dict[str, Any]:
         if days_before < 0:
             continue
         by_lead[(route, days_before)].append(row["price_cents"])
+        by_lead_airline[(route, days_before, row["airline"])].append(row["price_cents"])
         by_time[
             (route, row["departure_at"].weekday(), row["departure_at"].hour)
         ].append(row["price_cents"])
@@ -408,6 +410,7 @@ def _group_analysis_inputs(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
     return {
         "by_lead": by_lead,
+        "by_lead_airline": by_lead_airline,
         "by_time": by_time,
         "by_flight": by_flight,
         "cheapest_per_dep": cheapest_per_dep,
@@ -419,15 +422,37 @@ def _group_analysis_inputs(rows: list[dict[str, Any]]) -> dict[str, Any]:
 def _build_lead_time_curve(
     route: str,
     by_lead: dict[tuple[str, int], list[int]],
+    by_lead_airline: dict[tuple[str, int, str], list[int]],
 ) -> tuple[list[dict[str, Any]], int | None]:
-    """Build the lead-time price curve and sweet-spot days for one route."""
+    """Build the lead-time price curve, sweet-spot days, and per-airline breakdown for one route."""
     curve_entries = sorted(
         ((db, prices) for (r, db), prices in by_lead.items() if r == route),
         key=lambda x: x[0],
     )
+
+    # Pre-index per-airline prices for this route only, keyed by (days_before, airline).
+    route_airline: dict[tuple[int, str], list[int]] = {
+        (d, airline): a_prices
+        for (r, d, airline), a_prices in by_lead_airline.items()
+        if r == route
+    }
+
     curve = []
     for db, prices in curve_entries:
         mn, q1, med, q3, mx = _quartiles(prices)
+
+        by_airline: dict[str, dict[str, Any]] = {}
+        for (d, airline), a_prices in route_airline.items():
+            if d != db:
+                continue
+            _, aq1, amed, aq3, _ = _quartiles(a_prices)
+            by_airline[airline] = {
+                "median_cents": amed,
+                "q1_cents": aq1,
+                "q3_cents": aq3,
+                "obs_count": len(a_prices),
+            }
+
         curve.append(
             {
                 "days_before": db,
@@ -438,6 +463,7 @@ def _build_lead_time_curve(
                 "q3_cents": q3,
                 "max_cents": mx,
                 "obs_count": len(prices),
+                "by_airline": by_airline,
             }
         )
     min_obs = config.RELIABLE_MIN_OBSERVATIONS
@@ -517,6 +543,7 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
 
     groups = _group_analysis_inputs(rows)
     by_lead = groups["by_lead"]
+    by_lead_airline = groups["by_lead_airline"]
     by_time = groups["by_time"]
     by_flight = groups["by_flight"]
     cheapest_per_dep = groups["cheapest_per_dep"]
@@ -544,7 +571,7 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     out: dict[str, dict[str, Any]] = {}
 
     for route in routes:
-        curve, sweet_spot = _build_lead_time_curve(route, by_lead)
+        curve, sweet_spot = _build_lead_time_curve(route, by_lead, by_lead_airline)
 
         dow_entries, month_entries = _build_dow_month(route, cheapest_per_dep)
 

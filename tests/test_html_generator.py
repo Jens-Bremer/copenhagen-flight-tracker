@@ -208,6 +208,27 @@ def test_leadtime_chart_renders_iqr_band():
     )
 
 
+def test_build_analysis_lead_time_curve_has_by_airline():
+    """Each lead_time_curve entry must carry a by_airline dict."""
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    curve = analysis["CPH-AMS"]["lead_time_curve"]
+    assert len(curve) > 0
+
+    # At least some entries must have airlines (fixture has multi-airline data).
+    assert any(entry["by_airline"] for entry in curve), (
+        "No curve entry has any by_airline data — fixture may lack multi-airline observations"
+    )
+
+    for entry in curve:
+        assert "by_airline" in entry, f"lead_time_curve entry missing by_airline: {entry}"
+        for airline, stats in entry["by_airline"].items():
+            assert isinstance(airline, str)
+            for key in ("median_cents", "q1_cents", "q3_cents", "obs_count"):
+                assert key in stats, f"by_airline[{airline}] missing {key}"
+            assert stats["obs_count"] >= 1
+
+
 def test_build_analysis_sweet_spot_is_bucket_with_lowest_mean():
     """sweet_spot_days picks the cheapest *reliable* bucket (obs_count >= threshold).
 
