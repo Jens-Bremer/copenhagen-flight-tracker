@@ -30,6 +30,24 @@ function cheapestAirlineColor(iso) {
   return bestAirline ? airlineColor(bestAirline) : null;
 }
 
+/** Deal magnitude for cheapest visible flight on a given date.
+ *  Returns the percentage above/below historical average, or null if no flight. */
+function cellDealPct(iso) {
+  let bestCents = Infinity, bestMean = null;
+  activeRoutes().forEach((route) => {
+    const list = ((DATA.flights[route] || {})[iso]) || [];
+    list.forEach((f) => {
+      if (!airlinePasses(f.airline)) return;
+      if (f.latest_cents < bestCents) {
+        bestCents = f.latest_cents;
+        bestMean = f.historical_mean_cents;
+      }
+    });
+  });
+  if (!isFinite(bestCents) || !bestMean) return null;
+  return Math.round((bestCents - bestMean) / bestMean * 100);
+}
+
 /** Sorted list of 'YYYY-MM' strings covering the full data date range. */
 function availableMonths() {
   const dr = DATA.metadata.date_range || {};
@@ -137,10 +155,15 @@ function renderCalendar() {
     const countHtml = (price !== null && count > 0)
       ? `<span class="calendar__cell__count">${count === 1 ? '1 flight' : `${count} flights`}</span>`
       : '';
+    const dealPct = (price !== null) ? cellDealPct(iso) : null;
+    const dealHtml = dealPct !== null
+      ? `<span class="calendar__cell__deal ${dealPct <= 0 ? 'calendar__cell__deal--cheap' : 'calendar__cell__deal--expensive'}">${dealPct <= 0 ? dealPct : '+' + dealPct}%</span>`
+      : '';
     cell.innerHTML = `
       <span class="calendar__cell__day">${cursor.getDate()}</span>
       <span class="calendar__cell__price">${price !== null ? formatPrice(price) : '—'}</span>
       ${countHtml}
+      ${dealHtml}
       ${trajectoryHtmlStr}
     `;
     if (price !== null) {
