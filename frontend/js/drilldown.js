@@ -178,13 +178,13 @@ function renderDrilldown() {
     // Trajectory arrow: green ↓ for down, red ↑ for up, gray → for stable, none for null.
     let trajectoryHtml = '';
     if (f.trajectory === 'down') {
-      const pct = f.trajectory_pct !== null ? Math.abs(Math.round(f.trajectory_pct)) + '%' : '';
-      trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--down" aria-label="down ${pct}">↓</span>`;
+      const pct = f.trajectory_pct !== null ? ` ${Math.abs(Math.round(f.trajectory_pct))}%` : '';
+      trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--down" aria-label="price down${pct}">↓${escapeHtml(pct)}</span>`;
     } else if (f.trajectory === 'up') {
-      const pct = f.trajectory_pct !== null ? Math.abs(Math.round(f.trajectory_pct)) + '%' : '';
-      trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--up" aria-label="up ${pct}">↑</span>`;
+      const pct = f.trajectory_pct !== null ? ` ${Math.abs(Math.round(f.trajectory_pct))}%` : '';
+      trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--up" aria-label="price up${pct}">↑${escapeHtml(pct)}</span>`;
     } else if (f.trajectory === 'stable') {
-      trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--stable" aria-label="stable">→</span>`;
+      trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--stable" aria-label="price stable">→</span>`;
     }
     // airlineColor() returns one of: a fixed hex/white/orange constant or a
     // synthesised hsl(deg,70%,50%) — both safe inside a style attribute.
