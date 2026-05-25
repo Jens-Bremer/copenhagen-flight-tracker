@@ -217,11 +217,13 @@ def test_build_analysis_lead_time_curve_has_by_airline():
 
     # At least some entries must have airlines (fixture has multi-airline data).
     assert any(entry["by_airline"] for entry in curve), (
-        "No curve entry has any by_airline data — fixture may lack multi-airline observations"
+        "No curve entry has by_airline data; fixture may lack multi-airline data"
     )
 
     for entry in curve:
-        assert "by_airline" in entry, f"lead_time_curve entry missing by_airline: {entry}"
+        assert "by_airline" in entry, (
+            f"lead_time_curve entry missing by_airline: {entry}"
+        )
         for airline, stats in entry["by_airline"].items():
             assert isinstance(airline, str)
             for key in ("median_cents", "q1_cents", "q3_cents", "obs_count"):

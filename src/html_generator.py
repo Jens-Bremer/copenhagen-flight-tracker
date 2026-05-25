@@ -424,7 +424,7 @@ def _build_lead_time_curve(
     by_lead: dict[tuple[str, int], list[int]],
     by_lead_airline: dict[tuple[str, int, str], list[int]],
 ) -> tuple[list[dict[str, Any]], int | None]:
-    """Build the lead-time price curve, sweet-spot days, and per-airline breakdown for one route."""
+    """Build the lead-time price curve, sweet-spot days, and per-airline breakdown."""
     curve_entries = sorted(
         ((db, prices) for (r, db), prices in by_lead.items() if r == route),
         key=lambda x: x[0],
