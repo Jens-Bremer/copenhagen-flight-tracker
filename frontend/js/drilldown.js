@@ -25,16 +25,16 @@ function renderVerdict(flight) {
     verdictText = 'Not enough data yet to assess this price';
     verdictCls = '';
   } else if (percentile <= 15) {
-    verdictText = 'Well below historical average';
+    verdictText = 'Well below own historical average';
     verdictCls = 'is-good';
   } else if (percentile <= 25) {
-    verdictText = 'Below historical average';
+    verdictText = 'Below own historical average';
     verdictCls = 'is-good';
   } else if (percentile <= 75) {
     verdictText = 'Fair price';
     verdictCls = 'is-fair';
   } else {
-    verdictText = 'Above average';
+    verdictText = 'Above own historical average';
     verdictCls = 'is-bad';
   }
 
@@ -42,8 +42,8 @@ function renderVerdict(flight) {
   if (historical_mean_cents && latest_cents) {
     const diff = Math.round((historical_mean_cents - latest_cents) / historical_mean_cents * 100);
     vsAvgText = diff >= 0
-      ? `${diff}% below historical average`
-      : `${Math.abs(diff)}% above historical average`;
+      ? `${diff}% below own historical average`
+      : `${Math.abs(diff)}% above own historical average`;
   }
 
   card.innerHTML = `
@@ -235,17 +235,17 @@ function renderDrilldown() {
     const staleBadge = f.is_stale
       ? `<span class="stale-badge" title="Last seen ${escapeHtml(f.latest_retrieved_at)} — price may be outdated">⚠ Outdated</span>`
       : '';
-    // Trajectory arrow: shows % vs historical average (same as verdict card).
-    // Green ↓ = cheaper than avg, red ↑ = pricier than avg, gray → = near avg.
+    // Trajectory arrow: shows % vs own historical average (same as verdict card).
+    // Green ↓ = cheaper than own avg, red ↑ = pricier than own avg, gray → = near own avg.
     let trajectoryHtml = '';
     if (f.historical_mean_cents && f.latest_cents) {
       const diff = Math.round((f.historical_mean_cents - f.latest_cents) / f.historical_mean_cents * 100);
       if (diff > 3) {
-        trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--down" aria-label="${diff}% below avg">↓ ${diff}%</span>`;
+        trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--down" aria-label="${diff}% below own historical avg">↓ ${diff}%</span>`;
       } else if (diff < -3) {
-        trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--up" aria-label="${Math.abs(diff)}% above avg">↑ ${Math.abs(diff)}%</span>`;
+        trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--up" aria-label="${Math.abs(diff)}% above own historical avg">↑ ${Math.abs(diff)}%</span>`;
       } else {
-        trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--stable" aria-label="near avg">→</span>`;
+        trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--stable" aria-label="near own historical avg">→</span>`;
       }
     }
     // airlineColor() returns one of: a fixed hex/white/orange constant or a
