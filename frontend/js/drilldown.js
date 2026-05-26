@@ -58,86 +58,98 @@ function renderVerdict(flight) {
   card.classList.remove('is-hidden');
 }
 
-function historyQuartiles(history) {
-  const prices = history
-    .filter((h) => h.price_cents != null)
-    .map((h) => h.price_cents)
-    .sort((a, b) => a - b);
-  if (prices.length === 0) return null;
-  const n = prices.length;
-  return {
-    p25:    prices[Math.floor(n * 0.25)] / 100,
-    median: prices[Math.floor(n * 0.5)]  / 100,
-    p75:    prices[Math.floor(n * 0.75)] / 100,
-  };
+// Build per-day (days_before) distribution stats for a given route.
+// Returns a Map: days_before → { p25, median, avg, p75 } (all in €).
+function routeDayStats(route) {
+  const byDay = new Map();
+  Object.values(DATA.flights[route] || {}).forEach((flightList) => {
+    flightList.forEach((f) => {
+      (f.history || []).forEach((h) => {
+        if (h.price_cents == null || h.days_before == null) return;
+        if (!byDay.has(h.days_before)) byDay.set(h.days_before, []);
+        byDay.get(h.days_before).push(h.price_cents);
+      });
+    });
+  });
+  const stats = new Map();
+  byDay.forEach((prices, day) => {
+    prices.sort((a, b) => a - b);
+    const n = prices.length;
+    stats.set(day, {
+      p25:    prices[Math.floor(n * 0.25)] / 100,
+      median: prices[Math.floor(n * 0.5)]  / 100,
+      avg:    prices.reduce((s, v) => s + v, 0) / n / 100,
+      p75:    prices[Math.floor(n * 0.75)] / 100,
+    });
+  });
+  return stats;
 }
 
 function drawPriceHistory(flight) {
   destroyChart('priceHistory');
   const ctx = $('price-history-chart');
 
-  const q = historyQuartiles(flight.history);
-  const avgEur = flight.historical_mean_cents ? flight.historical_mean_cents / 100 : null;
+  const dayStats = routeDayStats(flight.route);
 
-  const refLinesPlugin = {
-    id: 'refLines',
-    afterDraw(chart) {
-      const { ctx: canvasCtx, chartArea, scales } = chart;
-      const refs = [
-        avgEur != null && { value: avgEur,      label: `Avg: €${Math.round(avgEur)}`,    color: 'rgba(100,100,100,0.7)', dash: [6, 3] },
-        q && { value: q.median, label: `Med: €${Math.round(q.median)}`, color: 'rgba(80,120,80,0.7)',  dash: [4, 3] },
-        q && { value: q.p25,    label: `P25: €${Math.round(q.p25)}`,    color: 'rgba(50,150,50,0.5)',  dash: [2, 3] },
-        q && { value: q.p75,    label: `P75: €${Math.round(q.p75)}`,    color: 'rgba(180,80,80,0.5)',  dash: [2, 3] },
-      ].filter(Boolean);
+  // For each history point on this flight, look up the per-day stats and
+  // produce a {x, y} pair anchored to the same obs_date x-axis.
+  const historyPts = flight.history.filter((h) => h.price_cents != null && h.days_before != null);
 
-      canvasCtx.save();
-      refs.forEach(({ value, label, color, dash }) => {
-        if (value == null) return;
-        const y = scales.y.getPixelForValue(value);
-        if (y < chartArea.top || y > chartArea.bottom) return;
-        canvasCtx.setLineDash(dash);
-        canvasCtx.strokeStyle = color;
-        canvasCtx.lineWidth = 1.2;
-        canvasCtx.beginPath();
-        canvasCtx.moveTo(chartArea.left, y);
-        canvasCtx.lineTo(chartArea.right, y);
-        canvasCtx.stroke();
-        canvasCtx.setLineDash([]);
-        canvasCtx.fillStyle = color;
-        canvasCtx.font = '10px sans-serif';
-        canvasCtx.fillText(label, chartArea.left + 4, y - 3);
-      });
-      canvasCtx.restore();
-    },
-  };
+  function refDataset(label, key, color, dash) {
+    return {
+      label,
+      data: historyPts.map((h) => {
+        const s = dayStats.get(h.days_before);
+        return s ? { x: h.obs_date, y: s[key] } : null;
+      }).filter(Boolean),
+      borderColor: color,
+      borderDash: dash,
+      borderWidth: 1.2,
+      pointRadius: 0,
+      fill: false,
+      spanGaps: true,
+      tension: 0.3,
+    };
+  }
 
   charts.priceHistory = new Chart(ctx, {
     type: 'line',
     data: {
-      datasets: [{
-        label: `${flight.airline} ${flight.dep_time}`,
-        data: flight.history
-          .filter((h) => h.price_cents != null)
-          .map((h) => ({ x: h.obs_date, y: h.price_cents / 100 })),
-        borderColor: airlineColor(flight.airline),
-        backgroundColor: 'rgba(192, 57, 43, 0.10)',
-        spanGaps: true,
-        borderWidth: 2,
-        pointRadius: 3,
-        pointHoverRadius: 5,
-      }],
+      datasets: [
+        {
+          label: `${flight.airline} ${flight.dep_time}`,
+          data: historyPts.map((h) => ({ x: h.obs_date, y: h.price_cents / 100 })),
+          borderColor: airlineColor(flight.airline),
+          backgroundColor: 'rgba(192, 57, 43, 0.10)',
+          spanGaps: true,
+          borderWidth: 2,
+          pointRadius: 3,
+          pointHoverRadius: 5,
+          order: 0,
+        },
+        refDataset('Avg (all flights)', 'avg',    'rgba(100,100,100,0.8)', [6, 3]),
+        refDataset('Median',            'median', 'rgba(80,120,80,0.8)',   [4, 3]),
+        refDataset('P25',               'p25',    'rgba(50,150,50,0.7)',   [2, 3]),
+        refDataset('P75',               'p75',    'rgba(180,80,80,0.7)',   [2, 3]),
+      ],
     },
-    plugins: [refLinesPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { display: false },
+        legend: {
+          display: true,
+          position: 'bottom',
+          labels: { boxWidth: 20, padding: 10, font: { size: 11 } },
+        },
         tooltip: {
           callbacks: {
-            label: (ctx) => {
-              const dataPoint = flight.history.find((h) => h.obs_date === ctx.raw.x);
-              return `€${Math.round(ctx.parsed.y)} (${dataPoint?.days_before} days before)`;
+            label: (c) => {
+              if (c.datasetIndex === 0) {
+                const dataPoint = flight.history.find((h) => h.obs_date === c.raw.x);
+                return `${c.dataset.label}: €${Math.round(c.parsed.y)} (${dataPoint?.days_before} days before)`;
+              }
+              return `${c.dataset.label}: €${Math.round(c.parsed.y)}`;
             },
           },
         },
@@ -151,10 +163,7 @@ function drawPriceHistory(flight) {
             displayFormats: { month: 'MMM' },
             tooltipFormat: 'MMM d, yyyy',
           },
-          ticks: {
-            source: 'auto',
-            maxRotation: 0,
-          },
+          ticks: { source: 'auto', maxRotation: 0 },
           title: { display: true, text: 'Observation date' },
         },
         y: { title: { display: true, text: 'Price (€)' }, beginAtZero: false },
@@ -226,16 +235,18 @@ function renderDrilldown() {
     const staleBadge = f.is_stale
       ? `<span class="stale-badge" title="Last seen ${escapeHtml(f.latest_retrieved_at)} — price may be outdated">⚠ Outdated</span>`
       : '';
-    // Trajectory arrow: green ↓ for down, red ↑ for up, gray → for stable, none for null.
+    // Trajectory arrow: shows % vs historical average (same as verdict card).
+    // Green ↓ = cheaper than avg, red ↑ = pricier than avg, gray → = near avg.
     let trajectoryHtml = '';
-    if (f.trajectory === 'down') {
-      const pct = f.trajectory_pct !== null ? ` ${Math.abs(Math.round(f.trajectory_pct))}%` : '';
-      trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--down" aria-label="price down${pct}">↓${escapeHtml(pct)}</span>`;
-    } else if (f.trajectory === 'up') {
-      const pct = f.trajectory_pct !== null ? ` ${Math.abs(Math.round(f.trajectory_pct))}%` : '';
-      trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--up" aria-label="price up${pct}">↑${escapeHtml(pct)}</span>`;
-    } else if (f.trajectory === 'stable') {
-      trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--stable" aria-label="price stable">→</span>`;
+    if (f.historical_mean_cents && f.latest_cents) {
+      const diff = Math.round((f.historical_mean_cents - f.latest_cents) / f.historical_mean_cents * 100);
+      if (diff > 3) {
+        trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--down" aria-label="${diff}% below avg">↓ ${diff}%</span>`;
+      } else if (diff < -3) {
+        trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--up" aria-label="${Math.abs(diff)}% above avg">↑ ${Math.abs(diff)}%</span>`;
+      } else {
+        trajectoryHtml = `<span class="flight-row__trajectory flight-row__trajectory--stable" aria-label="near avg">→</span>`;
+      }
     }
     // airlineColor() returns one of: a fixed hex/white/orange constant or a
     // synthesised hsl(deg,70%,50%) — both safe inside a style attribute.
