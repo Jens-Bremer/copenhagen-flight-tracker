@@ -231,8 +231,8 @@ def test_build_analysis_lead_time_curve_has_by_airline():
             assert stats["obs_count"] >= 1
 
 
-def test_build_analysis_sweet_spot_is_bucket_with_lowest_mean():
-    """sweet_spot_days picks the cheapest *reliable* bucket (obs_count >= threshold).
+def test_build_analysis_sweet_spot_is_bucket_with_lowest_median():
+    """sweet_spot_days picks the reliable bucket with the lowest median price.
 
     The fixture has fewer than 10 observations in every bucket, so all are
     filtered out and the result is None — which the frontend renders as the
@@ -246,7 +246,7 @@ def test_build_analysis_sweet_spot_is_bucket_with_lowest_mean():
 
     reliable = [e for e in curve if e["obs_count"] >= config.RELIABLE_MIN_OBSERVATIONS]
     if reliable:
-        cheapest = min(reliable, key=lambda e: e["mean_cents"])
+        cheapest = min(reliable, key=lambda e: e["median_cents"])
         assert cph_ams["sweet_spot_days"] == cheapest["days_before"]
     else:
         assert cph_ams["sweet_spot_days"] is None

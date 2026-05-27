@@ -58,28 +58,16 @@ function renderVerdict(flight) {
   card.classList.remove('is-hidden');
 }
 
-// Build per-day (days_before) distribution stats for a given route.
-// Returns a Map: days_before → { p25, median, avg, p75 } (all in €).
+// Build per-day (days_before) stats for a route from the precomputed lead_time_curve.
+// Returns a Map: days_before → { p25, median, p75 } (all in €).
 function routeDayStats(route) {
-  const byDay = new Map();
-  Object.values(DATA.flights[route] || {}).forEach((flightList) => {
-    flightList.forEach((f) => {
-      (f.history || []).forEach((h) => {
-        if (h.price_cents == null || h.days_before == null) return;
-        if (!byDay.has(h.days_before)) byDay.set(h.days_before, []);
-        byDay.get(h.days_before).push(h.price_cents);
-      });
-    });
-  });
+  const curve = (DATA.analysis[route] || {}).lead_time_curve || [];
   const stats = new Map();
-  byDay.forEach((prices, day) => {
-    prices.sort((a, b) => a - b);
-    const n = prices.length;
-    stats.set(day, {
-      p25:    prices[Math.floor(n * 0.25)] / 100,
-      median: prices[Math.floor(n * 0.5)]  / 100,
-      avg:    prices.reduce((s, v) => s + v, 0) / n / 100,
-      p75:    prices[Math.floor(n * 0.75)] / 100,
+  curve.forEach((c) => {
+    stats.set(c.days_before, {
+      p25:    c.q1_cents     / 100,
+      median: c.median_cents / 100,
+      p75:    c.q3_cents     / 100,
     });
   });
   return stats;
@@ -127,10 +115,9 @@ function drawPriceHistory(flight) {
           pointHoverRadius: 5,
           order: 0,
         },
-        refDataset('Avg (all flights)', 'avg',    'rgba(100,100,100,0.8)', [6, 3]),
-        refDataset('Median',            'median', 'rgba(80,120,80,0.8)',   [4, 3]),
-        refDataset('P25',               'p25',    'rgba(50,150,50,0.7)',   [2, 3]),
-        refDataset('P75',               'p75',    'rgba(180,80,80,0.7)',   [2, 3]),
+        refDataset('Median', 'median', 'rgba(80,120,80,0.8)',  [4, 3]),
+        refDataset('P25',    'p25',   'rgba(50,150,50,0.7)',  [2, 3]),
+        refDataset('P75',    'p75',   'rgba(180,80,80,0.7)',  [2, 3]),
       ],
     },
     options: {

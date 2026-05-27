@@ -60,7 +60,7 @@ function renderTrends() {
       // Mean line — dashed where obs_count < 10
       {
         label: r,
-        data: curve.map((c) => ({ x: c.days_before, y: c.mean_cents / 100 })),
+        data: curve.map((c) => ({ x: c.days_before, y: c.median_cents / 100 })),
         borderColor: color,
         fill: false,
         spanGaps: false,
@@ -131,7 +131,7 @@ function renderTrends() {
       plugins: {
         title: {
           display: true,
-          text: 'Mean price by days-before-departure (descriptive history; not a prediction)',
+          text: 'Median price by days-before-departure (descriptive history; not a prediction)',
         },
         legend: {
           labels: {
@@ -165,14 +165,14 @@ function renderTrends() {
           type: 'linear', reverse: true,
           title: { display: true, text: 'Days before departure' },
         },
-        y: { title: { display: true, text: 'Mean price (€)' } },
+        y: { title: { display: true, text: 'Median price (€)' } },
       },
     },
   });
 
   const lines = routes.map((r) => {
     const days = DATA.analysis[r].sweet_spot_days;
-    return days !== undefined ? `${r}: cheapest mean at ~${days} days ahead` : '';
+    return days !== undefined ? `${r}: cheapest median at ~${days} days ahead` : '';
   }).filter(Boolean);
   headline.textContent = lines.join(' · ');
 }

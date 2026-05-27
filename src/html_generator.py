@@ -469,7 +469,7 @@ def _build_lead_time_curve(
     min_obs = config.RELIABLE_MIN_OBSERVATIONS
     reliable = [e for e in curve if e["obs_count"] >= min_obs]
     sweet_spot = (
-        min(reliable, key=lambda e: e["mean_cents"])["days_before"]
+        min(reliable, key=lambda e: e["median_cents"])["days_before"]
         if reliable
         else None
     )
