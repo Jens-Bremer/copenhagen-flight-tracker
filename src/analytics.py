@@ -66,13 +66,14 @@ def compute_price_percentile(
     try:
         rows = conn.execute(
             """
-            SELECT price_amount
+            SELECT MIN(price_amount) AS price_amount
             FROM flight_observations
             WHERE origin = ?
               AND destination = ?
               AND departure_date = ?
               AND price_amount IS NOT NULL
-            ORDER BY price_amount ASC
+            GROUP BY airline, departure_time, DATE(retrieved_at)
+            ORDER BY MIN(price_amount) ASC
             """,
             (origin, destination, departure_date),
         ).fetchall()

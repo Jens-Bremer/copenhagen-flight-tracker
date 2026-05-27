@@ -198,6 +198,38 @@ def test_compute_price_percentile_duplicate_max_is_hundred(db_path):
     assert percentile == pytest.approx(100.0)
 
 
+def test_compute_price_percentile_collapses_same_day_duplicates(db_path):
+    """Two observations of the same flight on the same day count as one.
+
+    Without dedup: prices = [1000, 3000, 3000, 5000, 7000, 9000]
+    percentile_rank(3000) = midpoint of indices 1..2 = 1.5/5 * 100 = 30.0
+
+    With dedup: prices = [1000, 3000, 5000, 7000, 9000]
+    percentile_rank(3000) = rank 1/4 * 100 = 25.0
+    """
+    insert_observations(
+        db_path,
+        [
+            _obs(1000, "2026-01-01T06:00:00+00:00"),
+            _obs(3000, "2026-01-02T06:00:00+00:00"),
+            _obs(3000, "2026-01-02T08:00:00+00:00"),  # same-day duplicate
+            _obs(5000, "2026-01-03T06:00:00+00:00"),
+            _obs(7000, "2026-01-04T06:00:00+00:00"),
+            _obs(9000, "2026-01-05T06:00:00+00:00"),
+        ],
+    )
+
+    percentile = compute_price_percentile(
+        db_path=db_path,
+        origin="CPH",
+        destination="AMS",
+        departure_date="2026-06-01",
+        price_amount=3000,
+    )
+
+    assert percentile == pytest.approx(25.0)
+
+
 # ─── Issue #126: _build_norm_prog_entry IQR fields ────────────────────────────
 
 
