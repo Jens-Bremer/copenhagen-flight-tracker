@@ -2,7 +2,7 @@ function renderTrends() {
   destroyChart('leadtime');
 
   const headline = $('sweet-spot-headline');
-  const routes = activeRoutes().filter((r) => DATA.analysis[r]);
+  const routes = (DATA.metadata.routes || []).filter((r) => DATA.analysis[r]);
   if (routes.length === 0) {
     headline.textContent = '';
     return;
