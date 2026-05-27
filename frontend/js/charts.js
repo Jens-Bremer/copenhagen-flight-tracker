@@ -437,6 +437,7 @@ function renderAirlineBoxplots() {
       },
       options: {
         responsive: true, maintainAspectRatio: false,
+        indexAxis: 'y',
         plugins: {
           legend: { display: false },
           title: { display: true, text: `${route} — price spread by airline` },
@@ -446,7 +447,7 @@ function renderAirlineBoxplots() {
                 const s = c.parsed;
                 if (!s) return '';
                 return [
-                  `Median: €${Math.round(s.median ?? s.y ?? 0)}`,
+                  `Median: €${Math.round(s.median ?? s.x ?? 0)}`,
                   `Q1–Q3: €${Math.round(s.q1 ?? 0)}–€${Math.round(s.q3 ?? 0)}`,
                   `Min/Max: €${Math.round(s.min ?? 0)} / €${Math.round(s.max ?? 0)}`,
                 ];
@@ -454,7 +455,7 @@ function renderAirlineBoxplots() {
             },
           },
         },
-        scales: { y: { beginAtZero: false, title: { display: true, text: 'Price (€)' } } },
+        scales: { x: { min: 0, max: 700, title: { display: true, text: 'Price (€)' } } },
       },
     });
   });
