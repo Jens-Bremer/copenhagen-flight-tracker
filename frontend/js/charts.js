@@ -396,7 +396,7 @@ function renderAirlineBoxplots() {
   if (!container) return;
   container.innerHTML = '';
 
-  const routes = activeRoutes();
+  const routes = DATA.metadata.routes || [];
   if (routes.length === 0) return;
 
   routes.forEach((route) => {
