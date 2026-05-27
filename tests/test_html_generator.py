@@ -1241,10 +1241,10 @@ def test_verdict_card_thresholds_all_present():
     """JS must implement all four percentile thresholds from the spec."""
     html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
     js = _app_js(html)
-    assert "Well below historical average" in js
-    assert "Below historical average" in js
+    assert "Well below own historical average" in js
+    assert "Below own historical average" in js
     assert "Fair price" in js
-    assert "Above average" in js
+    assert "Above own historical average" in js
 
 
 def test_verdict_card_null_percentile_fallback():
@@ -1289,9 +1289,9 @@ def test_drilldown_trajectory_arrow_skipped_when_null():
     js = _app_js(html)
     # The null guard must be present (some form of null/falsy check on trajectory)
     assert "trajectory" in js
-    # There must be a conditional that avoids rendering when trajectory is null
-    assert "f.trajectory" in js, (
-        "JS must access f.trajectory to conditionally render the arrow"
+    # There must be a conditional that avoids rendering when trajectory data is absent
+    assert "f.historical_mean_cents" in js, (
+        "JS must guard on f.historical_mean_cents to conditionally render the arrow"
     )
 
 
