@@ -251,16 +251,28 @@ def sort_rows(rows: list) -> list:
 
 
 def dedupe_rows(rows: list) -> list:
-    """Drop rows that are identical across all output columns."""
-    seen = set()
-    deduped = []
+    """One row per (flight slot × observation day).
+
+    Collapses same-day duplicates (e.g. from a double-scrape or retry) to
+    the cheapest observed price. Different observation days are kept as
+    separate entries so price-history tracking still works.
+    """
+    best: dict[tuple, dict] = {}
     for row in rows:
-        key = tuple(row.get(col, "") for col in OUTPUT_COLUMNS)
-        if key in seen:
-            continue
-        seen.add(key)
-        deduped.append(row)
-    return deduped
+        # Observation date = first 10 chars of retrieved_at ('YYYY-MM-DD').
+        key = (
+            row.get("departure_date", ""),
+            row.get("origin", ""),
+            row.get("destination", ""),
+            row.get("airline", ""),
+            row.get("departure_at", ""),
+            row.get("retrieved_at", "")[:10],
+        )
+        existing = best.get(key)
+        price = row.get("price_cents") or 0
+        if existing is None or price < (existing.get("price_cents") or 0):
+            best[key] = row
+    return list(best.values())
 
 
 def build(input_path: str, output_path: str) -> tuple:

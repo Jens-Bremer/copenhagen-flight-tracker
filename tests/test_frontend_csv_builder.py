@@ -274,6 +274,40 @@ def test_build_dedupes_identical_rows(tmp_path):
     assert len(rows) == 1
 
 
+def test_build_dedupes_same_flight_different_retrieval_time_same_day(tmp_path):
+    src_path = str(tmp_path / "in.csv")
+    out = str(tmp_path / "out.csv")
+    # Same flight, same observation day, two different retrieval timestamps
+    # (e.g. first scrape pass + retry). Should collapse to one row.
+    row_a = _input_csv_row(
+        retrieved_at="2026-05-15T06:00:00+00:00", price_amount="8000"
+    )
+    row_b = _input_csv_row(
+        retrieved_at="2026-05-15T10:30:00+00:00", price_amount="9200"
+    )
+    _write_input(src_path, [row_a, row_b])
+    written, status = build(src_path, out)
+    assert status == BUILD_OK
+    assert written == 1
+    rows = _read_output(out)
+    assert rows[0]["price_cents"] == "8000"  # cheapest wins
+
+
+def test_build_keeps_same_flight_on_different_days(tmp_path):
+    src_path = str(tmp_path / "in.csv")
+    out = str(tmp_path / "out.csv")
+    row_day1 = _input_csv_row(
+        retrieved_at="2026-05-15T06:00:00+00:00", price_amount="9200"
+    )
+    row_day2 = _input_csv_row(
+        retrieved_at="2026-05-16T06:00:00+00:00", price_amount="8500"
+    )
+    _write_input(src_path, [row_day1, row_day2])
+    written, status = build(src_path, out)
+    assert status == BUILD_OK
+    assert written == 2
+
+
 def test_build_logs_skip_summary_once(tmp_path, caplog):
     src_path = str(tmp_path / "in.csv")
     out = str(tmp_path / "out.csv")
@@ -485,8 +519,9 @@ def test_build_happy_path_single_row(tmp_path):
     assert list(rows[0].keys()) == OUTPUT_COLUMNS
 
 
-def test_build_within_snapshot_near_duplicate_kept(tmp_path):
-    # Same retrieved_at + route + date + airline + dep/arr + currency, two prices.
+def test_build_within_snapshot_same_flight_different_prices_keeps_cheapest(tmp_path):
+    # Same flight slot (route + date + airline + dep/arr), same obs-day, two prices.
+    # This models a double-scrape: only the cheaper observation should survive.
     src_path = str(tmp_path / "in.csv")
     out = str(tmp_path / "out.csv")
     _write_input(
@@ -499,7 +534,8 @@ def test_build_within_snapshot_near_duplicate_kept(tmp_path):
     _, status = build(src_path, out)
     assert status == BUILD_OK
     rows = _read_output(out)
-    assert [r["price_cents"] for r in rows] == ["9200", "11000"]
+    assert len(rows) == 1
+    assert rows[0]["price_cents"] == "9200"
 
 
 def test_build_norwegian_klm_collision_kept(tmp_path):
