@@ -132,7 +132,7 @@ async function main() {
 
   // Initialise route filter to the first route in metadata.
   const allRoutes = DATA.metadata.routes || [];
-  state.route = allRoutes.length > 1 ? 'both' : (allRoutes[0] || null);
+  state.route = allRoutes[0] || null;
 
   // Initialise calendarMonth to the first month in the data range.
   const firstMonth = (DATA.metadata.date_range || {}).from;
