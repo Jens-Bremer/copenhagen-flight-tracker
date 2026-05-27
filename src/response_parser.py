@@ -85,7 +85,15 @@ def parse_flights(
     if result is None:
         return []
     rows = []
+    seen: set = set()
     for flight in result.flights:
+        # Google Flights often surfaces the same flight twice — once as the
+        # "best" pick and again in the main list. Skip exact duplicates so a
+        # single scrape never inserts two rows for the same physical flight.
+        key = (flight.name, flight.departure, flight.arrival)
+        if key in seen:
+            continue
+        seen.add(key)
         price_amount, price_currency = extract_price_parts(flight.price)
         rows.append(
             {

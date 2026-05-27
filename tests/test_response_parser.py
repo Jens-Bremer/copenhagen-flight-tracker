@@ -43,8 +43,22 @@ def test_none_result_returns_empty_list():
     assert parse_flights(None, ORIGIN, DEST, DEP_DATE, RETRIEVED) == []
 
 
-def test_returns_one_row_per_flight():
+def test_returns_one_row_per_unique_flight():
     result = _make_result(flights=[_make_flight(), _make_flight()])
+    rows = parse_flights(result, ORIGIN, DEST, DEP_DATE, RETRIEVED)
+    assert len(rows) == 1
+
+
+def test_distinct_departure_times_both_kept():
+    f1 = fast_flights.Flight(
+        is_best=True, name="SAS", departure="08:00", arrival="10:05",
+        arrival_time_ahead="", duration="2h 5m", stops=0, delay=None, price="€89",
+    )
+    f2 = fast_flights.Flight(
+        is_best=False, name="SAS", departure="14:00", arrival="16:05",
+        arrival_time_ahead="", duration="2h 5m", stops=0, delay=None, price="€99",
+    )
+    result = _make_result(flights=[f1, f2])
     rows = parse_flights(result, ORIGIN, DEST, DEP_DATE, RETRIEVED)
     assert len(rows) == 2
 
