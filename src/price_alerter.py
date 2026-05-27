@@ -12,12 +12,13 @@ logger = logging.getLogger(__name__)
 
 _THRESHOLD_TYPE = Union[int, dict]
 
-_SELECT_COLS = """
+_SELECT_DEDUPED = """
     SELECT origin, destination, departure_date, airline,
-           departure_time, price_amount, price_currency
+           departure_time, MIN(price_amount) AS price_amount, price_currency
     FROM flight_observations
     WHERE retrieved_at LIKE ?
       AND price_amount IS NOT NULL
+    GROUP BY origin, destination, departure_date, airline, departure_time
 """
 
 
@@ -28,7 +29,11 @@ def _route_threshold(threshold: dict, origin: str, destination: str) -> int:
 def find_cheap_flights(
     db_path: str, threshold: _THRESHOLD_TYPE, run_date: Optional[str] = None
 ) -> list:
-    """Return flights with price_amount <= threshold, ordered by ascending price."""
+    """Return flights with price_amount <= threshold, ordered by ascending price.
+
+    Deduplicates by (origin, destination, departure_date, airline, departure_time)
+    so a flight appearing multiple times in today's observations only counts once.
+    """
     if run_date is None:
         run_date = date.today().isoformat()
     conn = sqlite3.connect(db_path)
@@ -36,12 +41,13 @@ def find_cheap_flights(
     try:
         if isinstance(threshold, int):
             rows = conn.execute(
-                _SELECT_COLS + "  AND price_amount <= ?\nORDER BY price_amount ASC",
+                _SELECT_DEDUPED
+                + "HAVING MIN(price_amount) <= ?\nORDER BY MIN(price_amount) ASC",
                 (f"{run_date}%", threshold),
             ).fetchall()
         else:
             all_rows = conn.execute(
-                _SELECT_COLS + "ORDER BY price_amount ASC",
+                _SELECT_DEDUPED + "ORDER BY MIN(price_amount) ASC",
                 (f"{run_date}%",),
             ).fetchall()
             rows = [
