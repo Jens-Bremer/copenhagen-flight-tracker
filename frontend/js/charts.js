@@ -165,7 +165,7 @@ function renderTrends() {
           type: 'linear', reverse: true,
           title: { display: true, text: 'Days before departure' },
         },
-        y: { title: { display: true, text: 'Median price (€)' } },
+        y: { title: { display: true, text: 'Median price (€)' }, min: 0, max: 400 },
       },
     },
   });
