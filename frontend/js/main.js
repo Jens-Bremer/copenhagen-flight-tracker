@@ -134,9 +134,11 @@ async function main() {
   const allRoutes = DATA.metadata.routes || [];
   state.route = allRoutes[0] || null;
 
-  // Initialise calendarMonth to the first month in the data range.
-  const firstMonth = (DATA.metadata.date_range || {}).from;
-  state.calendarMonth = firstMonth ? firstMonth.slice(0, 7) : null;
+  // Initialise calendarMonth to the current month when it falls within the
+  // available data range; otherwise fall back to the first available month.
+  const months = availableMonths();
+  const todayMonth = todayIso().slice(0, 7);
+  state.calendarMonth = months.includes(todayMonth) ? todayMonth : (months[0] || null);
 
   wireFilters();
   wireCalendarNav();
