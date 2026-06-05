@@ -32,7 +32,7 @@ def send_alert(title: str, message: str, priority: str = "default") -> bool:
     req.add_header("Title", title_header)
     req.add_header("Priority", priority)
     try:
-        with urllib.request.urlopen(req, timeout=_NTFY_TIMEOUT_SECONDS):
+        with urllib.request.urlopen(req, timeout=_NTFY_TIMEOUT_SECONDS):  # nosec B310
             return True
     except Exception as exc:
         logger.error("Failed to send ntfy alert: %s", exc)

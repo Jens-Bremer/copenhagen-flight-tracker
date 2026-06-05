@@ -6,7 +6,7 @@ rules:
     level: warning
   document-start: disable
   indentation:
-    spaces: any
+    spaces: consistent
   trailing-lines: disable
   brackets: disable
   comments:
