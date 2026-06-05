@@ -5,7 +5,7 @@ from src.database import initialize_database, insert_observations
 def _obs(price_amount: int, retrieved_at: str) -> dict:
     return {
         "retrieved_at": retrieved_at,
-        "departure_date": "2026-06-01",
+        "departure_date": "2099-01-01",
         "origin": "CPH",
         "destination": "AMS",
         "airline": "SAS",

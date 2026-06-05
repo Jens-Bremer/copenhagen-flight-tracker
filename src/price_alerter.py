@@ -5,7 +5,6 @@ import sqlite3
 from datetime import date
 from typing import Optional, Union
 
-from src.analytics import compute_price_percentile, format_ordinal
 from src.notifier import send_alert
 
 logger = logging.getLogger(__name__)
@@ -70,28 +69,23 @@ def format_alert_message(
     else:
         header = f"{len(flights)} cheap flight(s) found (per-route thresholds):"
     lines = [header]
+    today = date.today()
     for f in flights:
         amount = f["price_amount"] // 100
         currency = f.get("price_currency") or ""
-        percentile_text = ""
-        if db_path and f.get("price_amount") is not None:
-            percentile = compute_price_percentile(
-                db_path=db_path,
-                origin=f["origin"],
-                destination=f["destination"],
-                departure_date=f["departure_date"],
-                price_amount=f["price_amount"],
-            )
-            if percentile is not None:
-                rounded = round(percentile)
-                percentile_text = f" ({format_ordinal(rounded)} percentile"
-                if rounded <= 10:
-                    percentile_text += " — historically very cheap"
-                percentile_text += ")"
+        days_out = ""
+        dep = f.get("departure_date")
+        if dep:
+            try:
+                delta = (date.fromisoformat(dep) - today).days
+                if delta >= 0:
+                    days_out = f"  ({delta}d away)"
+            except ValueError:
+                pass
         lines.append(
             f"  {f['origin']}→{f['destination']}  {f['departure_date']}"
             f"  {f['airline']}  {f['departure_time']}"
-            f"  {amount} {currency}{percentile_text}"
+            f"  {amount} {currency}{days_out}"
         )
     return "\n".join(lines)
 
@@ -112,8 +106,8 @@ def check_and_alert_cheap_flights(
     message = format_alert_message(flights, threshold, db_path=db_path)
     logger.info("Found %d cheap flight(s) — sending alert", len(flights))
     if isinstance(threshold, int):
-        title = f"{len(flights)} flight(s) under €{threshold // 100}"
+        title = f"{len(flights)} cheap flight(s) found — under €{threshold // 100}"
     else:
-        title = f"{len(flights)} cheap flight(s) found"
+        title = f"{len(flights)} cheap flight(s) found (per-route thresholds)"
     send_alert(title=title, message=message, priority="default")
     return True
