@@ -39,22 +39,6 @@ _SUMMARY_HOUR = 18
 _FAILURE_SUMMARY_THRESHOLD = 3
 
 
-def _format_counts(
-    counts: dict[str, int],
-    label_map: dict[str, str] | None = None,
-) -> str:
-    """Return a comma-separated summary for non-zero counts."""
-    if label_map is None:
-        label_map = {}
-    parts = []
-    for key, value in counts.items():
-        if value <= 0:
-            continue
-        label = label_map.get(key, key).replace("_", " ")
-        parts.append(f"{label}={value}")
-    return ", ".join(parts)
-
-
 def _build_failure_summary(
     failures_by_route: dict[str, int],
     failures_by_kind: dict[str, int],
