@@ -2,6 +2,7 @@
 
 import logging
 import urllib.request
+from urllib.parse import urlparse
 
 import config
 
@@ -19,6 +20,9 @@ def send_alert(title: str, message: str, priority: str = "default") -> bool:
     if not config.NTFY_TOPIC:
         return True
     url = f"{config.NTFY_URL}/{config.NTFY_TOPIC}"
+    if urlparse(url).scheme != "https":
+        logger.error("ntfy URL must use HTTPS: %s", url)
+        return False
     title_header = title.encode("utf-8").decode("latin-1")
     req = urllib.request.Request(
         url,
@@ -28,7 +32,7 @@ def send_alert(title: str, message: str, priority: str = "default") -> bool:
     req.add_header("Title", title_header)
     req.add_header("Priority", priority)
     try:
-        with urllib.request.urlopen(req, timeout=_NTFY_TIMEOUT_SECONDS):
+        with urllib.request.urlopen(req, timeout=_NTFY_TIMEOUT_SECONDS):  # nosec B310
             return True
     except Exception as exc:
         logger.error("Failed to send ntfy alert: %s", exc)
