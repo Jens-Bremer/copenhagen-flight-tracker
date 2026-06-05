@@ -139,7 +139,7 @@ def _maybe_send_failure_summary(
         logger.error("Failed to send mid-run failure summary via ntfy")
     return True
 
-def _empty_failures_by_kind() -> dict:
+def _empty_failures_by_kind() -> dict[str, int]:
     """Return a fresh per-category failure counter dict.
 
     Categories track the LEADING ban-signal taxonomy from issue #111:
@@ -309,6 +309,7 @@ def run_collection(
             inserted, exc = execute_single_job(
                 origin, destination, departure_date, db_path
             )
+            route_label = _normalize_route_label(get_last_route_label())
             if exc is not None:
                 logger.error(
                     "Retry failed %s→%s %s: %s",
@@ -319,10 +320,14 @@ def run_collection(
                 )
                 retry_results.append((origin, destination, departure_date, str(exc)))
                 retry_exceptions[(origin, destination, departure_date)] = exc
+                failures_by_route[route_label] += 1
+                failures_by_kind_so_far[_classify_failure(exc)] += 1
             elif inserted == 0:
                 retry_results.append(
                     (origin, destination, departure_date, "no observations stored")
                 )
+                failures_by_route[route_label] += 1
+                failures_by_kind_so_far["other"] += 1
             else:
                 total_observations += inserted
                 logger.info("Retry stored %d flights", inserted)
