@@ -5,5 +5,5 @@ rules:
     max: 120
     level: warning
   document-start: disable
-  truthy:
-    allowed: ["true", "false", "on"]
+  comments:
+    min-spaces-from-content: 1
