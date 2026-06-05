@@ -2,9 +2,9 @@ name: Dependency Vulnerability Check
 
 on:
   push:
-    branches: [ "master", "main" ]
+    branches: ["master", "main"]
   pull_request:
-    branches: [ "master", "main" ]
+    branches: ["master", "main"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -14,20 +14,19 @@ jobs:
   pip-audit:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.12"
-        cache: 'pip'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -e .
-        pip install pip-audit
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install pip-audit
 
-    - name: Run pip-audit for known vulnerabilities
-      run: |
-        pip-audit --desc
+      - name: Run pip-audit for known vulnerabilities
+        run: pip-audit --desc
