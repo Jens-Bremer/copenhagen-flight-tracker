@@ -84,8 +84,10 @@ def _build_failure_summary(
     )
     lines = [
         f"Time: {now:%Y-%m-%d %H:%M}",
-        f"Progress: {completed_jobs}/{total_jobs} complete ({remaining_jobs} remaining)",
-        f"Failure rate: {total_failures}/{completed_jobs} jobs failed ({failure_rate:.0%})",
+        f"Progress: {completed_jobs}/{total_jobs} complete"
+        f" ({remaining_jobs} remaining)",
+        f"Failure rate: {total_failures}/{completed_jobs} jobs failed"
+        f" ({failure_rate:.0%})",
         f"Route breakdown: {route_breakdown}",
     ]
     if kind_breakdown:
@@ -96,7 +98,10 @@ def _build_failure_summary(
             " Consider pausing or switching to proxy-only mode."
         )
     priority = "high" if is_blocked else "default"
-    title = f"Flight tracker: {total_failures} failures so far ({failure_rate:.0%} of {completed_jobs} completed)"
+    title = (
+        f"Flight tracker: {total_failures} failures so far"
+        f" ({failure_rate:.0%} of {completed_jobs} completed)"
+    )
     return title, "\n".join(lines), priority
 
 
