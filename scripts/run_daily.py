@@ -27,10 +27,10 @@ from src.flight_fetcher import (
     RateLimitedError,
 )
 from src.log_config import setup_logging
+from src.notifier import send_alert
 from src.price_alerter import check_and_alert_cheap_flights
 from src.request_pacer import compute_sleep_intervals, seconds_until_window_start
 from src.route_expander import expand_jobs
-from src.notifier import send_alert
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -69,33 +69,50 @@ def _build_failure_summary(
     """
     total_failures = sum(failures_by_route.values())
     failure_rate = total_failures / completed_jobs if completed_jobs else 0.0
-    route_breakdown = _format_counts(failures_by_route)
-    kind_breakdown = _format_counts(
-        failures_by_kind,
-        label_map={
-            "bot_challenge": "bot challenge",
-            "rate_limited": "rate limited",
-            "parse_error": "parse error",
-        },
+    remaining_jobs = total_jobs - completed_jobs
+
+    # Route breakdown with % of total failures: "direct=2 (67%), proxy=1 (33%)"
+    route_parts = []
+    for key, count in failures_by_route.items():
+        if count <= 0:
+            continue
+        pct = int(count / total_failures * 100) if total_failures else 0
+        route_parts.append(f"{key}={count} ({pct}%)")
+    route_breakdown = ", ".join(route_parts) or "none"
+
+    # Kind breakdown with % of total failures
+    kind_label_map = {
+        "bot_challenge": "bot challenge",
+        "rate_limited": "rate limited",
+        "parse_error": "parse error",
+    }
+    kind_parts = []
+    for key, count in failures_by_kind.items():
+        if count <= 0:
+            continue
+        label = kind_label_map.get(key, key).replace("_", " ")
+        pct = int(count / total_failures * 100) if total_failures else 0
+        kind_parts.append(f"{label}={count} ({pct}%)")
+    kind_breakdown = ", ".join(kind_parts)
+
+    is_blocked = bool(
+        failures_by_kind.get("bot_challenge") or failures_by_kind.get("rate_limited")
     )
     lines = [
         f"Time: {now:%Y-%m-%d %H:%M}",
-        f"Progress: {completed_jobs}/{total_jobs} jobs complete",
-        f"Failures so far: {total_failures} ({failure_rate:.0%} of completed jobs)",
-        f"Route breakdown: {route_breakdown or 'none'}",
+        f"Progress: {completed_jobs}/{total_jobs} complete ({remaining_jobs} remaining)",
+        f"Failure rate: {total_failures}/{completed_jobs} jobs failed ({failure_rate:.0%})",
+        f"Route breakdown: {route_breakdown}",
     ]
     if kind_breakdown:
         lines.append(f"Failure types: {kind_breakdown}")
-    if failures_by_kind.get("bot_challenge") or failures_by_kind.get("rate_limited"):
+    if is_blocked:
         lines.append(
-            "High-signal block indicators detected (bot challenge / rate limit)."
+            "IP block detected — bot challenge or rate limit signals present."
+            " Consider pausing or switching to proxy-only mode."
         )
-    priority = (
-        "high"
-        if failures_by_kind.get("bot_challenge") or failures_by_kind.get("rate_limited")
-        else "default"
-    )
-    title = f"Flight tracker: {total_failures} failures so far"
+    priority = "high" if is_blocked else "default"
+    title = f"Flight tracker: {total_failures} failures so far ({failure_rate:.0%} of {completed_jobs} completed)"
     return title, "\n".join(lines), priority
 
 

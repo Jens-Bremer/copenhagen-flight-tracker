@@ -69,13 +69,23 @@ def format_alert_message(
     else:
         header = f"{len(flights)} cheap flight(s) found (per-route thresholds):"
     lines = [header]
+    today = date.today()
     for f in flights:
         amount = f["price_amount"] // 100
         currency = f.get("price_currency") or ""
+        days_out = ""
+        dep = f.get("departure_date")
+        if dep:
+            try:
+                delta = (date.fromisoformat(dep) - today).days
+                if delta >= 0:
+                    days_out = f"  ({delta}d away)"
+            except ValueError:
+                pass
         lines.append(
             f"  {f['origin']}→{f['destination']}  {f['departure_date']}"
             f"  {f['airline']}  {f['departure_time']}"
-            f"  {amount} {currency}"
+            f"  {amount} {currency}{days_out}"
         )
     return "\n".join(lines)
 
@@ -96,8 +106,8 @@ def check_and_alert_cheap_flights(
     message = format_alert_message(flights, threshold, db_path=db_path)
     logger.info("Found %d cheap flight(s) — sending alert", len(flights))
     if isinstance(threshold, int):
-        title = f"{len(flights)} flight(s) under €{threshold // 100}"
+        title = f"{len(flights)} cheap flight(s) found — under €{threshold // 100}"
     else:
-        title = f"{len(flights)} cheap flight(s) found"
+        title = f"{len(flights)} cheap flight(s) found (per-route thresholds)"
     send_alert(title=title, message=message, priority="default")
     return True
