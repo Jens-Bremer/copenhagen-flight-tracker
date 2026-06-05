@@ -292,6 +292,12 @@ def get_last_route_label() -> Optional[str]:
     return _last_route_label
 
 
+def reset_last_route_label() -> None:
+    """Clear the stored route label to avoid leaking a prior request's value."""
+    global _last_route_label
+    _last_route_label = None
+
+
 def browser_fetch(params: dict) -> BrowserResponse:
     """Navigate to Google Flights via a real headed browser and return the page body.
 

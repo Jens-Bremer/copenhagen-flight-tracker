@@ -15,6 +15,7 @@ from scripts.collection import execute_single_job
 from src.browser_fetcher import (
     get_last_route_label,
     install_browser_patch,
+    reset_last_route_label,
     shutdown_browser,
 )
 from src.config_validator import validate_config
@@ -40,7 +41,7 @@ _FAILURE_SUMMARY_THRESHOLD = 3
 
 def _format_counts(
     counts: dict[str, int],
-    label_map: Optional[dict[str, str]] = None,
+    label_map: dict[str, str] | None = None,
 ) -> str:
     """Return a comma-separated summary for non-zero counts."""
     if label_map is None:
@@ -138,6 +139,7 @@ def _maybe_send_failure_summary(
     else:
         logger.error("Failed to send mid-run failure summary via ntfy")
     return True
+
 
 def _empty_failures_by_kind() -> dict[str, int]:
     """Return a fresh per-category failure counter dict.
@@ -261,6 +263,7 @@ def run_collection(
             idx,
             total_jobs,
         )
+        reset_last_route_label()
         inserted, exc = execute_single_job(origin, destination, departure_date, db_path)
         route_label = _normalize_route_label(get_last_route_label())
         if exc is not None:
@@ -306,6 +309,7 @@ def run_collection(
         for origin, destination, departure_date, _reason in failed_jobs:
             sleep_fn(config.FETCH_RETRY_DELAY_SECONDS)
             logger.warning("Retrying %s→%s %s", origin, destination, departure_date)
+            reset_last_route_label()
             inserted, exc = execute_single_job(
                 origin, destination, departure_date, db_path
             )
