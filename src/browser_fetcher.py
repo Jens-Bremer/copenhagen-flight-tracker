@@ -23,6 +23,7 @@ _playwright_instance = None
 _context_direct: Optional[BrowserContext] = None
 _context_proxy: Optional[BrowserContext] = None
 _proxy_url: Optional[str] = None
+_last_route_label: Optional[str] = None
 
 _LAUNCH_ARGS = [
     "--disable-blink-features=AutomationControlled",
@@ -272,6 +273,7 @@ def _get_context(use_proxy: bool) -> BrowserContext:
 def shutdown_browser() -> None:
     """Close both persistent contexts and clean up Playwright. Call on process exit."""
     global _playwright_instance, _context_direct, _context_proxy, _proxy_url
+    global _last_route_label
     if _context_direct:
         _context_direct.close()
         _context_direct = None
@@ -282,6 +284,12 @@ def shutdown_browser() -> None:
         _playwright_instance.stop()
         _playwright_instance = None
     _proxy_url = None
+    _last_route_label = None
+
+
+def get_last_route_label() -> Optional[str]:
+    """Return the route label ("direct"/"proxy") used by the most recent fetch."""
+    return _last_route_label
 
 
 def browser_fetch(params: dict) -> BrowserResponse:
@@ -295,10 +303,14 @@ def browser_fetch(params: dict) -> BrowserResponse:
     """
     url = "https://www.google.com/travel/flights?" + urlencode(params)
 
+    global _last_route_label
+
     # Routing decision: 50/50 split if proxy is available
     use_proxy = _proxy_url is not None and random.random() < config.PROXY_SPLIT_RATIO
     context = _get_context(use_proxy=use_proxy)
-    logger.info("routing via %s", "proxy" if use_proxy else "direct")
+    route_label = "proxy" if use_proxy else "direct"
+    _last_route_label = route_label
+    logger.info("routing via %s", route_label)
 
     page = context.new_page()
     try:

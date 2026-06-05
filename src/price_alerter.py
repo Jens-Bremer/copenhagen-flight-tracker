@@ -5,7 +5,6 @@ import sqlite3
 from datetime import date
 from typing import Optional, Union
 
-from src.analytics import compute_price_percentile, format_ordinal
 from src.notifier import send_alert
 
 logger = logging.getLogger(__name__)
@@ -73,25 +72,10 @@ def format_alert_message(
     for f in flights:
         amount = f["price_amount"] // 100
         currency = f.get("price_currency") or ""
-        percentile_text = ""
-        if db_path and f.get("price_amount") is not None:
-            percentile = compute_price_percentile(
-                db_path=db_path,
-                origin=f["origin"],
-                destination=f["destination"],
-                departure_date=f["departure_date"],
-                price_amount=f["price_amount"],
-            )
-            if percentile is not None:
-                rounded = round(percentile)
-                percentile_text = f" ({format_ordinal(rounded)} percentile"
-                if rounded <= 10:
-                    percentile_text += " — historically very cheap"
-                percentile_text += ")"
         lines.append(
             f"  {f['origin']}→{f['destination']}  {f['departure_date']}"
             f"  {f['airline']}  {f['departure_time']}"
-            f"  {amount} {currency}{percentile_text}"
+            f"  {amount} {currency}"
         )
     return "\n".join(lines)
 

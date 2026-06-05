@@ -5,14 +5,18 @@ import os
 import sys
 import tempfile
 import time
-from datetime import date
+from datetime import date, datetime
 from typing import Callable, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
 from scripts.collection import execute_single_job
-from src.browser_fetcher import install_browser_patch, shutdown_browser
+from src.browser_fetcher import (
+    get_last_route_label,
+    install_browser_patch,
+    shutdown_browser,
+)
 from src.config_validator import validate_config
 from src.date_generator import generate_target_dates
 from src.flight_fetcher import (
@@ -25,10 +29,115 @@ from src.log_config import setup_logging
 from src.price_alerter import check_and_alert_cheap_flights
 from src.request_pacer import compute_sleep_intervals, seconds_until_window_start
 from src.route_expander import expand_jobs
+from src.notifier import send_alert
 
 setup_logging()
 logger = logging.getLogger(__name__)
 
+_SUMMARY_HOUR = 18
+_FAILURE_SUMMARY_THRESHOLD = 3
+
+
+def _format_counts(
+    counts: dict[str, int],
+    label_map: Optional[dict[str, str]] = None,
+) -> str:
+    """Return a comma-separated summary for non-zero counts."""
+    if label_map is None:
+        label_map = {}
+    parts = []
+    for key, value in counts.items():
+        if value <= 0:
+            continue
+        label = label_map.get(key, key).replace("_", " ")
+        parts.append(f"{label}={value}")
+    return ", ".join(parts)
+
+
+def _build_failure_summary(
+    failures_by_route: dict[str, int],
+    failures_by_kind: dict[str, int],
+    completed_jobs: int,
+    total_jobs: int,
+    now: datetime,
+) -> tuple[str, str, str]:
+    """Build the mid-run failure summary alert payload.
+
+    Returns:
+        (title, message, priority)
+    """
+    total_failures = sum(failures_by_route.values())
+    failure_rate = total_failures / completed_jobs if completed_jobs else 0.0
+    route_breakdown = _format_counts(failures_by_route)
+    kind_breakdown = _format_counts(
+        failures_by_kind,
+        label_map={
+            "bot_challenge": "bot challenge",
+            "rate_limited": "rate limited",
+            "parse_error": "parse error",
+        },
+    )
+    lines = [
+        f"Time: {now:%Y-%m-%d %H:%M}",
+        f"Progress: {completed_jobs}/{total_jobs} jobs complete",
+        f"Failures so far: {total_failures} ({failure_rate:.0%} of completed jobs)",
+        f"Route breakdown: {route_breakdown or 'none'}",
+    ]
+    if kind_breakdown:
+        lines.append(f"Failure types: {kind_breakdown}")
+    if failures_by_kind.get("bot_challenge") or failures_by_kind.get("rate_limited"):
+        lines.append(
+            "High-signal block indicators detected (bot challenge / rate limit)."
+        )
+    priority = (
+        "high"
+        if failures_by_kind.get("bot_challenge") or failures_by_kind.get("rate_limited")
+        else "default"
+    )
+    title = f"Flight tracker: {total_failures} failures so far"
+    return title, "\n".join(lines), priority
+
+
+def _normalize_route_label(label: Optional[str]) -> str:
+    """Normalize a route label to either 'direct' or 'proxy'."""
+    if label in {"direct", "proxy"}:
+        return label
+    return "direct"
+
+
+def _maybe_send_failure_summary(
+    failures_by_route: dict[str, int],
+    failures_by_kind: dict[str, int],
+    completed_jobs: int,
+    total_jobs: int,
+    now: datetime,
+    summary_sent: bool,
+    allow_after_run: bool = False,
+) -> bool:
+    """Send the mid-run failure summary if thresholds are met.
+
+    Returns True once a summary has been attempted.
+    """
+    if summary_sent:
+        return True
+    total_failures = sum(failures_by_route.values())
+    if total_failures <= _FAILURE_SUMMARY_THRESHOLD:
+        return False
+    if not allow_after_run and now.hour < _SUMMARY_HOUR:
+        return False
+    title, message, priority = _build_failure_summary(
+        failures_by_route=failures_by_route,
+        failures_by_kind=failures_by_kind,
+        completed_jobs=completed_jobs,
+        total_jobs=total_jobs,
+        now=now,
+    )
+    sent = send_alert(title=title, message=message, priority=priority)
+    if sent:
+        logger.info("Sent mid-run failure summary via ntfy (priority=%s)", priority)
+    else:
+        logger.error("Failed to send mid-run failure summary via ntfy")
+    return True
 
 def _empty_failures_by_kind() -> dict:
     """Return a fresh per-category failure counter dict.
@@ -113,6 +222,7 @@ def run_collection(
     heartbeat_path: str,
     intervals: Optional[list] = None,
     sleep_fn: Callable = time.sleep,
+    now_fn: Callable[[], datetime] = datetime.now,
 ) -> tuple[int, int]:
     """Execute one full collection cycle.
 
@@ -131,6 +241,9 @@ def run_collection(
 
     total_observations = 0
     failed_jobs = []
+    summary_sent = False
+    failures_by_route = {"direct": 0, "proxy": 0}
+    failures_by_kind_so_far = _empty_failures_by_kind()
     # Per-category failure counters (issue #111). Only the final outcome of
     # each job counts: if the first pass raised BotChallengeError but the
     # retry succeeded, that job is NOT counted as a failure. We accomplish
@@ -149,6 +262,7 @@ def run_collection(
             total_jobs,
         )
         inserted, exc = execute_single_job(origin, destination, departure_date, db_path)
+        route_label = _normalize_route_label(get_last_route_label())
         if exc is not None:
             logger.error(
                 "Job %s→%s %s failed: %s",
@@ -159,15 +273,27 @@ def run_collection(
             )
             failed_jobs.append((origin, destination, departure_date, str(exc)))
             first_pass_exceptions[(origin, destination, departure_date)] = exc
+            failures_by_route[route_label] += 1
+            failures_by_kind_so_far[_classify_failure(exc)] += 1
         elif inserted == 0:
             logger.info("Stored 0 flights")
             failed_jobs.append(
                 (origin, destination, departure_date, "no observations stored")
             )
+            failures_by_route[route_label] += 1
+            failures_by_kind_so_far["other"] += 1
         else:
             total_observations += inserted
             logger.info("Stored %d flights", inserted)
 
+        summary_sent = _maybe_send_failure_summary(
+            failures_by_route=failures_by_route,
+            failures_by_kind=failures_by_kind_so_far,
+            completed_jobs=idx,
+            total_jobs=total_jobs,
+            now=now_fn(),
+            summary_sent=summary_sent,
+        )
         if idx < total_jobs and intervals:
             sleep_fn(intervals[idx - 1])
 
@@ -218,6 +344,15 @@ def run_collection(
         failures_by_kind[_classify_failure(exc)] += 1
 
     duration = time.monotonic() - start_time
+    summary_sent = _maybe_send_failure_summary(
+        failures_by_route=failures_by_route,
+        failures_by_kind=failures_by_kind_so_far,
+        completed_jobs=total_jobs,
+        total_jobs=total_jobs,
+        now=now_fn(),
+        summary_sent=summary_sent,
+        allow_after_run=True,
+    )
     logger.info(
         "Daily collection complete. Total observations: %d. Failed jobs: %d.",
         total_observations,
