@@ -236,7 +236,7 @@ function renderHistograms() {
         plugins: {
           title: { display: true, text: `${route} — price distribution (€5 bins)` },
           legend: {
-            position: isMobile ? 'bottom' : isTablet ? 'bottom' : 'bottom',
+            position: 'bottom',
             align: 'center',
             labels: { boxWidth: 12, boxHeight: 12, padding: 8, font: { size: isMobile ? 10 : 12 } },
           },
@@ -458,7 +458,7 @@ function renderAirlineBoxplots() {
                 const s = c.parsed;
                 if (!s) return '';
                 return [
-                  `Median: €${Math.round(s.median ?? (isMobile ? s.y : s.x) ?? 0)}`,
+                  `Median: €${Math.round(s.median ?? 0)}`,
                   `Q1–Q3: €${Math.round(s.q1 ?? 0)}–€${Math.round(s.q3 ?? 0)}`,
                   `Min/Max: €${Math.round(s.min ?? 0)} / €${Math.round(s.max ?? 0)}`,
                 ];
@@ -518,6 +518,7 @@ function renderTimeheat() {
     // Determine axis ranges.
     let hours = Array.from(new Set(visible.map((e) => e.hour))).sort((a, b) => a - b);
     const isMobile = window.innerWidth < 430;
+    // At mobile (430px), limit heatmap to 06–18 window to reduce grid width for readability.
     if (isMobile && hours.length > 12) {
       hours = hours.filter((h) => h >= 6 && h <= 18);
     }
