@@ -271,11 +271,12 @@ ol, ul { list-style: none; }
 .trends-stack { display: flex; flex-direction: column; gap: var(--space-lg); }
 .trends-stack .chart-wrap { aspect-ratio: 21 / 9; }
 
-/* Airline boxplot charts need more vertical breathing room */
+/* Airline boxplot charts: single column by default, 2-column on larger screens */
 #airline-boxplots-container { display: grid; grid-template-columns: 1fr; gap: var(--space-lg); }
 #airline-boxplots-container .chart-wrap { aspect-ratio: 16 / 12; min-height: 400px; }
 @media (min-width: 1024px) {
   #airline-boxplots-container { grid-template-columns: 1fr 1fr; }
+  #airline-boxplots-container .chart-wrap { aspect-ratio: 16 / 12; }
 }
 
 /* ─── 10. Weekend pairs tables ─── */
@@ -335,6 +336,11 @@ ol, ul { list-style: none; }
   }
   /* Sticky filters become non-sticky on mobile (saves vertical real estate) */
   .filters { position: static; }
+
+  /* Give all charts more vertical breathing room on mobile */
+  .chart-wrap { aspect-ratio: 16 / 18; }
+  .trends-stack .chart-wrap { aspect-ratio: 16 / 18; }
+  #airline-boxplots-container .chart-wrap { aspect-ratio: 16 / 18; }
 }
 
 /* ─── 12b. Responsive (≤430px) mobile-first ─── */
