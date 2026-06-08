@@ -28,7 +28,7 @@ function renderAirlineTrends() {
   // Render one chart per route.
   routes.forEach((route, routeIdx) => {
     const chartId = routeIdx === 0 ? 'airline-trend-out' : 'airline-trend-back';
-    const container = $(chartId);
+    const container = document.getElementById(chartId);
     if (!container) return;
 
     const airlines = data[route] || [];
