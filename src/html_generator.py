@@ -885,7 +885,7 @@ def render_html(
     flights: dict[str, Any],
     analysis: dict[str, Any],
     summary: dict[str, Any],
-    airline_trends: dict[str, Any],
+    airline_trends: dict[str, Any] | None = None,
     inline_data: bool = False,
 ) -> tuple[str, str]:
     """Inline assets + JSON blobs into templates. Returns (index_html, airlines_html).
@@ -899,6 +899,9 @@ def render_html(
     ``data.json`` instead.  The caller is responsible for writing that file (see
     :func:`generate`).
     """
+    if airline_trends is None:
+        airline_trends = {}
+
     template = _read_text(TEMPLATE_PATH)
     styles = _read_text(STYLES_PATH)
     chart_js = _read_text(CHART_JS_PATH)
@@ -983,6 +986,7 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
             "flights": flights,
             "analysis": analysis,
             "summary": summary,
+            "airline_trends": airline_trends,
         }
         data_json_path = Path(output_path).parent / "data.json"
         data_json_path.write_text(
