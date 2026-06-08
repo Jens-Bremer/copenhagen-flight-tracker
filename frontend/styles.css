@@ -271,6 +271,13 @@ ol, ul { list-style: none; }
 .trends-stack { display: flex; flex-direction: column; gap: var(--space-lg); }
 .trends-stack .chart-wrap { aspect-ratio: 21 / 9; }
 
+/* Airline boxplot charts need more vertical breathing room */
+#airline-boxplots-container { display: grid; grid-template-columns: 1fr; gap: var(--space-lg); }
+#airline-boxplots-container .chart-wrap { aspect-ratio: 16 / 12; min-height: 400px; }
+@media (min-width: 1024px) {
+  #airline-boxplots-container { grid-template-columns: 1fr 1fr; }
+}
+
 /* ─── 10. Weekend pairs tables ─── */
 .pairs-tables { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-lg); }
 .airline-pill-legend { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
