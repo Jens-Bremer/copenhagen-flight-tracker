@@ -41,20 +41,26 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--input", default=DEFAULT_INPUT)
     parser.add_argument("--output", default=DEFAULT_OUTPUT)
     parser.add_argument(
-        "--inline-data",
-        action="store_true",
-        default=False,
+        "--no-inline-data",
+        action="store_false",
+        dest="inline_data",
+        default=True,
         help=(
-            "Embed all five JSON data blobs directly into index.html (original "
-            "behaviour). Useful for offline / USB use where data.json cannot be "
-            "served alongside the HTML. Default: write data.json as a sibling file."
+            "Write data to a separate data.json file instead of embedding. "
+            "Default: embed all data directly into HTML (fully self-contained)."
         ),
     )
     args = parser.parse_args(argv)
 
     try:
         n = generate(args.input, args.output, inline_data=args.inline_data)
-        log.info("Wrote %s from %d rows", args.output, n)
+        output_dir = Path(args.output).parent
+        log.info(
+            "Generated %s and %s from %d rows",
+            output_dir / "index.html",
+            output_dir / "airlines.html",
+            n,
+        )
         return 0
     except FileNotFoundError as exc:
         msg = str(exc)

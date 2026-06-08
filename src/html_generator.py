@@ -46,6 +46,16 @@ JS_FILE_ORDER = [
     "main.js",
 ]
 
+# Minimal JS for airlines.html (no main.js, so no auto-initialization)
+JS_FILE_ORDER_AIRLINES = [
+    "constants.js",
+    "state.js",
+    "utils.js",
+    "data.js",
+    "charts.js",
+    "render-airline-trends.js",
+]
+
 # ─── CSV loader ──────────────────────────────────────────────────────────────
 
 
@@ -736,16 +746,23 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _build_app_js() -> str:
+def _build_app_js(
+    file_order: list[str] | None = None, expose_functions: list[str] | None = None
+) -> str:
     """Concatenate JS source files in order and wrap in an IIFE.
 
-    Each file in JS_SOURCE_DIR (in the order given by JS_FILE_ORDER) declares
-    its functions and constants at top level. Concatenation places them all in
-    the same IIFE scope, so they can call each other freely without any module
+    Each file in JS_SOURCE_DIR (in the order given by file_order or JS_FILE_ORDER)
+    declares its functions and constants at top level. Concatenation places them all
+    in the same IIFE scope, so they can call each other freely without any module
     system. 'use strict' is added once, inside the wrapper.
+
+    If expose_functions is provided, those functions are attached to window at the end.
     """
+    if file_order is None:
+        file_order = JS_FILE_ORDER
+
     parts: list[str] = []
-    for filename in JS_FILE_ORDER:
+    for filename in file_order:
         path = JS_SOURCE_DIR / filename
         if not path.exists():
             raise FileNotFoundError(
@@ -754,7 +771,128 @@ def _build_app_js() -> str:
             )
         parts.append(path.read_text(encoding="utf-8"))
     body = "\n\n".join(parts)
-    return f"(function () {{\n'use strict';\n\n{body}\n}})();"
+
+    # If functions need to be exposed to window, add that at the end
+    expose_lines = ""
+    if expose_functions:
+        window_assigns = (f"window.{func} = {func};" for func in expose_functions)
+        expose_lines = "\n".join(window_assigns)
+        expose_lines = "\n" + expose_lines
+
+    return f"(function () {{\n'use strict';\n\n{body}{expose_lines}\n}})();"
+
+
+def build_airline_trends(rows: list[dict]) -> dict:
+    """
+    Build per-airline price progression by days_before across two routes.
+
+    Args:
+        rows: Observations with keys: airline, origin, destination, retrieved_at,
+            departure_date, price_cents
+
+    Returns:
+        {
+          "CPH-AMS": [
+            {
+              "airline": "KLM",
+              "color": "#00A1DE",
+              "series": [
+                {"days_before": 168, "median_cents": 5200, "p25_cents": 4800,
+                 "p75_cents": 5600, "sample_count": 3},
+                ...
+              ]
+            },
+            ...
+          ],
+          "AMS-CPH": [ ... ]
+        }
+    """
+    import statistics
+
+    # Group by (airline, route, days_before)
+    grouped = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    for row in rows:
+        route = _route_key(row)
+        airline = row["airline"]
+        price_cents = row["price_cents"]
+        dep_date = date_type.fromisoformat(row["departure_date"])
+        days_before = (dep_date - row["retrieved_at"].date()).days
+        if days_before < 0:
+            continue
+        grouped[route][airline][days_before].append(price_cents)
+
+    # Filter: keep only airlines with ≥3 total observations per route
+    result = {}
+    for route in sorted(grouped.keys()):
+        airlines_data = []
+        for airline in sorted(grouped[route].keys()):
+            days_dict = grouped[route][airline]
+            total_obs = sum(len(v) for v in days_dict.values())
+            if total_obs < 3:
+                continue
+
+            # Build series: one point per days_before bucket
+            series = []
+            for days_before in sorted(days_dict.keys(), reverse=True):
+                prices = sorted(days_dict[days_before])
+                # Handle single-observation case: quantiles require ≥2 data points
+                if len(prices) == 1:
+                    p25 = prices[0]
+                    median = prices[0]
+                    p75 = prices[0]
+                else:
+                    median = statistics.median(prices)
+                    # method='inclusive' returns actual data points, not interpolated
+                    quantiles = statistics.quantiles(prices, n=4, method="inclusive")
+                    p25 = quantiles[0]
+                    p75 = quantiles[2]
+                series.append(
+                    {
+                        "days_before": days_before,
+                        "median_cents": int(median),
+                        "p25_cents": int(p25),
+                        "p75_cents": int(p75),
+                        "sample_count": len(prices),
+                    }
+                )
+
+            # Get color from AIRLINE_COLORS or fallback to hash
+            color = get_airline_color(airline)
+
+            airlines_data.append(
+                {
+                    "airline": airline,
+                    "color": color,
+                    "series": series,
+                }
+            )
+
+        result[route] = airlines_data
+
+    return result
+
+
+def get_airline_color(airline: str) -> str:
+    """
+    Get colour for airline from locked AIRLINE_COLORS, or deterministic hash fallback.
+    """
+    AIRLINE_COLORS = {
+        "KLM": "#00A1DE",
+        "Norwegian": "#D4001E",
+        "easyJet": "#FF6600",
+        "Scandinavian Airlines": "#003087",
+        "SAS": "#003087",
+        "Ryanair": "#F1C40F",
+        "Finnair": "#00386F",
+    }
+    if airline in AIRLINE_COLORS:
+        return AIRLINE_COLORS[airline]
+
+    # Fallback: MD5 hash → first 6 chars (not for security, just color generation)
+    import hashlib
+
+    hash_val = hashlib.md5(airline.encode(), usedforsecurity=False).hexdigest()[:6]
+    return f"#{hash_val}"
 
 
 def _safe_json(obj: Any) -> str:
@@ -774,25 +912,37 @@ def render_html(
     flights: dict[str, Any],
     analysis: dict[str, Any],
     summary: dict[str, Any],
+    airline_trends: dict[str, Any] | None = None,
     inline_data: bool = False,
-) -> str:
-    """Inline assets + JSON blobs into the template. Returns the full HTML string.
+) -> tuple[str, str]:
+    """Inline assets + JSON blobs into templates. Returns (index_html, airlines_html).
 
-    When *inline_data* is True the five JSON blobs are substituted directly into
-    the ``<script type="application/json">`` elements in the template, producing
-    a fully self-contained HTML file (the original behaviour).
+    When *inline_data* is True the JSON blobs are substituted directly into
+    the ``<script type="application/json">`` elements in the templates, producing
+    fully self-contained HTML files (the original behaviour).
 
     When *inline_data* is False (the default) the blob placeholders are replaced
     with empty strings, so the browser's ``loadData()`` in data.js will fetch
     ``data.json`` instead.  The caller is responsible for writing that file (see
     :func:`generate`).
     """
+    if airline_trends is None:
+        airline_trends = {}
+
     template = _read_text(TEMPLATE_PATH)
     styles = _read_text(STYLES_PATH)
     chart_js = _read_text(CHART_JS_PATH)
     date_adapter_js = _read_text(DATE_ADAPTER_JS_PATH)
     boxplot_js = _read_text(BOXPLOT_JS_PATH)
     app_js = _build_app_js()
+    app_js_airlines = _build_app_js(
+        JS_FILE_ORDER_AIRLINES, expose_functions=["renderAirlineTrends"]
+    )
+
+    # Load header, footer
+    header_template = _read_text(FRONTEND_DIR / "header.html")
+    footer_template = _read_text(FRONTEND_DIR / "footer.html")
+    airlines_template = _read_text(FRONTEND_DIR / "airlines.html.template")
 
     if inline_data:
         data_metadata = _safe_json(metadata)
@@ -800,25 +950,43 @@ def render_html(
         data_flights = _safe_json(flights)
         data_analysis = _safe_json(analysis)
         data_summary = _safe_json(summary)
+        data_airline_trends = _safe_json(airline_trends)
     else:
         data_metadata = ""
         data_calendar = ""
         data_flights = ""
         data_analysis = ""
         data_summary = ""
+        data_airline_trends = ""
 
-    return string.Template(template).safe_substitute(
+    # Render index.html
+    index_html = string.Template(template).safe_substitute(
         INLINE_STYLES=styles,
+        INLINE_HEADER=header_template,
         INLINE_CHART_JS=chart_js,
         INLINE_DATE_ADAPTER_JS=date_adapter_js,
         INLINE_BOXPLOT_JS=boxplot_js,
         INLINE_APP_JS=app_js,
+        INLINE_FOOTER=footer_template,
         DATA_METADATA=data_metadata,
         DATA_CALENDAR=data_calendar,
         DATA_FLIGHTS=data_flights,
         DATA_ANALYSIS=data_analysis,
         DATA_SUMMARY=data_summary,
     )
+
+    # Render airlines.html (render function is in app_js_airlines)
+    airlines_html = string.Template(airlines_template).safe_substitute(
+        INLINE_STYLES=styles,
+        INLINE_HEADER=header_template,
+        INLINE_FOOTER=footer_template,
+        INLINE_CHART_JS=chart_js,
+        INLINE_APP_JS=app_js_airlines,
+        RENDER_AIRLINE_TRENDS="",
+        DATA_AIRLINE_TRENDS=data_airline_trends,
+    )
+
+    return index_html, airlines_html
 
 
 def generate(input_path: str, output_path: str, inline_data: bool = False) -> int:
@@ -837,6 +1005,7 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
     flights = build_flights(rows, generated_at=now)
     analysis = build_analysis(rows)
     summary = build_summary(rows)
+    airline_trends = build_airline_trends(rows)
 
     if not inline_data:
         # Write the five blobs to data.json in the same directory as output_path
@@ -846,19 +1015,26 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
             "flights": flights,
             "analysis": analysis,
             "summary": summary,
+            "airline_trends": airline_trends,
         }
         data_json_path = Path(output_path).parent / "data.json"
         data_json_path.write_text(
             json.dumps(data_payload, separators=(",", ":")), encoding="utf-8"
         )
 
-    html = render_html(
+    index_html, airlines_html = render_html(
         metadata=metadata,
         calendar=calendar,
         flights=flights,
         analysis=analysis,
         summary=summary,
+        airline_trends=airline_trends,
         inline_data=inline_data,
     )
-    Path(output_path).write_text(html, encoding="utf-8")
+    Path(output_path).write_text(index_html, encoding="utf-8")
+
+    # Write airlines.html to the same directory as output_path
+    airlines_path = Path(output_path).parent / "airlines.html"
+    airlines_path.write_text(airlines_html, encoding="utf-8")
+
     return len(rows)

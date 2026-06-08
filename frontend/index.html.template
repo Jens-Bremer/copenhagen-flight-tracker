@@ -13,20 +13,7 @@
   <style>${INLINE_STYLES}</style>
 </head>
 <body>
-  <header class="site-header">
-    <div class="site-header__inner">
-      <h1 class="site-header__title">Copenhagen <em>Flight</em> Tracker</h1>
-      <nav class="site-header__meta">
-        <span id="header-range">Data through —</span>
-        <span id="header-generated">Generated —</span>
-      </nav>
-    </div>
-    <div class="stripe-ribbon" aria-hidden="true">
-      <div class="stripe-ribbon__red"></div>
-      <div class="stripe-ribbon__orange"></div>
-      <div class="stripe-ribbon__yellow"></div>
-    </div>
-  </header>
+  ${INLINE_HEADER}
 
   <main class="page-main">
     <!-- 1. Filters bar -->
@@ -73,7 +60,7 @@
     <!-- 4. Price trends -->
     <section class="panel" aria-label="Price trends">
       <h2 class="panel__heading">Price trends</h2>
-      <p class="panel__subtitle">How prices have changed over time, and when they are typically cheapest</p>
+      <p class="panel__subtitle">How prices have changed over time, and when they are typically cheapest · <a href="airlines.html" class="nav-link">View by airline →</a></p>
       <div class="chart-wrap"><canvas id="leadtime-chart" role="img"></canvas></div>
       <p id="sweet-spot-headline" class="headline"></p>
     </section>
@@ -126,9 +113,7 @@
     </section>
   </main>
 
-  <footer class="page-footer">
-    Copenhagen Flight Tracker · generated <span id="footer-generated">—</span>
-  </footer>
+  ${INLINE_FOOTER}
 
   <script type="application/json" id="DATA_METADATA">${DATA_METADATA}</script>
   <script type="application/json" id="DATA_CALENDAR">${DATA_CALENDAR}</script>

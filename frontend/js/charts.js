@@ -122,6 +122,7 @@ function renderTrends() {
       ctx.restore();
     },
   };
+  const isMobile = window.innerWidth < 430;
   charts.leadtime = new Chart($('leadtime-chart'), {
     type: 'line',
     data: { datasets: leadDatasets },
@@ -132,6 +133,7 @@ function renderTrends() {
         title: {
           display: true,
           text: 'Median price by days-before-departure (descriptive history; not a prediction)',
+          font: { size: isMobile ? 13 : 14 },
         },
         legend: {
           labels: {
@@ -140,6 +142,7 @@ function renderTrends() {
               !item.text.endsWith(' IQR') &&
               !item.text.endsWith(' min') &&
               !item.text.endsWith(' max'),
+            font: { size: isMobile ? 10 : 12 },
           },
         },
         tooltip: {
@@ -220,6 +223,8 @@ function renderHistograms() {
     });
 
     const slot = 'histogram_' + route;
+    const isMobile = window.innerWidth < 430;
+    const isTablet = window.innerWidth < 768;
     charts[slot] = new Chart(canvas, {
       type: 'bar',
       data: {
@@ -230,7 +235,11 @@ function renderHistograms() {
         responsive: true, maintainAspectRatio: false,
         plugins: {
           title: { display: true, text: `${route} — price distribution (€5 bins)` },
-          legend: { position: 'bottom', align: 'center', labels: { boxWidth: 12, boxHeight: 12, padding: 8 } },
+          legend: {
+            position: 'bottom',
+            align: 'center',
+            labels: { boxWidth: 12, boxHeight: 12, padding: 8, font: { size: isMobile ? 10 : 12 } },
+          },
           tooltip: {
             callbacks: {
               label:  (c)     => `${c.dataset.label}: ${c.parsed.y} obs`,
@@ -278,8 +287,8 @@ function renderWeekendPairs() {
         <caption>${escapeHtml(route)} weekend pairs (Fri outbound + Sun inbound)</caption>
         <thead>
           <tr>
-            <th>Fri date</th><th>Out</th><th>Out time</th><th>Out €</th>
-            <th>Sun date</th><th>Back</th><th>Back time</th><th>Back €</th>
+            <th>Fri date</th><th data-hidden>Out</th><th data-hidden>Out time</th><th>Out €</th>
+            <th>Sun date</th><th data-hidden>Back</th><th data-hidden>Back time</th><th>Back €</th>
             <th>Total €</th>
           </tr>
         </thead>
@@ -287,12 +296,12 @@ function renderWeekendPairs() {
           ${pairs.map((p) => `
             <tr>
               <td>${escapeHtml(formatDate(p.fri_date))}</td>
-              <td>${escapeHtml(p.fri_airline)}</td>
-              <td>${escapeHtml(p.fri_dep)}</td>
+              <td data-hidden>${escapeHtml(p.fri_airline)}</td>
+              <td data-hidden>${escapeHtml(p.fri_dep)}</td>
               <td>${formatPrice(p.fri_cents)}</td>
               <td>${escapeHtml(formatDate(p.sun_date))}</td>
-              <td>${escapeHtml(p.sun_airline)}</td>
-              <td>${escapeHtml(p.sun_dep)}</td>
+              <td data-hidden>${escapeHtml(p.sun_airline)}</td>
+              <td data-hidden>${escapeHtml(p.sun_dep)}</td>
               <td>${formatPrice(p.sun_cents)}</td>
               <td><strong>${formatPrice(p.total_cents)}</strong></td>
             </tr>
@@ -343,6 +352,7 @@ function renderFooterCharts() {
 
   function makeBoxplotChart(canvas, groups, allLabels, title) {
     const keys = allLabels.map((_, i) => i).filter((k) => (groups[k] || []).length > 0);
+    const isMobile = window.innerWidth < 430;
     return new Chart(canvas, {
       type: 'boxplot',
       data: {
@@ -362,7 +372,7 @@ function renderFooterCharts() {
         responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          title: { display: true, text: title },
+          title: { display: true, text: title, font: { size: isMobile ? 13 : 14 } },
           tooltip: {
             callbacks: {
               label: (c) => {
@@ -420,6 +430,7 @@ function renderAirlineBoxplots() {
     container.appendChild(wrap);
 
     const slot = 'airlineBox_' + route;
+    const isMobile = window.innerWidth < 430;
     charts[slot] = new Chart(canvas, {
       type: 'boxplot',
       data: {
@@ -437,17 +448,17 @@ function renderAirlineBoxplots() {
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        indexAxis: 'y',
+        indexAxis: isMobile ? 'x' : 'y',
         plugins: {
           legend: { display: false },
-          title: { display: true, text: `${route} — price spread by airline` },
+          title: { display: true, text: `${route} — price spread by airline`, font: { size: isMobile ? 12 : 14 } },
           tooltip: {
             callbacks: {
               label: (c) => {
                 const s = c.parsed;
                 if (!s) return '';
                 return [
-                  `Median: €${Math.round(s.median ?? s.x ?? 0)}`,
+                  `Median: €${Math.round(s.median ?? 0)}`,
                   `Q1–Q3: €${Math.round(s.q1 ?? 0)}–€${Math.round(s.q3 ?? 0)}`,
                   `Min/Max: €${Math.round(s.min ?? 0)} / €${Math.round(s.max ?? 0)}`,
                 ];
@@ -455,7 +466,9 @@ function renderAirlineBoxplots() {
             },
           },
         },
-        scales: { x: { min: 0, max: 700, title: { display: true, text: 'Price (€)' } } },
+        scales: isMobile
+          ? { y: { min: 0, max: 700, title: { display: true, text: 'Price (€)' } } }
+          : { x: { min: 0, max: 700, title: { display: true, text: 'Price (€)' } } },
       },
     });
   });
@@ -503,13 +516,18 @@ function renderTimeheat() {
     }
 
     // Determine axis ranges.
-    const hours = Array.from(new Set(visible.map((e) => e.hour))).sort((a, b) => a - b);
+    let hours = Array.from(new Set(visible.map((e) => e.hour))).sort((a, b) => a - b);
+    const isMobile = window.innerWidth < 430;
+    // At mobile (430px), limit heatmap to 06–18 window to reduce grid width for readability.
+    if (isMobile && hours.length > 12) {
+      hours = hours.filter((h) => h >= 6 && h <= 18);
+    }
     const dows = [0, 1, 2, 3, 4, 5, 6];
     const allCents = visible.map((e) => e.mean_cents);
     const priceRange = { min: Math.min(...allCents), max: Math.max(...allCents) };
 
     // Layout constants.
-    const PAD_LEFT = 36, PAD_TOP = 18, PAD_BOTTOM = 24, PAD_RIGHT = 8;
+    const PAD_LEFT = isMobile ? 28 : 36, PAD_TOP = 18, PAD_BOTTOM = 24, PAD_RIGHT = 8;
     const CELL_H = 24;
     const totalH = PAD_TOP + dows.length * CELL_H + PAD_BOTTOM;
     const W = Math.max(canvas.offsetWidth || 480, 280);
@@ -655,16 +673,18 @@ function renderNormProgress() {
     ];
   });
 
+  const isMobile = window.innerWidth < 430;
   charts.normProg = new Chart($('normprog-chart'), {
     type: 'line',
     data: { datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
-        title: { display: true, text: '% price change vs. earliest observation (0% = no change from baseline)' },
+        title: { display: true, text: '% price change vs. earliest observation (0% = no change from baseline)', font: { size: isMobile ? 12 : 14 } },
         legend: {
           labels: {
             filter: (item) => !item.text.endsWith(' Q1') && !item.text.endsWith(' IQR'),
+            font: { size: isMobile ? 10 : 12 },
           },
         },
         tooltip: {
