@@ -842,7 +842,7 @@ def build_airline_trends(rows: list[dict]) -> dict:
                     p75 = prices[0]
                 else:
                     median = statistics.median(prices)
-                    # Use method='inclusive' to return actual data points, not interpolated
+                    # method='inclusive' returns actual data points, not interpolated
                     quantiles = statistics.quantiles(prices, n=4, method="inclusive")
                     p25 = quantiles[0]
                     p75 = quantiles[2]
@@ -935,7 +935,9 @@ def render_html(
     date_adapter_js = _read_text(DATE_ADAPTER_JS_PATH)
     boxplot_js = _read_text(BOXPLOT_JS_PATH)
     app_js = _build_app_js()
-    app_js_airlines = _build_app_js(JS_FILE_ORDER_AIRLINES, expose_functions=["renderAirlineTrends"])
+    app_js_airlines = _build_app_js(
+        JS_FILE_ORDER_AIRLINES, expose_functions=["renderAirlineTrends"]
+    )
 
     # Load header, footer
     header_template = _read_text(FRONTEND_DIR / "header.html")
