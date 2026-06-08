@@ -44,7 +44,7 @@ function renderAirlineTrends() {
     // Build five datasets per airline: Q1 (invisible), IQR fill, Median line.
     // This matches the stacked-dataset pattern from renderTrends() in charts.js.
     const datasets = airlines.flatMap((airline) => {
-      const color = airline.color || airlineColor(airline.airline);
+      const color = airline.color;
       const series = airline.series || [];
 
       return [
