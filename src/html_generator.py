@@ -932,10 +932,9 @@ def render_html(
     app_js = _build_app_js()
     app_js_airlines = _build_app_js(JS_FILE_ORDER_AIRLINES, expose_functions=["renderAirlineTrends"])
 
-    # Load header, footer, render module
+    # Load header, footer
     header_template = _read_text(FRONTEND_DIR / "header.html")
     footer_template = _read_text(FRONTEND_DIR / "footer.html")
-    render_airline_trends_js = _read_text(FRONTEND_DIR / "js" / "render-airline-trends.js")
     airlines_template = _read_text(FRONTEND_DIR / "airlines.html.template")
 
     if inline_data:
@@ -969,14 +968,14 @@ def render_html(
         DATA_SUMMARY=data_summary,
     )
 
-    # Render airlines.html
+    # Render airlines.html (render function is in app_js_airlines)
     airlines_html = string.Template(airlines_template).safe_substitute(
         INLINE_STYLES=styles,
         INLINE_HEADER=header_template,
         INLINE_FOOTER=footer_template,
         INLINE_CHART_JS=chart_js,
         INLINE_APP_JS=app_js_airlines,
-        RENDER_AIRLINE_TRENDS=render_airline_trends_js,
+        RENDER_AIRLINE_TRENDS="",
         DATA_AIRLINE_TRENDS=data_airline_trends,
     )
 
