@@ -2073,35 +2073,83 @@ def test_build_flights_is_stale_uses_latest_obs(tmp_path):
 
 def test_build_airline_trends_filters_low_sample_airlines():
     """Airlines with <3 total observations per route are omitted."""
+    from datetime import datetime, timezone
     from src.html_generator import build_airline_trends
 
+    retrieved = datetime(2026, 6, 8, tzinfo=timezone.utc)
     rows = [
-        {"airline": "KLM", "route": "CPH-AMS", "days_before": 168, "price_cents": 5200},
-        {"airline": "KLM", "route": "CPH-AMS", "days_before": 160, "price_cents": 5100},
+        {
+            "airline": "KLM",
+            "origin": "CPH",
+            "destination": "AMS",
+            "departure_date": "2026-12-14",
+            "retrieved_at": retrieved,
+            "price_cents": 5200,
+            "departure_at": datetime.fromisoformat("2026-12-14T09:00"),
+            "arrival_at": datetime.fromisoformat("2026-12-14T11:00"),
+            "duration_minutes": 120,
+            "price_currency": "DKK",
+        },
+        {
+            "airline": "KLM",
+            "origin": "CPH",
+            "destination": "AMS",
+            "departure_date": "2026-12-14",
+            "retrieved_at": datetime(2026, 6, 1, tzinfo=timezone.utc),
+            "price_cents": 5100,
+            "departure_at": datetime.fromisoformat("2026-12-14T09:00"),
+            "arrival_at": datetime.fromisoformat("2026-12-14T11:00"),
+            "duration_minutes": 120,
+            "price_currency": "DKK",
+        },
         {
             "airline": "easyJet",
-            "route": "CPH-AMS",
-            "days_before": 168,
+            "origin": "CPH",
+            "destination": "AMS",
+            "departure_date": "2026-12-14",
+            "retrieved_at": retrieved,
             "price_cents": 4800,
-        },  # Only 1 obs
+            "departure_at": datetime.fromisoformat("2026-12-14T15:00"),
+            "arrival_at": datetime.fromisoformat("2026-12-14T17:00"),
+            "duration_minutes": 120,
+            "price_currency": "DKK",
+        },
         {
             "airline": "Norwegian",
-            "route": "CPH-AMS",
-            "days_before": 160,
+            "origin": "CPH",
+            "destination": "AMS",
+            "departure_date": "2026-12-14",
+            "retrieved_at": datetime(2026, 6, 1, tzinfo=timezone.utc),
             "price_cents": 5050,
+            "departure_at": datetime.fromisoformat("2026-12-14T12:00"),
+            "arrival_at": datetime.fromisoformat("2026-12-14T14:00"),
+            "duration_minutes": 120,
+            "price_currency": "DKK",
         },
         {
             "airline": "Norwegian",
-            "route": "CPH-AMS",
-            "days_before": 168,
+            "origin": "CPH",
+            "destination": "AMS",
+            "departure_date": "2026-12-14",
+            "retrieved_at": retrieved,
             "price_cents": 5100,
+            "departure_at": datetime.fromisoformat("2026-12-14T12:00"),
+            "arrival_at": datetime.fromisoformat("2026-12-14T14:00"),
+            "duration_minutes": 120,
+            "price_currency": "DKK",
         },
         {
             "airline": "Norwegian",
-            "route": "CPH-AMS",
-            "days_before": 152,
+            "origin": "CPH",
+            "destination": "AMS",
+            "departure_date": "2026-12-14",
+            "retrieved_at": datetime(2026, 5, 27, tzinfo=timezone.utc),
             "price_cents": 4950,
-        },  # 3 obs, passes
+            "departure_at": datetime.fromisoformat("2026-12-14T12:00"),
+            "arrival_at": datetime.fromisoformat("2026-12-14T14:00"),
+            "duration_minutes": 120,
+            "price_currency": "DKK",
+        },
     ]
     result = build_airline_trends(rows)
     assert "CPH-AMS" in result
@@ -2113,12 +2161,47 @@ def test_build_airline_trends_filters_low_sample_airlines():
 
 def test_build_airline_trends_structure():
     """Output shape matches spec: routes → airlines (color, series[days_before, median, p25, p75, sample_count])."""
+    from datetime import datetime, timezone
     from src.html_generator import build_airline_trends
 
+    retrieved = datetime(2026, 6, 8, tzinfo=timezone.utc)
     rows = [
-        {"airline": "KLM", "route": "CPH-AMS", "days_before": 168, "price_cents": 5000},
-        {"airline": "KLM", "route": "CPH-AMS", "days_before": 168, "price_cents": 5100},
-        {"airline": "KLM", "route": "CPH-AMS", "days_before": 168, "price_cents": 5200},
+        {
+            "airline": "KLM",
+            "origin": "CPH",
+            "destination": "AMS",
+            "departure_date": "2026-12-14",
+            "retrieved_at": retrieved,
+            "price_cents": 5000,
+            "departure_at": datetime.fromisoformat("2026-12-14T09:00"),
+            "arrival_at": datetime.fromisoformat("2026-12-14T11:00"),
+            "duration_minutes": 120,
+            "price_currency": "DKK",
+        },
+        {
+            "airline": "KLM",
+            "origin": "CPH",
+            "destination": "AMS",
+            "departure_date": "2026-12-14",
+            "retrieved_at": retrieved,
+            "price_cents": 5100,
+            "departure_at": datetime.fromisoformat("2026-12-14T09:00"),
+            "arrival_at": datetime.fromisoformat("2026-12-14T11:00"),
+            "duration_minutes": 120,
+            "price_currency": "DKK",
+        },
+        {
+            "airline": "KLM",
+            "origin": "CPH",
+            "destination": "AMS",
+            "departure_date": "2026-12-14",
+            "retrieved_at": retrieved,
+            "price_cents": 5200,
+            "departure_at": datetime.fromisoformat("2026-12-14T09:00"),
+            "arrival_at": datetime.fromisoformat("2026-12-14T11:00"),
+            "duration_minutes": 120,
+            "price_currency": "DKK",
+        },
     ]
     result = build_airline_trends(rows)
     assert isinstance(result, dict)
@@ -2139,14 +2222,72 @@ def test_build_airline_trends_structure():
 
 def test_build_airline_trends_percentiles():
     """Percentiles computed correctly from raw observations."""
+    from datetime import datetime, timezone
     from src.html_generator import build_airline_trends
 
+    # 168 days before 2026-12-14 is 2026-06-29
+    retrieved = datetime(2026, 6, 29, tzinfo=timezone.utc)
     rows = [
-        {"airline": "KLM", "route": "CPH-AMS", "days_before": 168, "price_cents": 4800},
-        {"airline": "KLM", "route": "CPH-AMS", "days_before": 168, "price_cents": 5000},
-        {"airline": "KLM", "route": "CPH-AMS", "days_before": 168, "price_cents": 5100},
-        {"airline": "KLM", "route": "CPH-AMS", "days_before": 168, "price_cents": 5300},
-        {"airline": "KLM", "route": "CPH-AMS", "days_before": 168, "price_cents": 5400},
+        {
+            "airline": "KLM",
+            "origin": "CPH",
+            "destination": "AMS",
+            "departure_date": "2026-12-14",
+            "retrieved_at": retrieved,
+            "price_cents": 4800,
+            "departure_at": datetime.fromisoformat("2026-12-14T09:00"),
+            "arrival_at": datetime.fromisoformat("2026-12-14T11:00"),
+            "duration_minutes": 120,
+            "price_currency": "DKK",
+        },
+        {
+            "airline": "KLM",
+            "origin": "CPH",
+            "destination": "AMS",
+            "departure_date": "2026-12-14",
+            "retrieved_at": retrieved,
+            "price_cents": 5000,
+            "departure_at": datetime.fromisoformat("2026-12-14T09:00"),
+            "arrival_at": datetime.fromisoformat("2026-12-14T11:00"),
+            "duration_minutes": 120,
+            "price_currency": "DKK",
+        },
+        {
+            "airline": "KLM",
+            "origin": "CPH",
+            "destination": "AMS",
+            "departure_date": "2026-12-14",
+            "retrieved_at": retrieved,
+            "price_cents": 5100,
+            "departure_at": datetime.fromisoformat("2026-12-14T09:00"),
+            "arrival_at": datetime.fromisoformat("2026-12-14T11:00"),
+            "duration_minutes": 120,
+            "price_currency": "DKK",
+        },
+        {
+            "airline": "KLM",
+            "origin": "CPH",
+            "destination": "AMS",
+            "departure_date": "2026-12-14",
+            "retrieved_at": retrieved,
+            "price_cents": 5300,
+            "departure_at": datetime.fromisoformat("2026-12-14T09:00"),
+            "arrival_at": datetime.fromisoformat("2026-12-14T11:00"),
+            "duration_minutes": 120,
+            "price_currency": "DKK",
+        },
+        {
+            "airline": "KLM",
+            "origin": "CPH",
+            "destination": "AMS",
+            "departure_date": "2026-12-14",
+            "retrieved_at": retrieved,
+            "price_cents": 5400,
+            "departure_at": datetime.fromisoformat("2026-12-14T09:00"),
+            "arrival_at": datetime.fromisoformat("2026-12-14T11:00"),
+            "duration_minutes": 120,
+            "price_currency": "DKK",
+        },
     ]
     result = build_airline_trends(rows)
     series = result["CPH-AMS"][0]["series"]
@@ -2160,15 +2301,71 @@ def test_build_airline_trends_percentiles():
 
 def test_build_airline_trends_days_before_descending():
     """Days before sorted newest (highest) to oldest (lowest) — matches main chart."""
+    from datetime import datetime, timezone
     from src.html_generator import build_airline_trends
 
+    # Departure is 2026-12-14
+    # 80 days before: 2026-08-26
+    # 120 days before: 2026-07-17
+    # 160 days before: 2026-06-07
+    # 168 days before: 2026-06-09 (wait, let me recalc: 2026-12-14 - 168 = 2026-06-09 nope, that's 159. 2026-06-09 is 188. Let me use dates that work: use 165, 155, 145, 135)
+    # Actually let's compute from today 2026-06-08:
+    # 80 days after today: 2026-08-27
+    # 120 days after: 2026-10-07
+    # So if we want days_before at retrieval, we need earlier dates
+    # If retrieved 2026-06-08 and departure 2026-08-27: 80 days
+    # Let's simplify: use departure dates far apart
     rows = [
-        {"airline": "KLM", "route": "CPH-AMS", "days_before": 80, "price_cents": 5000},
-        {"airline": "KLM", "route": "CPH-AMS", "days_before": 160, "price_cents": 5000},
-        {"airline": "KLM", "route": "CPH-AMS", "days_before": 120, "price_cents": 5000},
-        {"airline": "KLM", "route": "CPH-AMS", "days_before": 168, "price_cents": 5000},
+        {
+            "airline": "KLM",
+            "origin": "CPH",
+            "destination": "AMS",
+            "departure_date": "2026-08-27",
+            "retrieved_at": datetime(2026, 6, 8, tzinfo=timezone.utc),
+            "price_cents": 5000,
+            "departure_at": datetime.fromisoformat("2026-08-27T09:00"),
+            "arrival_at": datetime.fromisoformat("2026-08-27T11:00"),
+            "duration_minutes": 120,
+            "price_currency": "DKK",
+        },
+        {
+            "airline": "KLM",
+            "origin": "CPH",
+            "destination": "AMS",
+            "departure_date": "2026-10-07",
+            "retrieved_at": datetime(2026, 6, 8, tzinfo=timezone.utc),
+            "price_cents": 5000,
+            "departure_at": datetime.fromisoformat("2026-10-07T09:00"),
+            "arrival_at": datetime.fromisoformat("2026-10-07T11:00"),
+            "duration_minutes": 120,
+            "price_currency": "DKK",
+        },
+        {
+            "airline": "KLM",
+            "origin": "CPH",
+            "destination": "AMS",
+            "departure_date": "2026-09-17",
+            "retrieved_at": datetime(2026, 6, 8, tzinfo=timezone.utc),
+            "price_cents": 5000,
+            "departure_at": datetime.fromisoformat("2026-09-17T09:00"),
+            "arrival_at": datetime.fromisoformat("2026-09-17T11:00"),
+            "duration_minutes": 120,
+            "price_currency": "DKK",
+        },
+        {
+            "airline": "KLM",
+            "origin": "CPH",
+            "destination": "AMS",
+            "departure_date": "2026-12-14",
+            "retrieved_at": datetime(2026, 6, 8, tzinfo=timezone.utc),
+            "price_cents": 5000,
+            "departure_at": datetime.fromisoformat("2026-12-14T09:00"),
+            "arrival_at": datetime.fromisoformat("2026-12-14T11:00"),
+            "duration_minutes": 120,
+            "price_currency": "DKK",
+        },
     ]
     result = build_airline_trends(rows)
     days = [p["days_before"] for p in result["CPH-AMS"][0]["series"]]
     assert days == sorted(days, reverse=True)
-    assert days[0] == 168  # Newest first
+    assert days[0] == 189  # Newest first (2026-12-14 is 189 days after 2026-06-08)

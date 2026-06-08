@@ -46,6 +46,16 @@ JS_FILE_ORDER = [
     "main.js",
 ]
 
+# Minimal JS for airlines.html (no main.js, so no auto-initialization)
+JS_FILE_ORDER_AIRLINES = [
+    "constants.js",
+    "state.js",
+    "utils.js",
+    "data.js",
+    "charts.js",
+    "render-airline-trends.js",
+]
+
 # ─── CSV loader ──────────────────────────────────────────────────────────────
 
 
@@ -736,16 +746,21 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _build_app_js() -> str:
+def _build_app_js(file_order: list[str] | None = None, expose_functions: list[str] | None = None) -> str:
     """Concatenate JS source files in order and wrap in an IIFE.
 
-    Each file in JS_SOURCE_DIR (in the order given by JS_FILE_ORDER) declares
-    its functions and constants at top level. Concatenation places them all in
-    the same IIFE scope, so they can call each other freely without any module
+    Each file in JS_SOURCE_DIR (in the order given by file_order or JS_FILE_ORDER)
+    declares its functions and constants at top level. Concatenation places them all
+    in the same IIFE scope, so they can call each other freely without any module
     system. 'use strict' is added once, inside the wrapper.
+
+    If expose_functions is provided, those functions are attached to window at the end.
     """
+    if file_order is None:
+        file_order = JS_FILE_ORDER
+
     parts: list[str] = []
-    for filename in JS_FILE_ORDER:
+    for filename in file_order:
         path = JS_SOURCE_DIR / filename
         if not path.exists():
             raise FileNotFoundError(
@@ -754,7 +769,14 @@ def _build_app_js() -> str:
             )
         parts.append(path.read_text(encoding="utf-8"))
     body = "\n\n".join(parts)
-    return f"(function () {{\n'use strict';\n\n{body}\n}})();"
+
+    # If functions need to be exposed to window, add that at the end
+    expose_lines = ""
+    if expose_functions:
+        expose_lines = "\n".join(f"window.{func} = {func};" for func in expose_functions)
+        expose_lines = "\n" + expose_lines
+
+    return f"(function () {{\n'use strict';\n\n{body}{expose_lines}\n}})();"
 
 
 def build_airline_trends(rows: list[dict]) -> dict:
@@ -908,11 +930,11 @@ def render_html(
     date_adapter_js = _read_text(DATE_ADAPTER_JS_PATH)
     boxplot_js = _read_text(BOXPLOT_JS_PATH)
     app_js = _build_app_js()
+    app_js_airlines = _build_app_js(JS_FILE_ORDER_AIRLINES, expose_functions=["renderAirlineTrends"])
 
-    # Load header, footer, and render module
+    # Load header, footer
     header_template = _read_text(FRONTEND_DIR / "header.html")
     footer_template = _read_text(FRONTEND_DIR / "footer.html")
-    render_airline_trends_js = _read_text(FRONTEND_DIR / "js" / "render-airline-trends.js")
     airlines_template = _read_text(FRONTEND_DIR / "airlines.html.template")
 
     if inline_data:
@@ -946,14 +968,14 @@ def render_html(
         DATA_SUMMARY=data_summary,
     )
 
-    # Render airlines.html
+    # Render airlines.html (render function is now included in app_js_airlines)
     airlines_html = string.Template(airlines_template).safe_substitute(
         INLINE_STYLES=styles,
         INLINE_HEADER=header_template,
         INLINE_FOOTER=footer_template,
         INLINE_CHART_JS=chart_js,
-        INLINE_APP_JS=app_js,
-        RENDER_AIRLINE_TRENDS=render_airline_trends_js,
+        INLINE_APP_JS=app_js_airlines,
+        RENDER_AIRLINE_TRENDS="",
         DATA_AIRLINE_TRENDS=data_airline_trends,
     )
 
