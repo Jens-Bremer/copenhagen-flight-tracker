@@ -2336,7 +2336,11 @@ def test_build_airline_trends_structure():
     if airline_entry["series"]:
         point = airline_entry["series"][0]
         required_keys = [
-            "days_before", "median_cents", "p25_cents", "p75_cents", "sample_count"
+            "days_before",
+            "median_cents",
+            "p25_cents",
+            "p75_cents",
+            "sample_count",
         ]
         assert all(k in point for k in required_keys)
 
