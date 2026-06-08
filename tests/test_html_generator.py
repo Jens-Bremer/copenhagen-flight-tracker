@@ -525,9 +525,8 @@ def test_render_html_inlines_assets_and_data():
     # Asset inlining
     assert "<style>" in index_html
     assert "Theme port pending" in index_html or "--color-cream" in index_html
-    assert (
-        "Chart.js" in index_html or "Chart=" in index_html or "chart.js" in index_html.lower()
-    )
+    html_lower = index_html.lower()
+    assert "Chart.js" in index_html or "Chart=" in index_html or "chart.js" in html_lower
     # JSON blobs are valid JSON inside <script> tags
     import re
 
@@ -2280,7 +2279,7 @@ def test_build_airline_trends_filters_low_sample_airlines():
 
 
 def test_build_airline_trends_structure():
-    """Output shape matches spec: routes → airlines (color, series[days_before, median, p25, p75, sample_count])."""
+    """Output shape matches spec: routes → airlines with color and series data."""
     from datetime import datetime, timezone
     from src.html_generator import build_airline_trends
 
@@ -2334,10 +2333,8 @@ def test_build_airline_trends_structure():
     assert isinstance(airline_entry["series"], list)
     if airline_entry["series"]:
         point = airline_entry["series"][0]
-        assert all(
-            k in point
-            for k in ["days_before", "median_cents", "p25_cents", "p75_cents", "sample_count"]
-        )
+        required_keys = ["days_before", "median_cents", "p25_cents", "p75_cents", "sample_count"]
+        assert all(k in point for k in required_keys)
 
 
 def test_build_airline_trends_percentiles():
@@ -2428,7 +2425,7 @@ def test_build_airline_trends_days_before_descending():
     # 80 days before: 2026-08-26
     # 120 days before: 2026-07-17
     # 160 days before: 2026-06-07
-    # 168 days before: 2026-06-09 (wait, let me recalc: 2026-12-14 - 168 = 2026-06-09 nope, that's 159. 2026-06-09 is 188. Let me use dates that work: use 165, 155, 145, 135)
+    # Use 165, 155, 145, 135 days before for testdata
     # Actually let's compute from today 2026-06-08:
     # 80 days after today: 2026-08-27
     # 120 days after: 2026-10-07
