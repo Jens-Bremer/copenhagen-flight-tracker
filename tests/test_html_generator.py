@@ -2193,6 +2193,7 @@ def test_build_flights_is_stale_uses_latest_obs(tmp_path):
 def test_build_airline_trends_filters_low_sample_airlines():
     """Airlines with <3 total observations per route are omitted."""
     from datetime import datetime, timezone
+
     from src.html_generator import build_airline_trends
 
     retrieved = datetime(2026, 6, 8, tzinfo=timezone.utc)
@@ -2281,6 +2282,7 @@ def test_build_airline_trends_filters_low_sample_airlines():
 def test_build_airline_trends_structure():
     """Output shape matches spec: routes → airlines with color and series data."""
     from datetime import datetime, timezone
+
     from src.html_generator import build_airline_trends
 
     retrieved = datetime(2026, 6, 8, tzinfo=timezone.utc)
@@ -2342,6 +2344,7 @@ def test_build_airline_trends_structure():
 def test_build_airline_trends_percentiles():
     """Percentiles computed correctly from raw observations."""
     from datetime import datetime, timezone
+
     from src.html_generator import build_airline_trends
 
     # 168 days before 2026-12-14 is 2026-06-29
@@ -2421,6 +2424,7 @@ def test_build_airline_trends_percentiles():
 def test_build_airline_trends_days_before_descending():
     """Days before sorted newest (highest) to oldest (lowest) — matches main chart."""
     from datetime import datetime, timezone
+
     from src.html_generator import build_airline_trends
 
     # Departure is 2026-12-14
