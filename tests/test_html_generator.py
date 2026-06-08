@@ -525,13 +525,14 @@ def test_render_html_inlines_assets_and_data():
     # Asset inlining
     assert "<style>" in index_html
     assert "Theme port pending" in index_html or "--color-cream" in index_html
-    assert "Chart.js" in index_html or "Chart=" in index_html or "chart.js" in index_html.lower()
+    assert (
+        "Chart.js" in index_html or "Chart=" in index_html or "chart.js" in index_html.lower()
+    )
     # JSON blobs are valid JSON inside <script> tags
     import re
 
-    blobs = re.findall(
-        r'<script type="application/json" id="(DATA_\w+)">(.*?)</script>', index_html, re.S
-    )
+    pattern = r'<script type="application/json" id="(DATA_\w+)">(.*?)</script>'
+    blobs = re.findall(pattern, index_html, re.S)
     blob_dict = {k: v for k, v in blobs}
     assert set(blob_dict) == {
         "DATA_METADATA",
@@ -556,9 +557,8 @@ def test_render_html_default_mode_blobs_are_empty():
         analysis={"CPH-AMS": {}},
         summary={"CPH-AMS": {}},
     )
-    blobs = re.findall(
-        r'<script type="application/json" id="(DATA_\w+)">(.*?)</script>', index_html, re.S
-    )
+    pattern = r'<script type="application/json" id="(DATA_\w+)">(.*?)</script>'
+    blobs = re.findall(pattern, index_html, re.S)
     blob_dict = {k: v for k, v in blobs}
     # All five script elements must be present but contain no data
     assert set(blob_dict) == {
@@ -1229,7 +1229,9 @@ def test_panel_subtitles_present_in_rendered_html():
     index_html, _ = render_html(
         metadata={}, calendar={}, flights={}, analysis={}, summary={}
     )
-    assert "panel__subtitle" in index_html, ".panel__subtitle not found in rendered HTML"
+    assert "panel__subtitle" in index_html, (
+        ".panel__subtitle not found in rendered HTML"
+    )
     # Check that all 6 subtitles from the spec are present
     assert "How prices have changed over time" in index_html
     assert "each bar is one 5 euro bin" in index_html or "5 euro bin" in index_html
@@ -1287,7 +1289,9 @@ def test_verdict_card_dom_id_in_template():
     index_html, _ = render_html(
         metadata={}, calendar={}, flights={}, analysis={}, summary={}
     )
-    assert 'id="verdict-card"' in index_html, "#verdict-card container missing from template"
+    assert 'id="verdict-card"' in index_html, (
+        "#verdict-card container missing from template"
+    )
 
 
 def test_verdict_card_in_required_dom_ids():
