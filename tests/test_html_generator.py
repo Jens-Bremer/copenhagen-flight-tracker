@@ -2066,3 +2066,109 @@ def test_build_flights_is_stale_uses_latest_obs(tmp_path):
     # Latest obs is 2026-05-19 (1 day before generated_at) → not stale
     assert flight["is_stale"] is False
     assert flight["latest_retrieved_at"] == "2026-05-19"
+
+
+# ─── Issue #2: airline price trends per route ────────────────────────────────
+
+
+def test_build_airline_trends_filters_low_sample_airlines():
+    """Airlines with <3 total observations per route are omitted."""
+    from src.html_generator import build_airline_trends
+
+    rows = [
+        {"airline": "KLM", "route": "CPH-AMS", "days_before": 168, "price_cents": 5200},
+        {"airline": "KLM", "route": "CPH-AMS", "days_before": 160, "price_cents": 5100},
+        {
+            "airline": "easyJet",
+            "route": "CPH-AMS",
+            "days_before": 168,
+            "price_cents": 4800,
+        },  # Only 1 obs
+        {
+            "airline": "Norwegian",
+            "route": "CPH-AMS",
+            "days_before": 160,
+            "price_cents": 5050,
+        },
+        {
+            "airline": "Norwegian",
+            "route": "CPH-AMS",
+            "days_before": 168,
+            "price_cents": 5100,
+        },
+        {
+            "airline": "Norwegian",
+            "route": "CPH-AMS",
+            "days_before": 152,
+            "price_cents": 4950,
+        },  # 3 obs, passes
+    ]
+    result = build_airline_trends(rows)
+    assert "CPH-AMS" in result
+    airlines = {a["airline"] for a in result["CPH-AMS"]}
+    assert "KLM" not in airlines  # 2 obs, should be filtered
+    assert "easyJet" not in airlines  # 1 obs, filtered
+    assert "Norwegian" in airlines  # 3 obs, included
+
+
+def test_build_airline_trends_structure():
+    """Output shape matches spec: routes → airlines (color, series[days_before, median, p25, p75, sample_count])."""
+    from src.html_generator import build_airline_trends
+
+    rows = [
+        {"airline": "KLM", "route": "CPH-AMS", "days_before": 168, "price_cents": 5000},
+        {"airline": "KLM", "route": "CPH-AMS", "days_before": 168, "price_cents": 5100},
+        {"airline": "KLM", "route": "CPH-AMS", "days_before": 168, "price_cents": 5200},
+    ]
+    result = build_airline_trends(rows)
+    assert isinstance(result, dict)
+    assert "CPH-AMS" in result
+    assert isinstance(result["CPH-AMS"], list)
+    airline_entry = result["CPH-AMS"][0]
+    assert "airline" in airline_entry
+    assert "color" in airline_entry
+    assert "series" in airline_entry
+    assert isinstance(airline_entry["series"], list)
+    if airline_entry["series"]:
+        point = airline_entry["series"][0]
+        assert all(
+            k in point
+            for k in ["days_before", "median_cents", "p25_cents", "p75_cents", "sample_count"]
+        )
+
+
+def test_build_airline_trends_percentiles():
+    """Percentiles computed correctly from raw observations."""
+    from src.html_generator import build_airline_trends
+
+    rows = [
+        {"airline": "KLM", "route": "CPH-AMS", "days_before": 168, "price_cents": 4800},
+        {"airline": "KLM", "route": "CPH-AMS", "days_before": 168, "price_cents": 5000},
+        {"airline": "KLM", "route": "CPH-AMS", "days_before": 168, "price_cents": 5100},
+        {"airline": "KLM", "route": "CPH-AMS", "days_before": 168, "price_cents": 5300},
+        {"airline": "KLM", "route": "CPH-AMS", "days_before": 168, "price_cents": 5400},
+    ]
+    result = build_airline_trends(rows)
+    series = result["CPH-AMS"][0]["series"]
+    point = next((p for p in series if p["days_before"] == 168), None)
+    assert point is not None
+    assert point["sample_count"] == 5
+    assert point["median_cents"] == 5100
+    assert point["p25_cents"] == 5000
+    assert point["p75_cents"] == 5300
+
+
+def test_build_airline_trends_days_before_descending():
+    """Days before sorted newest (highest) to oldest (lowest) — matches main chart."""
+    from src.html_generator import build_airline_trends
+
+    rows = [
+        {"airline": "KLM", "route": "CPH-AMS", "days_before": 80, "price_cents": 5000},
+        {"airline": "KLM", "route": "CPH-AMS", "days_before": 160, "price_cents": 5000},
+        {"airline": "KLM", "route": "CPH-AMS", "days_before": 120, "price_cents": 5000},
+        {"airline": "KLM", "route": "CPH-AMS", "days_before": 168, "price_cents": 5000},
+    ]
+    result = build_airline_trends(rows)
+    days = [p["days_before"] for p in result["CPH-AMS"][0]["series"]]
+    assert days == sorted(days, reverse=True)
+    assert days[0] == 168  # Newest first

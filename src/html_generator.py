@@ -757,6 +757,112 @@ def _build_app_js() -> str:
     return f"(function () {{\n'use strict';\n\n{body}\n}})();"
 
 
+def build_airline_trends(rows: list[dict]) -> dict:
+    """
+    Build per-airline price progression by days_before across two routes.
+
+    Args:
+        rows: Observations, each with keys: airline, route, days_before, price_cents
+
+    Returns:
+        {
+          "CPH-AMS": [
+            {
+              "airline": "KLM",
+              "color": "#00A1DE",
+              "series": [
+                {"days_before": 168, "median_cents": 5200, "p25_cents": 4800, "p75_cents": 5600, "sample_count": 3},
+                ...
+              ]
+            },
+            ...
+          ],
+          "AMS-CPH": [ ... ]
+        }
+    """
+    import statistics
+
+    # Group by (airline, route, days_before)
+    grouped = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    for row in rows:
+        airline, route, days_before = row["airline"], row["route"], row["days_before"]
+        price_cents = row["price_cents"]
+        grouped[route][airline][days_before].append(price_cents)
+
+    # Filter: keep only airlines with ≥3 total observations per route
+    result = {}
+    for route in sorted(grouped.keys()):
+        airlines_data = []
+        for airline in sorted(grouped[route].keys()):
+            days_dict = grouped[route][airline]
+            total_obs = sum(len(v) for v in days_dict.values())
+            if total_obs < 3:
+                continue
+
+            # Build series: one point per days_before bucket
+            series = []
+            for days_before in sorted(days_dict.keys(), reverse=True):
+                prices = sorted(days_dict[days_before])
+                # Handle single-observation case: quantiles require ≥2 data points
+                if len(prices) == 1:
+                    p25 = prices[0]
+                    median = prices[0]
+                    p75 = prices[0]
+                else:
+                    median = statistics.median(prices)
+                    # Use method='inclusive' to return actual data points, not interpolated
+                    quantiles = statistics.quantiles(prices, n=4, method="inclusive")
+                    p25 = quantiles[0]
+                    p75 = quantiles[2]
+                series.append(
+                    {
+                        "days_before": days_before,
+                        "median_cents": int(median),
+                        "p25_cents": int(p25),
+                        "p75_cents": int(p75),
+                        "sample_count": len(prices),
+                    }
+                )
+
+            # Get color from AIRLINE_COLORS or fallback to hash
+            color = get_airline_color(airline)
+
+            airlines_data.append(
+                {
+                    "airline": airline,
+                    "color": color,
+                    "series": series,
+                }
+            )
+
+        result[route] = airlines_data
+
+    return result
+
+
+def get_airline_color(airline: str) -> str:
+    """
+    Get colour for airline from locked AIRLINE_COLORS, or deterministic hash fallback.
+    """
+    AIRLINE_COLORS = {
+        "KLM": "#00A1DE",
+        "Norwegian": "#D4001E",
+        "easyJet": "#FF6600",
+        "Scandinavian Airlines": "#003087",
+        "SAS": "#003087",
+        "Ryanair": "#F1C40F",
+        "Finnair": "#00386F",
+    }
+    if airline in AIRLINE_COLORS:
+        return AIRLINE_COLORS[airline]
+
+    # Fallback: MD5 hash → first 6 chars
+    import hashlib
+
+    hash_val = hashlib.md5(airline.encode()).hexdigest()[:6]
+    return f"#{hash_val}"
+
+
 def _safe_json(obj: Any) -> str:
     """Serialise *obj* for embedding inside <script type="application/json">.
 
