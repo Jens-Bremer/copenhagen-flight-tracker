@@ -762,7 +762,7 @@ def build_airline_trends(rows: list[dict]) -> dict:
     Build per-airline price progression by days_before across two routes.
 
     Args:
-        rows: Observations, each with keys: airline, route, days_before, price_cents
+        rows: Observations, each with keys: airline, origin, destination, retrieved_at, departure_date, price_cents
 
     Returns:
         {
@@ -785,8 +785,13 @@ def build_airline_trends(rows: list[dict]) -> dict:
     # Group by (airline, route, days_before)
     grouped = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     for row in rows:
-        airline, route, days_before = row["airline"], row["route"], row["days_before"]
+        route = _route_key(row)
+        airline = row["airline"]
         price_cents = row["price_cents"]
+        dep_date = date_type.fromisoformat(row["departure_date"])
+        days_before = (dep_date - row["retrieved_at"].date()).days
+        if days_before < 0:
+            continue
         grouped[route][airline][days_before].append(price_cents)
 
     # Filter: keep only airlines with ≥3 total observations per route
@@ -880,13 +885,14 @@ def render_html(
     flights: dict[str, Any],
     analysis: dict[str, Any],
     summary: dict[str, Any],
+    airline_trends: dict[str, Any],
     inline_data: bool = False,
-) -> str:
-    """Inline assets + JSON blobs into the template. Returns the full HTML string.
+) -> tuple[str, str]:
+    """Inline assets + JSON blobs into templates. Returns (index_html, airlines_html).
 
-    When *inline_data* is True the five JSON blobs are substituted directly into
-    the ``<script type="application/json">`` elements in the template, producing
-    a fully self-contained HTML file (the original behaviour).
+    When *inline_data* is True the JSON blobs are substituted directly into
+    the ``<script type="application/json">`` elements in the templates, producing
+    fully self-contained HTML files (the original behaviour).
 
     When *inline_data* is False (the default) the blob placeholders are replaced
     with empty strings, so the browser's ``loadData()`` in data.js will fetch
@@ -900,31 +906,55 @@ def render_html(
     boxplot_js = _read_text(BOXPLOT_JS_PATH)
     app_js = _build_app_js()
 
+    # Load header, footer, and render module
+    header_template = _read_text(FRONTEND_DIR / "header.html")
+    footer_template = _read_text(FRONTEND_DIR / "footer.html")
+    render_airline_trends_js = _read_text(FRONTEND_DIR / "js" / "render-airline-trends.js")
+    airlines_template = _read_text(FRONTEND_DIR / "airlines.html.template")
+
     if inline_data:
         data_metadata = _safe_json(metadata)
         data_calendar = _safe_json(calendar)
         data_flights = _safe_json(flights)
         data_analysis = _safe_json(analysis)
         data_summary = _safe_json(summary)
+        data_airline_trends = _safe_json(airline_trends)
     else:
         data_metadata = ""
         data_calendar = ""
         data_flights = ""
         data_analysis = ""
         data_summary = ""
+        data_airline_trends = ""
 
-    return string.Template(template).safe_substitute(
+    # Render index.html
+    index_html = string.Template(template).safe_substitute(
         INLINE_STYLES=styles,
+        INLINE_HEADER=header_template,
         INLINE_CHART_JS=chart_js,
         INLINE_DATE_ADAPTER_JS=date_adapter_js,
         INLINE_BOXPLOT_JS=boxplot_js,
         INLINE_APP_JS=app_js,
+        INLINE_FOOTER=footer_template,
         DATA_METADATA=data_metadata,
         DATA_CALENDAR=data_calendar,
         DATA_FLIGHTS=data_flights,
         DATA_ANALYSIS=data_analysis,
         DATA_SUMMARY=data_summary,
     )
+
+    # Render airlines.html
+    airlines_html = string.Template(airlines_template).safe_substitute(
+        INLINE_STYLES=styles,
+        INLINE_HEADER=header_template,
+        INLINE_FOOTER=footer_template,
+        INLINE_CHART_JS=chart_js,
+        INLINE_APP_JS=app_js,
+        RENDER_AIRLINE_TRENDS=render_airline_trends_js,
+        DATA_AIRLINE_TRENDS=data_airline_trends,
+    )
+
+    return index_html, airlines_html
 
 
 def generate(input_path: str, output_path: str, inline_data: bool = False) -> int:
@@ -943,6 +973,7 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
     flights = build_flights(rows, generated_at=now)
     analysis = build_analysis(rows)
     summary = build_summary(rows)
+    airline_trends = build_airline_trends(rows)
 
     if not inline_data:
         # Write the five blobs to data.json in the same directory as output_path
@@ -958,13 +989,19 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
             json.dumps(data_payload, separators=(",", ":")), encoding="utf-8"
         )
 
-    html = render_html(
+    index_html, airlines_html = render_html(
         metadata=metadata,
         calendar=calendar,
         flights=flights,
         analysis=analysis,
         summary=summary,
+        airline_trends=airline_trends,
         inline_data=inline_data,
     )
-    Path(output_path).write_text(html, encoding="utf-8")
+    Path(output_path).write_text(index_html, encoding="utf-8")
+
+    # Write airlines.html to the same directory as output_path
+    airlines_path = Path(output_path).parent / "airlines.html"
+    airlines_path.write_text(airlines_html, encoding="utf-8")
+
     return len(rows)

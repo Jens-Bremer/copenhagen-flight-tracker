@@ -54,7 +54,13 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         n = generate(args.input, args.output, inline_data=args.inline_data)
-        log.info("Wrote %s from %d rows", args.output, n)
+        output_dir = Path(args.output).parent
+        log.info(
+            "Generated %s and %s from %d rows",
+            output_dir / "index.html",
+            output_dir / "airlines.html",
+            n,
+        )
         return 0
     except FileNotFoundError as exc:
         msg = str(exc)
