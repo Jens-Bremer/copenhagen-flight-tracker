@@ -188,8 +188,8 @@ def test_leadtime_chart_renders_iqr_band():
     and use Chart.js fill to shade the IQR band between Q1 and Q3."""
     import re
 
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", index_html, re.S)
     assert all_scripts
     app_js = all_scripts[-1]
 
@@ -342,12 +342,12 @@ def test_normprog_panel_rendered_in_html():
     JS must reference normalized_price_progression to build the chart."""
     import re
 
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", index_html, re.S)
     assert all_scripts
     app_js = all_scripts[-1]
 
-    assert 'id="normprog-chart"' in html, (
+    assert 'id="normprog-chart"' in index_html, (
         'HTML template must include <canvas id="normprog-chart"> for the '
         "normalised price progression panel"
     )
@@ -366,13 +366,13 @@ def test_timeheat_panel_rendered_in_html():
     """
     import re
 
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", index_html, re.S)
     assert all_scripts
     app_js = all_scripts[-1]
 
     # Dynamic container (replaces the old fixed canvas IDs).
-    assert 'id="timeheat-container"' in html, (
+    assert 'id="timeheat-container"' in index_html, (
         'HTML template must include <div id="timeheat-container"> for dynamic '
         'per-route heatmap canvases (replaces old id="timeheat-out"/id="timeheat-back")'
     )
@@ -508,7 +508,7 @@ def test_build_summary_weekend_pairs_uses_cheapest_flight(tmp_path):
 
 def test_render_html_inlines_assets_and_data():
     """With inline_data=True the five JSON blobs are embedded into the HTML."""
-    html = render_html(
+    index_html, airlines_html = render_html(
         metadata={"generated_at": "2026-05-15T23:47Z"},
         calendar={"CPH-AMS": {}},
         flights={"CPH-AMS": {}},
@@ -517,14 +517,14 @@ def test_render_html_inlines_assets_and_data():
         inline_data=True,
     )
     # Asset inlining
-    assert "<style>" in html
-    assert "Theme port pending" in html or "--color-cream" in html
-    assert "Chart.js" in html or "Chart=" in html or "chart.js" in html.lower()
+    assert "<style>" in index_html
+    assert "Theme port pending" in index_html or "--color-cream" in index_html
+    assert "Chart.js" in index_html or "Chart=" in index_html or "chart.js" in index_html.lower()
     # JSON blobs are valid JSON inside <script> tags
     import re
 
     blobs = re.findall(
-        r'<script type="application/json" id="(DATA_\w+)">(.*?)</script>', html, re.S
+        r'<script type="application/json" id="(DATA_\w+)">(.*?)</script>', index_html, re.S
     )
     blob_dict = {k: v for k, v in blobs}
     assert set(blob_dict) == {
@@ -543,7 +543,7 @@ def test_render_html_default_mode_blobs_are_empty():
     so the browser fetches data.json instead."""
     import re
 
-    html = render_html(
+    index_html, airlines_html = render_html(
         metadata={"generated_at": "2026-05-15T23:47Z"},
         calendar={"CPH-AMS": {}},
         flights={"CPH-AMS": {}},
@@ -551,7 +551,7 @@ def test_render_html_default_mode_blobs_are_empty():
         summary={"CPH-AMS": {}},
     )
     blobs = re.findall(
-        r'<script type="application/json" id="(DATA_\w+)">(.*?)</script>', html, re.S
+        r'<script type="application/json" id="(DATA_\w+)">(.*?)</script>', index_html, re.S
     )
     blob_dict = {k: v for k, v in blobs}
     # All five script elements must be present but contain no data
@@ -569,7 +569,7 @@ def test_render_html_default_mode_blobs_are_empty():
 
 
 def test_render_html_uses_safe_substitute_no_placeholder_leaks():
-    html = render_html(
+    index_html, airlines_html = render_html(
         metadata={},
         calendar={},
         flights={},
@@ -577,8 +577,8 @@ def test_render_html_uses_safe_substitute_no_placeholder_leaks():
         summary={},
     )
     # No raw ${...} markers should leak through
-    assert "${INLINE_STYLES}" not in html
-    assert "${DATA_METADATA}" not in html
+    assert "${INLINE_STYLES}" not in index_html
+    assert "${DATA_METADATA}" not in index_html
 
 
 def test_format_price_uses_whole_euros_not_decimal():
@@ -592,10 +592,10 @@ def test_format_price_uses_whole_euros_not_decimal():
     """
     import re
 
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
     # app.js is always the last <script> tag in the template (Chart.js comes before it).
     # We must not match Chart.js, which also uses .toFixed(2) internally.
-    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
+    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", index_html, re.S)
     assert all_scripts, "No <script> blocks found in rendered HTML"
     app_js = all_scripts[-1]  # app.js is the very last script tag per the template
 
@@ -622,9 +622,9 @@ def test_histograms_use_stacked_bars_with_airline_segments():
     """
     import re
 
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
     # app.js is always the last <script> tag in the template.
-    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
+    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", index_html, re.S)
     assert all_scripts, "No <script> blocks found in rendered HTML"
     app_js = all_scripts[-1]
 
@@ -655,8 +655,8 @@ def test_footer_charts_use_gentle_pricetint_palette():
     """
     import re
 
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", index_html, re.S)
     assert all_scripts, "No <script> blocks found in rendered HTML"
     app_js = all_scripts[-1]
 
@@ -681,8 +681,8 @@ def test_footer_charts_use_boxplots():
     """
     import re
 
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", index_html, re.S)
     assert all_scripts, "No <script> blocks found in rendered HTML"
     app_js = all_scripts[-1]
 
@@ -716,8 +716,8 @@ def test_calendar_local_dates_and_month_navigation():
     """
     import re
 
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", index_html, re.S)
     assert all_scripts, "No <script> blocks found in rendered HTML"
     app_js = all_scripts[-1]
 
@@ -735,13 +735,13 @@ def test_calendar_local_dates_and_month_navigation():
         "only one month at a time and can navigate between months"
     )
     # (c) Navigation DOM elements must be present in the generated HTML.
-    assert 'id="cal-prev"' in html, (
+    assert 'id="cal-prev"' in index_html, (
         "Previous-month button (id=cal-prev) missing from template"
     )
-    assert 'id="cal-next"' in html, (
+    assert 'id="cal-next"' in index_html, (
         "Next-month button (id=cal-next) missing from template"
     )
-    assert 'id="cal-month-label"' in html, (
+    assert 'id="cal-month-label"' in index_html, (
         "Month label (id=cal-month-label) missing from template"
     )
 
@@ -749,12 +749,12 @@ def test_calendar_local_dates_and_month_navigation():
 def test_render_html_inlines_escapeHtml_helper():
     """app.js must inline an escapeHtml helper so attacker-controlled airline
     names cannot inject HTML via innerHTML/insertAdjacentHTML."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    assert "function escapeHtml" in html
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert "function escapeHtml" in index_html
     # And every site that interpolates an airline name should use it
-    assert "escapeHtml(f.airline)" in html
-    assert "escapeHtml(p.fri_airline)" in html
-    assert "escapeHtml(p.sun_airline)" in html
+    assert "escapeHtml(f.airline)" in index_html
+    assert "escapeHtml(p.fri_airline)" in index_html
+    assert "escapeHtml(p.sun_airline)" in index_html
 
 
 def test_render_html_escapes_script_close_in_json_blobs():
@@ -762,7 +762,7 @@ def test_render_html_escapes_script_close_in_json_blobs():
     blob's enclosing <script> tag. The JSON serialiser substitutes `</` → `<\\/`,
     which JSON parses identically."""
     payload = {"airlines": ["KLM</script><script>alert(1)</script>"]}
-    html = render_html(
+    index_html, airlines_html = render_html(
         metadata=payload,
         calendar={},
         flights={},
@@ -775,7 +775,7 @@ def test_render_html_escapes_script_close_in_json_blobs():
 
     m = re.search(
         r'<script type="application/json" id="DATA_METADATA">(.*?)</script>',
-        html,
+        index_html,
         re.S,
     )
     assert m, "DATA_METADATA blob not found"
@@ -916,16 +916,16 @@ def _app_js(html: str) -> str:
 
 def test_hero_panel_dom_ids_present_in_template():
     """Template must include the three hero card container IDs."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    assert 'id="hero-best-time"' in html, "hero-best-time container missing"
-    assert 'id="hero-market"' in html, "hero-market container missing"
-    assert 'id="hero-book-when"' in html, "hero-book-when container missing"
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert 'id="hero-best-time"' in index_html, "hero-best-time container missing"
+    assert 'id="hero-market"' in index_html, "hero-market container missing"
+    assert 'id="hero-book-when"' in index_html, "hero-book-when container missing"
 
 
 def test_hero_ids_in_required_dom_ids():
     """All three hero IDs must be asserted at boot via REQUIRED_DOM_IDS."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert "'hero-best-time'" in js, "hero-best-time not in REQUIRED_DOM_IDS"
     assert "'hero-market'" in js, "hero-market not in REQUIRED_DOM_IDS"
     assert "'hero-book-when'" in js, "hero-book-when not in REQUIRED_DOM_IDS"
@@ -933,8 +933,8 @@ def test_hero_ids_in_required_dom_ids():
 
 def test_render_hero_function_exists_and_called_from_render_all():
     """app.js must define renderHero() and call it from renderAll()."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert "function renderHero" in js, "renderHero function not defined"
     assert "renderHero()" in js, "renderHero() not called from renderAll()"
 
@@ -942,8 +942,8 @@ def test_render_hero_function_exists_and_called_from_render_all():
 def test_hero_best_time_reads_correct_analysis_fields():
     """renderHero must read best_time_to_visit with cheapest_month, cheapest_dow,
     and lowest_ever from DATA_ANALYSIS."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert "best_time_to_visit" in js
     assert "cheapest_month" in js
     assert "cheapest_dow" in js
@@ -952,8 +952,8 @@ def test_hero_best_time_reads_correct_analysis_fields():
 
 def test_hero_market_reads_market_direction_from_analysis():
     """renderHero must read market_direction.trend and market_direction.label."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert "market_direction" in js
     # Must handle all three trend values
     assert "'down'" in js or '"down"' in js, "trend 'down' not handled"
@@ -963,23 +963,23 @@ def test_hero_market_reads_market_direction_from_analysis():
 
 def test_hero_book_when_uses_sweet_spot_days():
     """renderHero must use sweet_spot_days from DATA_ANALYSIS for the booking card."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert "sweet_spot_days" in js
 
 
 def test_hero_css_classes_present_in_styles():
     """Generated HTML must include .hero-summary and .hero-card CSS rules."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    assert "hero-summary" in html
-    assert "hero-card" in html
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert "hero-summary" in index_html
+    assert "hero-card" in index_html
 
 
 def test_hero_section_positioned_before_calendar_in_template():
     """Hero panel must appear in the template before the calendar section."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    hero_pos = html.find('id="hero-best-time"')
-    calendar_pos = html.find('id="calendar"')
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    hero_pos = index_html.find('id="hero-best-time"')
+    calendar_pos = index_html.find('id="calendar"')
     assert hero_pos != -1, "hero-best-time not in HTML"
     assert calendar_pos != -1, "calendar not in HTML"
     assert hero_pos < calendar_pos, (
@@ -989,8 +989,8 @@ def test_hero_section_positioned_before_calendar_in_template():
 
 def test_hero_shows_fallback_when_no_analysis_data():
     """renderHero must not crash and show a fallback when DATA_ANALYSIS is empty."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     # There must be a fallback path (e.g. early return or "Not enough data" text)
     assert "Not enough data" in js or "fallback" in js.lower() or "return" in js, (
         "renderHero must handle empty analysis gracefully"
@@ -1003,8 +1003,8 @@ def test_hero_shows_fallback_when_no_analysis_data():
 def test_leadtime_chart_has_you_are_here_marker_logic():
     """renderTrends must compute the number of days until the selected departure
     date and draw a 'you are here' vertical marker on the lead-time chart."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     # The JS must reference selectedDate to compute proximity to departure
     assert "selectedDate" in js
     # It must calculate days until departure (some variation of the formula)
@@ -1014,15 +1014,15 @@ def test_leadtime_chart_has_you_are_here_marker_logic():
 def test_leadtime_you_are_here_uses_afterdraw_plugin():
     """The 'you are here' marker must be drawn via a Chart.js afterDraw plugin
     so it works without an external annotation library."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert "afterDraw" in js, "afterDraw plugin required for 'you are here' marker"
 
 
 def test_leadtime_you_are_here_label_present():
     """The marker must include a visible 'today' label for users to understand it."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert "today" in js or "You are here" in js or "you are here" in js.lower()
 
 
@@ -1032,8 +1032,8 @@ def test_leadtime_you_are_here_label_present():
 def test_hero_both_route_averages_sweet_spot_days():
     """renderHero must average sweet_spot_days across both routes when
     state.route === 'both', not silently use only CPH-AMS."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     # The hero function must reference more than activeRoutes()[0] for sweet_spot_days
     # i.e. it must iterate or reduce over activeRoutes()
     patterns = [
@@ -1053,8 +1053,8 @@ def test_hero_both_route_averages_sweet_spot_days():
 def test_calendar_cell_trajectory_span_referenced_in_app_js():
     """renderCalendar must emit a .calendar__cell__trajectory span for
     cells where the cheapest flight has a non-null trajectory."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert "calendar__cell__trajectory" in js, (
         "renderCalendar must reference calendar__cell__trajectory"
     )
@@ -1063,8 +1063,8 @@ def test_calendar_cell_trajectory_span_referenced_in_app_js():
 def test_calendar_trajectory_reads_from_flights_data():
     """The calendar trajectory indicator must read trajectory from DATA_FLIGHTS,
     not from DATA_CALENDAR (which has no trajectory field)."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     # renderCalendar must look up trajectory from DATA.flights
     assert "trajectory" in js
     assert "DATA.flights" in js or "flights[" in js
@@ -1072,8 +1072,8 @@ def test_calendar_trajectory_reads_from_flights_data():
 
 def test_calendar_trajectory_skipped_when_null():
     """No arrow must be emitted when trajectory is null."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     # There must be a null guard for trajectory in the calendar rendering path
     assert "trajectory" in js
     # Either explicit null check or falsy guard
@@ -1082,8 +1082,8 @@ def test_calendar_trajectory_skipped_when_null():
 
 def test_calendar_trajectory_arrow_has_aria_label():
     """The calendar trajectory span must carry an aria-label."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     # aria-label must be set on the trajectory span in calendar rendering
     # (There is already one for the drill-down arrows; we need it in renderCalendar too)
     assert "trending" in js.lower() or "aria-label" in js
@@ -1091,8 +1091,8 @@ def test_calendar_trajectory_arrow_has_aria_label():
 
 def test_calendar_trajectory_css_in_styles():
     """styles.css must define .calendar__cell__trajectory."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    assert ".calendar__cell__trajectory" in html
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert ".calendar__cell__trajectory" in index_html
 
 
 # ─── Issue #99: integration — new fields appear in rendered JSON blobs ────────
@@ -1106,7 +1106,7 @@ def test_data_analysis_blob_contains_market_direction_and_best_time():
     rows = load_rows(str(FIXTURE))
     now = datetime(2026, 5, 15, 23, 47, tzinfo=timezone.utc)
     analysis = build_analysis(rows)
-    html = render_html(
+    index_html, airlines_html = render_html(
         metadata=build_metadata(rows, now),
         calendar=build_calendar(rows),
         flights=build_flights(rows),
@@ -1116,7 +1116,7 @@ def test_data_analysis_blob_contains_market_direction_and_best_time():
     )
     m = re.search(
         r'<script type="application/json" id="DATA_ANALYSIS">(.*?)</script>',
-        html,
+        index_html,
         re.S,
     )
     assert m, "DATA_ANALYSIS blob not found"
@@ -1137,7 +1137,7 @@ def test_data_flights_blob_contains_trajectory_percentile_mean():
 
     rows = load_rows(str(FIXTURE))
     now = datetime(2026, 5, 15, 23, 47, tzinfo=timezone.utc)
-    html = render_html(
+    index_html, airlines_html = render_html(
         metadata=build_metadata(rows, now),
         calendar=build_calendar(rows),
         flights=build_flights(rows),
@@ -1147,7 +1147,7 @@ def test_data_flights_blob_contains_trajectory_percentile_mean():
     )
     m = re.search(
         r'<script type="application/json" id="DATA_FLIGHTS">(.*?)</script>',
-        html,
+        index_html,
         re.S,
     )
     assert m, "DATA_FLIGHTS blob not found"
@@ -1172,45 +1172,45 @@ def test_data_flights_blob_contains_trajectory_percentile_mean():
 
 def test_panel_subtitles_present_in_rendered_html():
     """All 6 panels must include a .panel__subtitle paragraph."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    assert "panel__subtitle" in html, ".panel__subtitle not found in rendered HTML"
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert "panel__subtitle" in index_html, ".panel__subtitle not found in rendered HTML"
     # Check that all 6 subtitles from the spec are present
-    assert "How prices have changed over time" in html
-    assert "each bar is one 5 euro bin" in html or "5 euro bin" in html
-    assert "Cheapest Friday to Sunday" in html
-    assert "day of week and month" in html
-    assert "Cheapest hours to fly" in html
-    assert "whether prices tend to rise or fall" in html
+    assert "How prices have changed over time" in index_html
+    assert "each bar is one 5 euro bin" in index_html or "5 euro bin" in index_html
+    assert "Cheapest Friday to Sunday" in index_html
+    assert "day of week and month" in index_html
+    assert "Cheapest hours to fly" in index_html
+    assert "whether prices tend to rise or fall" in index_html
 
 
 def test_panel_subtitle_css_in_styles():
     """styles.css must define .panel__subtitle."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    assert ".panel__subtitle" in html
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert ".panel__subtitle" in index_html
 
 
 def test_weekend_pairs_heading_updated():
     """Weekend pairs panel heading must use the friendlier 'Weekend trips' label."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    assert "Weekend trips" in html
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert "Weekend trips" in index_html
 
 
 def test_cheapness_panel_heading_updated():
     """Cheapness panel heading must be updated to 'Cheapest days and months to fly'."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    assert "Cheapest days and months to fly" in html
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert "Cheapest days and months to fly" in index_html
 
 
 def test_heatmap_heading_updated():
     """Heatmap panel heading must use 'Prices by departure time'."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    assert "Prices by departure time" in html
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert "Prices by departure time" in index_html
 
 
 def test_normprog_heading_updated():
     """Normalised progression panel must use the plain-English heading."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    assert "How prices change as departure approaches" in html
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert "How prices change as departure approaches" in index_html
 
 
 # ─── Issue #97: price verdict card ───────────────────────────────────────────
@@ -1218,29 +1218,29 @@ def test_normprog_heading_updated():
 
 def test_verdict_card_dom_id_in_template():
     """Template must include a #verdict-card container in the price-history wrap."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    assert 'id="verdict-card"' in html, "#verdict-card container missing from template"
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert 'id="verdict-card"' in index_html, "#verdict-card container missing from template"
 
 
 def test_verdict_card_in_required_dom_ids():
     """verdict-card must be listed in REQUIRED_DOM_IDS."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert "'verdict-card'" in js, "verdict-card not in REQUIRED_DOM_IDS"
 
 
 def test_verdict_card_reads_percentile_and_historical_mean():
     """JS must read percentile and historical_mean_cents from flight data."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert "percentile" in js
     assert "historical_mean_cents" in js
 
 
 def test_verdict_card_thresholds_all_present():
     """JS must implement all four percentile thresholds from the spec."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert "Well below own historical average" in js
     assert "Below own historical average" in js
     assert "Fair price" in js
@@ -1249,21 +1249,21 @@ def test_verdict_card_thresholds_all_present():
 
 def test_verdict_card_null_percentile_fallback():
     """When percentile is null, the card must show 'Not enough data'."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert "Not enough data" in js
 
 
 def test_verdict_card_css_class_in_styles():
     """styles.css must define .verdict-card."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    assert ".verdict-card" in html
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert ".verdict-card" in index_html
 
 
 def test_verdict_card_verdict_colour_classes():
     """JS must use is-good/is-fair/is-bad CSS modifier classes for verdict colour."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert "is-good" in js
     assert "is-fair" in js
     assert "is-bad" in js
@@ -1275,8 +1275,8 @@ def test_verdict_card_verdict_colour_classes():
 def test_drilldown_trajectory_arrow_rendered_when_not_null():
     """renderDrilldown must emit a .flight-row__trajectory span when trajectory
     is non-null, with an aria-label that names the direction and percentage."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert "flight-row__trajectory" in js, (
         "renderDrilldown must include .flight-row__trajectory for trajectory arrows"
     )
@@ -1285,8 +1285,8 @@ def test_drilldown_trajectory_arrow_rendered_when_not_null():
 
 def test_drilldown_trajectory_arrow_skipped_when_null():
     """No arrow span must be emitted when trajectory is null."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     # The null guard must be present (some form of null/falsy check on trajectory)
     assert "trajectory" in js
     # There must be a conditional that avoids rendering when trajectory data is absent
@@ -1297,15 +1297,15 @@ def test_drilldown_trajectory_arrow_skipped_when_null():
 
 def test_drilldown_trajectory_arrow_has_aria_label():
     """Each trajectory arrow span must carry an aria-label for screen readers."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert "aria-label" in js, "trajectory arrow span must have an aria-label attribute"
 
 
 def test_drilldown_trajectory_arrow_colors_all_directions():
     """app.js must produce distinct CSS for each of the three directions."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     # Colors for each direction (inline style or CSS class references)
     assert "trajectory--down" in js or "#3d7a3d" in js or "green" in js.lower(), (
         "down trajectory must have a green indicator"
@@ -1320,8 +1320,8 @@ def test_drilldown_trajectory_arrow_colors_all_directions():
 
 def test_drilldown_trajectory_css_class_in_styles():
     """styles.css must define .flight-row__trajectory."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    assert ".flight-row__trajectory" in html
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert ".flight-row__trajectory" in index_html
 
 
 # ─── Issue #94: trajectory, verdict, market-direction ─────────────────────────
@@ -1634,8 +1634,8 @@ def test_build_flights_percentile_midpoint_for_median_price(tmp_path):
 def test_leadtime_selected_flight_dot_uses_arc():
     """When a flight is selected the afterDraw plugin must draw a dot
     (canvas arc) at the flight's price level on the lead-time chart."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert "arc(" in js, (
         "afterDraw plugin must call ctx.arc() to draw a dot for the selected flight"
     )
@@ -1644,8 +1644,8 @@ def test_leadtime_selected_flight_dot_uses_arc():
 def test_leadtime_selected_flight_chart_update_called():
     """Clicking a flight row must call charts.leadtime.update() so the
     afterDraw plugin re-runs and the marker moves to the new flight."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert "leadtime.update" in js, (
         "flight row click handler must call charts.leadtime.update()"
     )
@@ -1654,8 +1654,8 @@ def test_leadtime_selected_flight_chart_update_called():
 def test_leadtime_selected_flight_reads_selectedflight_in_afterdraw():
     """The afterDraw plugin must reference state.selectedFlight to find the
     selected flight and draw the dot at its price position."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert "selectedFlight" in js
     assert "afterDraw" in js
 
@@ -1663,8 +1663,8 @@ def test_leadtime_selected_flight_reads_selectedflight_in_afterdraw():
 def test_leadtime_selected_flight_dot_disappears_when_none():
     """When state.selectedFlight is null the dot must not be drawn.
     The afterDraw plugin must guard against a null selectedFlight."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     # afterDraw block must check selectedFlight before drawing dot
     assert "selectedFlight" in js
     # guard must be present — either explicit null check or if-block
@@ -1674,8 +1674,8 @@ def test_leadtime_selected_flight_dot_disappears_when_none():
 def test_leadtime_selected_flight_css_dot_colour():
     """The dot for the selected flight must use the site red colour
     (rgba(192,57,43,...) or var(--color-red)) for visual consistency."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert "192,57,43" in js or "color-red" in js
 
 
@@ -1774,8 +1774,8 @@ def test_modular_split_produces_functionally_equivalent_js():
     function signatures and data field references from the original monolithic
     app.js. This spot-checks that the split didn't accidentally drop any logic.
     """
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
 
     # Core chart field references
     assert "q1_cents" in js, "renderTrends must reference q1_cents from lead_time_curve"
@@ -1809,8 +1809,8 @@ def test_modular_split_produces_functionally_equivalent_js():
 
 def test_js_bundle_wrapped_in_iife():
     """The concatenated JS must be wrapped in an IIFE with 'use strict'."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert js.strip().startswith("(function ()"), (
         "Bundled JS must start with IIFE wrapper: (function () {"
     )
@@ -1820,8 +1820,8 @@ def test_js_bundle_wrapped_in_iife():
 
 def test_no_duplicate_use_strict_in_bundle():
     """'use strict' must appear exactly once — added by _build_app_js, not in files."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert js.count("'use strict';") == 1, (
         "'use strict' must appear exactly once in the bundled JS "
         "(injected by the wrapper, not inside source files)"
@@ -1853,8 +1853,8 @@ def test_js_source_files_exist_in_correct_order():
 
 def test_route_palette_defined_in_bundle():
     """ROUTE_PALETTE must be defined in the JS bundle with at least 2 colours."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert "ROUTE_PALETTE" in js, (
         "constants.js must define ROUTE_PALETTE for dynamic route colouring"
     )
@@ -1870,38 +1870,38 @@ def test_histograms_container_in_template_not_fixed_canvases():
     id='histograms-container' so that the renderer can build one canvas per
     route for any route list (not just CPH-AMS + AMS-CPH).
     """
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    assert 'id="histograms-container"' in html, (
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert 'id="histograms-container"' in index_html, (
         'Template must use <div id="histograms-container"> for dynamic per-route '
         'histogram canvases (replaces old id="histogram-out"/id="histogram-back")'
     )
-    assert 'id="histogram-out"' not in html, (
+    assert 'id="histogram-out"' not in index_html, (
         'Old hardcoded id="histogram-out" canvas must be removed from the template'
     )
-    assert 'id="histogram-back"' not in html, (
+    assert 'id="histogram-back"' not in index_html, (
         'Old hardcoded id="histogram-back" canvas must be removed from the template'
     )
 
 
 def test_timeheat_container_in_template_not_fixed_canvases():
     """The timeheat section must use a container div, not fixed per-route canvas IDs."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    assert 'id="timeheat-container"' in html, (
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    assert 'id="timeheat-container"' in index_html, (
         'Template must use <div id="timeheat-container"> for dynamic per-route '
         "heatmap canvases"
     )
-    assert 'id="timeheat-out"' not in html, (
+    assert 'id="timeheat-out"' not in index_html, (
         'Old hardcoded id="timeheat-out" canvas must be removed from the template'
     )
-    assert 'id="timeheat-back"' not in html, (
+    assert 'id="timeheat-back"' not in index_html, (
         'Old hardcoded id="timeheat-back" canvas must be removed from the template'
     )
 
 
 def test_active_routes_driven_by_metadata(tmp_path):
     """activeRoutes() must return routes from DATA.metadata.routes, not hardcoded."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     # activeRoutes must reference metadata.routes, not ['CPH-AMS', 'AMS-CPH']
     assert "metadata.routes" in js, (
         "activeRoutes() must read from DATA.metadata.routes to support arbitrary routes"
@@ -1997,8 +1997,8 @@ def test_normalized_price_progression_iqr_equal_for_single_obs():
 def test_rendered_html_contains_normprog_iqr_field_references():
     """The rendered HTML's app.js must reference q1_pct_change and q3_pct_change
     so the IQR band for the normalized-progression chart is driven by the JSON data."""
-    html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
-    js = _app_js(html)
+    index_html, airlines_html = render_html(metadata={}, calendar={}, flights={}, analysis={}, summary={})
+    js = _app_js(index_html)
     assert "q1_pct_change" in js, (
         "renderNormProgress must reference q1_pct_change from "
         "normalized_price_progression"
