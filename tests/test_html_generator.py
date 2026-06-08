@@ -525,8 +525,8 @@ def test_render_html_inlines_assets_and_data():
     # Asset inlining
     assert "<style>" in index_html
     assert "Theme port pending" in index_html or "--color-cream" in index_html
-    html_lower = index_html.lower()
-    assert "Chart.js" in index_html or "Chart=" in index_html or "chart.js" in html_lower
+    has_chart = "Chart.js" in index_html or "Chart=" in index_html
+    assert has_chart or "chart.js" in index_html.lower()
     # JSON blobs are valid JSON inside <script> tags
     import re
 
@@ -2333,7 +2333,9 @@ def test_build_airline_trends_structure():
     assert isinstance(airline_entry["series"], list)
     if airline_entry["series"]:
         point = airline_entry["series"][0]
-        required_keys = ["days_before", "median_cents", "p25_cents", "p75_cents", "sample_count"]
+        required_keys = [
+            "days_before", "median_cents", "p25_cents", "p75_cents", "sample_count"
+        ]
         assert all(k in point for k in required_keys)
 
 
