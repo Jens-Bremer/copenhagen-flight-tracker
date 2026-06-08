@@ -746,7 +746,9 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _build_app_js(file_order: list[str] | None = None, expose_functions: list[str] | None = None) -> str:
+def _build_app_js(
+    file_order: list[str] | None = None, expose_functions: list[str] | None = None
+) -> str:
     """Concatenate JS source files in order and wrap in an IIFE.
 
     Each file in JS_SOURCE_DIR (in the order given by file_order or JS_FILE_ORDER)
@@ -773,7 +775,8 @@ def _build_app_js(file_order: list[str] | None = None, expose_functions: list[st
     # If functions need to be exposed to window, add that at the end
     expose_lines = ""
     if expose_functions:
-        expose_lines = "\n".join(f"window.{func} = {func};" for func in expose_functions)
+        window_assigns = (f"window.{func} = {func};" for func in expose_functions)
+        expose_lines = "\n".join(window_assigns)
         expose_lines = "\n" + expose_lines
 
     return f"(function () {{\n'use strict';\n\n{body}{expose_lines}\n}})();"
@@ -784,7 +787,8 @@ def build_airline_trends(rows: list[dict]) -> dict:
     Build per-airline price progression by days_before across two routes.
 
     Args:
-        rows: Observations, each with keys: airline, origin, destination, retrieved_at, departure_date, price_cents
+        rows: Observations with keys: airline, origin, destination, retrieved_at,
+            departure_date, price_cents
 
     Returns:
         {
@@ -793,7 +797,8 @@ def build_airline_trends(rows: list[dict]) -> dict:
               "airline": "KLM",
               "color": "#00A1DE",
               "series": [
-                {"days_before": 168, "median_cents": 5200, "p25_cents": 4800, "p75_cents": 5600, "sample_count": 3},
+                {"days_before": 168, "median_cents": 5200, "p25_cents": 4800,
+                 "p75_cents": 5600, "sample_count": 3},
                 ...
               ]
             },
@@ -883,10 +888,10 @@ def get_airline_color(airline: str) -> str:
     if airline in AIRLINE_COLORS:
         return AIRLINE_COLORS[airline]
 
-    # Fallback: MD5 hash → first 6 chars
+    # Fallback: MD5 hash → first 6 chars (not for security, just color generation)
     import hashlib
 
-    hash_val = hashlib.md5(airline.encode()).hexdigest()[:6]
+    hash_val = hashlib.md5(airline.encode(), usedforsecurity=False).hexdigest()[:6]
     return f"#{hash_val}"
 
 
