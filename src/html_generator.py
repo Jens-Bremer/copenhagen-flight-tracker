@@ -53,6 +53,7 @@ JS_FILE_ORDER_AIRLINES = [
     "utils.js",
     "data.js",
     "charts.js",
+    "render-airline-matrix.js",
     "render-airline-trends.js",
 ]
 
@@ -1057,7 +1058,8 @@ def render_html(
     boxplot_js = _read_text(BOXPLOT_JS_PATH)
     app_js = _build_app_js()
     app_js_airlines = _build_app_js(
-        JS_FILE_ORDER_AIRLINES, expose_functions=["renderAirlineTrends"]
+        JS_FILE_ORDER_AIRLINES,
+        expose_functions=["renderAirlineMatrix", "renderAirlineTrends"],
     )
 
     # Load header, footer
