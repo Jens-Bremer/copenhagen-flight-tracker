@@ -639,3 +639,25 @@ body, .panel, .pairs-table, .calendar, .hero-card, .verdict-card {
   text-align: left;
   white-space: nowrap;
 }
+
+/* ───── Matrix Tooltip (instant hover) ───────────────────────────────────── */
+#matrix-tooltip {
+  position: absolute;
+  background-color: #333333;
+  color: #ffffff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-width: 280px;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  display: none;
+}
+
+#matrix-tooltip.visible {
+  display: block;
+}
