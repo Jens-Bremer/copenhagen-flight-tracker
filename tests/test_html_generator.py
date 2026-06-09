@@ -2700,3 +2700,35 @@ class TestBuildAirlineMatrix:
 
         result = build_airline_matrix([])
         assert result == {}
+
+    def test_saturday_and_sunday_travel_days(self):
+        """Saturday and Sunday departures are routed to correct matrix keys."""
+        from src.html_generator import build_airline_matrix
+
+        # 2026-12-05 is Saturday (weekday 5), 2026-12-06 is Sunday (weekday 6)
+        rows = []
+        for _ in range(3):
+            # Saturday departure
+            rows.append(
+                self._make_row(
+                    "KLM", "CPH", "AMS", "2026-06-01T10:00", "2026-12-05", 5000
+                )
+            )
+            # Sunday departure
+            rows.append(
+                self._make_row(
+                    "KLM", "CPH", "AMS", "2026-06-01T12:00", "2026-12-06", 5500
+                )
+            )
+
+        result = build_airline_matrix(rows)
+        matrix = result["CPH-AMS"][0]["matrix"]
+
+        # Monday-bought Saturday flights
+        assert matrix["Saturday"]["Monday"] is not None
+        assert matrix["Saturday"]["Monday"]["n"] == 3
+        # Monday-bought Sunday flights
+        assert matrix["Sunday"]["Monday"] is not None
+        assert matrix["Sunday"]["Monday"]["n"] == 3
+        # Friday flights not polluted by Saturday/Sunday obs
+        assert matrix["Friday"]["Monday"] is None

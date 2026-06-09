@@ -907,7 +907,6 @@ def build_airline_matrix(rows: list[dict]) -> dict:
         Cell is None when fewer than 3 observations.
     """
     import statistics
-    from datetime import date as date_type
 
     TRAVEL_DAYS = {4: "Friday", 5: "Saturday", 6: "Sunday"}
     BUY_DAY_NAMES = [
