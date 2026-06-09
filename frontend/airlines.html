@@ -584,6 +584,73 @@ body, .panel, .pairs-table, .calendar, .hero-card, .verdict-card {
   padding-right: 8px;
   white-space: nowrap;
 }
+
+/* ─── Matrix explainer & legend ──────────────────────────────────────────── */
+
+.matrix-explainer {
+  margin-bottom: 1.5rem;
+  padding: 0.9rem 1rem;
+  background: #f7f4ee;
+  border-radius: 6px;
+  border-left: 3px solid #d4a853;
+}
+
+.matrix-explainer__how-to-read {
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: #444;
+  margin: 0 0 0.75rem;
+}
+
+.matrix-explainer__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+}
+
+.matrix-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: #444;
+}
+
+.matrix-legend-swatch {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid rgba(0,0,0,0.08);
+}
+
+.matrix-legend-swatch--empty {
+  background: #f0f0f0;
+  color: #bbb;
+  font-size: 0.75rem;
+  text-align: center;
+  line-height: 16px;
+}
+
+/* ─── Matrix axis labels ─────────────────────────────────────────────────── */
+
+.matrix-axis-label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #999;
+  text-align: center;
+  padding-bottom: 2px;
+  letter-spacing: 0.01em;
+}
+
+.matrix-corner-label {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: #999;
+  text-align: left;
+  white-space: nowrap;
+}
 </style>
 </head>
 <body>
@@ -614,7 +681,24 @@ body, .panel, .pairs-table, .calendar, .hero-card, .verdict-card {
 
     <section class="panel matrix-section" aria-label="Weekly seasonality matrix">
       <h2 class="panel__heading">Weekly Seasonality Matrix</h2>
-      <p class="panel__subtitle">Relative price by day-of-week you buy vs. target travel day (Fri / Sat / Sun). Based on all historical observations.</p>
+      <p class="panel__subtitle">Does the day of the week you buy matter? This matrix shows whether buying on a given weekday is historically cheaper or pricier for Friday, Saturday, or Sunday flights — compared to that airline's average price on the route.</p>
+
+      <div class="matrix-explainer">
+        <p class="matrix-explainer__how-to-read">
+          <strong>How to read:</strong> Select an airline, then find the row for the day you plan to buy and the column for your departure day.
+          The cell colour shows how much prices on that combination differ from average. <strong>High</strong> means a strong difference (&gt;15%) —
+          hover the cell to see whether it's cheaper or more expensive. <strong>No</strong> means no meaningful pattern.
+          A <strong>High</strong> cell in a cheap direction = good day to buy. A <strong>High</strong> cell in an expensive direction = avoid that day.
+        </p>
+        <div class="matrix-explainer__legend">
+          <span class="matrix-legend-item"><span class="matrix-legend-swatch" style="background:#c23c2a;"></span><strong>High</strong> &gt;15% difference</span>
+          <span class="matrix-legend-item"><span class="matrix-legend-swatch" style="background:#fdaa4f;"></span><strong>Med</strong> 5–15%</span>
+          <span class="matrix-legend-item"><span class="matrix-legend-swatch" style="background:#fde4a3;"></span><strong>Low</strong> 1–5%</span>
+          <span class="matrix-legend-item"><span class="matrix-legend-swatch" style="background:#e8e8e8;"></span><strong>No</strong> ≤1%, no pattern</span>
+          <span class="matrix-legend-item"><span class="matrix-legend-swatch matrix-legend-swatch--empty">·</span>not enough data</span>
+        </div>
+      </div>
+
       <div id="airline-matrix-container"></div>
     </section>
   </main>
@@ -1659,11 +1743,23 @@ function _matrixBuildTable(matrix) {
   const table = document.createElement('table');
   table.className = 'matrix-table';
 
-  // Header row
+  // Axis label row: "Departure day →" spanning the 3 travel-day columns
   const thead = table.createTHead();
+  const axisRow = thead.insertRow();
+  const axisCorner = document.createElement('th');
+  axisRow.appendChild(axisCorner);
+  const axisTh = document.createElement('th');
+  axisTh.colSpan = MATRIX_TRAVEL_DAYS.length;
+  axisTh.textContent = 'Departure day →';
+  axisTh.className = 'matrix-axis-label';
+  axisRow.appendChild(axisTh);
+
+  // Header row: corner = "Buy day ↓", then one TH per travel day
   const headerRow = thead.insertRow();
-  const emptyTh = document.createElement('th');
-  headerRow.appendChild(emptyTh);
+  const cornerTh = document.createElement('th');
+  cornerTh.textContent = 'Buy day ↓';
+  cornerTh.className = 'matrix-corner-label';
+  headerRow.appendChild(cornerTh);
   for (const travelDay of MATRIX_TRAVEL_DAYS) {
     const th = document.createElement('th');
     th.textContent = travelDay;
