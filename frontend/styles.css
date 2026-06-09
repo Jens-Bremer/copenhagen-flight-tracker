@@ -642,14 +642,10 @@ body, .panel, .pairs-table, .calendar, .hero-card, .verdict-card {
 
 /* ───── Matrix routes side-by-side on wider screens ───────────────────────── */
 @media (min-width: 1200px) {
-  .matrix-section {
+  #airline-matrix-container {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 2rem;
-  }
-
-  .matrix-section > :first-child {
-    grid-column: 1 / -1;
   }
 
   .matrix-route-block {
