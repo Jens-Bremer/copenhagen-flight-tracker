@@ -2743,7 +2743,9 @@ class TestBuildAirlineMatrix:
                 "airline": "KLM",
                 "origin": "CPH",
                 "destination": "AMS",
-                "retrieved_at": datetime(2026, 6, 2, 10, 0, tzinfo=timezone.utc),  # Tuesday
+                "retrieved_at": datetime(
+                    2026, 6, 2, 10, 0, tzinfo=timezone.utc
+                ),  # Tuesday
                 "departure_date": "2026-06-05",  # Friday
                 "price_cents": 9700,
                 "departure_at": datetime(2026, 6, 5, 10, 0),
@@ -2780,7 +2782,9 @@ class TestBuildAirlineMatrix:
                 "airline": "KLM",
                 "origin": "CPH",
                 "destination": "AMS",
-                "retrieved_at": datetime(2026, 6, 1, 10, 0, tzinfo=timezone.utc),  # Monday
+                "retrieved_at": datetime(
+                    2026, 6, 1, 10, 0, tzinfo=timezone.utc
+                ),  # Monday
                 "departure_date": "2026-06-05",  # Friday
                 "price_cents": 10000,
                 "departure_at": datetime(2026, 6, 5, 10, 0),
@@ -2829,7 +2833,9 @@ class TestBuildAirlineMatrix:
                 "airline": "KLM",
                 "origin": "CPH",
                 "destination": "AMS",
-                "retrieved_at": datetime(2026, 6, 2, 10, 0, tzinfo=timezone.utc),  # Tuesday
+                "retrieved_at": datetime(
+                    2026, 6, 2, 10, 0, tzinfo=timezone.utc
+                ),  # Tuesday
                 "departure_date": "2026-06-05",  # Friday
                 "price_cents": 10800,
                 "departure_at": datetime(2026, 6, 5, 10, 0),
@@ -2866,7 +2872,9 @@ class TestBuildAirlineMatrix:
                 "airline": "KLM",
                 "origin": "CPH",
                 "destination": "AMS",
-                "retrieved_at": datetime(2026, 6, 1, 10, 0, tzinfo=timezone.utc),  # Monday
+                "retrieved_at": datetime(
+                    2026, 6, 1, 10, 0, tzinfo=timezone.utc
+                ),  # Monday
                 "departure_date": "2026-06-05",  # Friday
                 "price_cents": 10000,
                 "departure_at": datetime(2026, 6, 5, 10, 0),
@@ -2902,7 +2910,9 @@ class TestBuildAirlineMatrix:
                 "airline": "KLM",
                 "origin": "CPH",
                 "destination": "AMS",
-                "retrieved_at": datetime(2026, 6, 3, 10, 0, tzinfo=timezone.utc),  # Wednesday
+                "retrieved_at": datetime(
+                    2026, 6, 3, 10, 0, tzinfo=timezone.utc
+                ),  # Wednesday
                 "departure_date": "2026-06-05",  # Friday
                 "price_cents": 10000,
                 "departure_at": datetime(2026, 6, 5, 10, 0),
@@ -2964,7 +2974,9 @@ class TestBuildAirlineMatrix:
                 "airline": "KLM",
                 "origin": "CPH",
                 "destination": "AMS",
-                "retrieved_at": datetime(2026, 6, 1, 10, 0, tzinfo=timezone.utc),  # Monday
+                "retrieved_at": datetime(
+                    2026, 6, 1, 10, 0, tzinfo=timezone.utc
+                ),  # Monday
                 "departure_date": "2026-06-05",  # Friday
                 "price_cents": 10000,
                 "departure_at": datetime(2026, 6, 5, 10, 0),
@@ -3000,7 +3012,9 @@ class TestBuildAirlineMatrix:
                 "airline": "KLM",
                 "origin": "CPH",
                 "destination": "AMS",
-                "retrieved_at": datetime(2026, 6, 3, 10, 0, tzinfo=timezone.utc),  # Wednesday
+                "retrieved_at": datetime(
+                    2026, 6, 3, 10, 0, tzinfo=timezone.utc
+                ),  # Wednesday
                 "departure_date": "2026-06-05",  # Friday
                 "price_cents": 10000,
                 "departure_at": datetime(2026, 6, 5, 10, 0),
@@ -3062,7 +3076,9 @@ class TestBuildAirlineMatrix:
                 "airline": "KLM",
                 "origin": "CPH",
                 "destination": "AMS",
-                "retrieved_at": datetime(2026, 6, 1, 10, 0, tzinfo=timezone.utc),  # Monday
+                "retrieved_at": datetime(
+                    2026, 6, 1, 10, 0, tzinfo=timezone.utc
+                ),  # Monday
                 "departure_date": "2026-06-05",  # Friday
                 "price_cents": 10000,
                 "departure_at": datetime(2026, 6, 5, 10, 0),
@@ -3098,7 +3114,9 @@ class TestBuildAirlineMatrix:
                 "airline": "KLM",
                 "origin": "CPH",
                 "destination": "AMS",
-                "retrieved_at": datetime(2026, 6, 3, 10, 0, tzinfo=timezone.utc),  # Wednesday
+                "retrieved_at": datetime(
+                    2026, 6, 3, 10, 0, tzinfo=timezone.utc
+                ),  # Wednesday
                 "departure_date": "2026-06-05",  # Friday
                 "price_cents": 10000,
                 "departure_at": datetime(2026, 6, 5, 10, 0),
