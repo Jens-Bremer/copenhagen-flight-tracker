@@ -872,6 +872,125 @@ def build_airline_trends(rows: list[dict]) -> dict:
     return result
 
 
+def build_airline_matrix(rows: list[dict]) -> dict:
+    """
+    Build weekly seasonality matrix per airline/route.
+
+    For each (airline, route), compute relative price index per cell
+    (buy_weekday x travel_weekday) where travel_weekday is Fri/Sat/Sun only.
+
+    Args:
+        rows: Observations with keys: airline, origin, destination, retrieved_at,
+            departure_date, price_cents
+
+    Returns:
+        {
+          "CPH-AMS": [
+            {
+              "airline": "KLM",
+              "color": "#00A1DE",
+              "matrix": {
+                "Friday": {
+                  "Monday": {"category": "low", "index": -0.032, "n": 8},
+                  "Tuesday": None,
+                  ...
+                },
+                "Saturday": { ... },
+                "Sunday": { ... }
+              }
+            },
+            ...
+          ],
+          "AMS-CPH": [ ... ]
+        }
+
+        Cell is None when fewer than 3 observations.
+    """
+    import statistics
+    from datetime import date as date_type
+
+    TRAVEL_DAYS = {4: "Friday", 5: "Saturday", 6: "Sunday"}
+    BUY_DAY_NAMES = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+    ]
+
+    # Group prices by (route, airline, buy_weekday, travel_weekday)
+    grouped: dict = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    )
+    for row in rows:
+        dep_weekday = date_type.fromisoformat(row["departure_date"]).weekday()
+        if dep_weekday not in TRAVEL_DAYS:
+            continue
+        route = _route_key(row)
+        airline = row["airline"]
+        buy_weekday = row["retrieved_at"].weekday()
+        grouped[route][airline][buy_weekday][dep_weekday].append(row["price_cents"])
+
+    result: dict = {}
+    for route in sorted(grouped.keys()):
+        airlines_data = []
+        for airline in sorted(grouped[route].keys()):
+            buy_day_map = grouped[route][airline]
+
+            # Collect all prices for overall median
+            all_prices = [
+                p
+                for buy_prices in buy_day_map.values()
+                for cell_prices in buy_prices.values()
+                for p in cell_prices
+            ]
+            if len(all_prices) < 3:
+                continue
+
+            overall_median = statistics.median(all_prices)
+
+            matrix: dict = {}
+            for travel_name in TRAVEL_DAYS.values():
+                travel_wd = next(k for k, v in TRAVEL_DAYS.items() if v == travel_name)
+                day_cells: dict = {}
+                for buy_wd, buy_name in enumerate(BUY_DAY_NAMES):
+                    prices = buy_day_map.get(buy_wd, {}).get(travel_wd, [])
+                    if len(prices) < 3:
+                        day_cells[buy_name] = None
+                        continue
+                    cell_median = statistics.median(prices)
+                    index = (cell_median - overall_median) / overall_median
+                    abs_index = abs(index)
+                    if abs_index <= 0.01:
+                        category = "no"
+                    elif abs_index <= 0.05:
+                        category = "low"
+                    elif abs_index <= 0.15:
+                        category = "med"
+                    else:
+                        category = "high"
+                    day_cells[buy_name] = {
+                        "category": category,
+                        "index": round(index, 4),
+                        "n": len(prices),
+                    }
+                matrix[travel_name] = day_cells
+
+            airlines_data.append(
+                {
+                    "airline": airline,
+                    "color": get_airline_color(airline),
+                    "matrix": matrix,
+                }
+            )
+
+        result[route] = airlines_data
+
+    return result
+
+
 def get_airline_color(airline: str) -> str:
     """
     Get colour for airline from locked AIRLINE_COLORS, or deterministic hash fallback.

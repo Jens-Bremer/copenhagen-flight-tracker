@@ -2496,3 +2496,207 @@ def test_build_airline_trends_days_before_descending():
     days = [p["days_before"] for p in result["CPH-AMS"][0]["series"]]
     assert days == sorted(days, reverse=True)
     assert days[0] == 189  # Newest first (2026-12-14 is 189 days after 2026-06-08)
+
+
+class TestBuildAirlineMatrix:
+    """Tests for build_airline_matrix."""
+
+    def _make_row(
+        self, airline, origin, dest, retrieved_iso, departure_date, price_cents
+    ):
+        from datetime import datetime, timezone
+
+        return {
+            "airline": airline,
+            "origin": origin,
+            "destination": dest,
+            "retrieved_at": datetime.fromisoformat(retrieved_iso).replace(
+                tzinfo=timezone.utc
+            ),
+            "departure_date": departure_date,
+            "price_cents": price_cents,
+            "departure_at": datetime.fromisoformat(f"{departure_date}T10:00"),
+            "arrival_at": datetime.fromisoformat(f"{departure_date}T12:00"),
+            "duration_minutes": 120,
+            "price_currency": "EUR",
+        }
+
+    def test_output_structure(self):
+        """Result is keyed by route; each entry has airline, color, matrix keys."""
+        from src.html_generator import build_airline_matrix
+
+        # 2026-12-04 is a Friday (weekday 4).
+        # retrieved_at dates: Mon=2026-06-01, Tue=2026-06-02, Wed=2026-06-03
+        rows = []
+        for date_str in ["2026-06-01", "2026-06-02", "2026-06-03"]:
+            rows.append(
+                self._make_row(
+                    "KLM", "CPH", "AMS", f"{date_str}T10:00", "2026-12-04", 5000
+                )
+            )
+
+        result = build_airline_matrix(rows)
+
+        assert "CPH-AMS" in result
+        airline_list = result["CPH-AMS"]
+        assert len(airline_list) == 1
+        entry = airline_list[0]
+        assert entry["airline"] == "KLM"
+        assert "color" in entry
+        assert "matrix" in entry
+        matrix = entry["matrix"]
+        assert "Friday" in matrix
+        assert "Saturday" in matrix
+        assert "Sunday" in matrix
+
+    def test_buy_day_correctly_mapped(self):
+        """Cell (Monday buy, Friday fly) populated from retrieved_at on a Monday."""
+        from src.html_generator import build_airline_matrix
+
+        # 3 rows all bought on Monday 2026-06-01 for Friday 2026-12-04
+        rows = [
+            self._make_row("KLM", "CPH", "AMS", "2026-06-01T10:00", "2026-12-04", 4000),
+            self._make_row("KLM", "CPH", "AMS", "2026-06-01T12:00", "2026-12-04", 5000),
+            self._make_row("KLM", "CPH", "AMS", "2026-06-01T14:00", "2026-12-04", 6000),
+        ]
+
+        result = build_airline_matrix(rows)
+        cell = result["CPH-AMS"][0]["matrix"]["Friday"]["Monday"]
+
+        assert cell is not None
+        assert cell["n"] == 3
+        assert cell["index"] == 0.0  # only 3 obs → overall_median == cell_median
+        assert cell["category"] == "no"
+
+    def test_null_for_fewer_than_3_observations(self):
+        """Cells with <3 observations are None."""
+        from src.html_generator import build_airline_matrix
+
+        # 2 obs on Monday for Friday, 3 obs on Tuesday for Friday
+        rows = [
+            self._make_row("KLM", "CPH", "AMS", "2026-06-01T10:00", "2026-12-04", 5000),
+            self._make_row("KLM", "CPH", "AMS", "2026-06-01T12:00", "2026-12-04", 5100),
+            self._make_row("KLM", "CPH", "AMS", "2026-06-02T10:00", "2026-12-04", 5000),
+            self._make_row("KLM", "CPH", "AMS", "2026-06-02T12:00", "2026-12-04", 5100),
+            self._make_row("KLM", "CPH", "AMS", "2026-06-02T14:00", "2026-12-04", 5200),
+        ]
+
+        result = build_airline_matrix(rows)
+        matrix = result["CPH-AMS"][0]["matrix"]
+
+        assert matrix["Friday"]["Monday"] is None  # only 2 obs
+        assert matrix["Friday"]["Tuesday"] is not None  # 3 obs
+
+    def test_category_bucketing(self):
+        """Relative index is bucketed into no/low/med/high correctly."""
+        from src.html_generator import build_airline_matrix
+
+        # overall_median = 4760 (9th of 17 sorted values)
+        # Mon: 3x3500 → index ≈ -0.265 → high
+        # Tue: 3x4600 → index ≈ -0.034 → low
+        # Wed: 3x4900 → index ≈ +0.029 → low
+        # Thu: 5x4760 → index = 0.0   → no   (5 obs to push median to 4760)
+        # Fri: 3x6500 → index ≈ +0.366 → high
+        rows = []
+        for _ in range(3):
+            rows.append(
+                self._make_row(
+                    "KLM", "CPH", "AMS", "2026-06-01T10:00", "2026-12-04", 3500
+                )
+            )  # Mon
+        for _ in range(3):
+            rows.append(
+                self._make_row(
+                    "KLM", "CPH", "AMS", "2026-06-02T10:00", "2026-12-04", 4600
+                )
+            )  # Tue
+        for _ in range(3):
+            rows.append(
+                self._make_row(
+                    "KLM", "CPH", "AMS", "2026-06-03T10:00", "2026-12-04", 4900
+                )
+            )  # Wed
+        for _ in range(5):
+            rows.append(
+                self._make_row(
+                    "KLM", "CPH", "AMS", "2026-06-04T10:00", "2026-12-04", 4760
+                )
+            )  # Thu (5 obs to anchor the median at 4760)
+        for _ in range(3):
+            rows.append(
+                self._make_row(
+                    "KLM", "CPH", "AMS", "2026-06-05T10:00", "2026-12-04", 6500
+                )
+            )  # Fri
+
+        result = build_airline_matrix(rows)
+        matrix = result["CPH-AMS"][0]["matrix"]["Friday"]
+
+        assert matrix["Monday"]["category"] == "high"
+        assert matrix["Tuesday"]["category"] == "low"
+        assert matrix["Wednesday"]["category"] == "low"
+        assert matrix["Thursday"]["category"] == "no"
+        assert matrix["Friday"]["category"] == "high"
+
+    def test_only_fri_sat_sun_travel_days(self):
+        """Weekday/Thursday departure rows are excluded from matrix."""
+        from src.html_generator import build_airline_matrix
+
+        # 2026-12-07 is Monday (weekday 0) — should be excluded
+        rows = [
+            self._make_row("KLM", "CPH", "AMS", "2026-06-01T10:00", "2026-12-07", 5000),
+            self._make_row("KLM", "CPH", "AMS", "2026-06-01T12:00", "2026-12-07", 5100),
+            self._make_row("KLM", "CPH", "AMS", "2026-06-01T14:00", "2026-12-07", 5200),
+        ]
+
+        result = build_airline_matrix(rows)
+        # Either route not present or airline list is empty
+        if "CPH-AMS" in result:
+            assert result["CPH-AMS"] == []
+
+    def test_airline_excluded_if_fewer_than_3_total(self):
+        """Airlines with <3 total observations across all cells are omitted."""
+        from src.html_generator import build_airline_matrix
+
+        # 2 rows total for easyJet on a Friday departure — should be excluded
+        rows = [
+            self._make_row(
+                "easyJet", "CPH", "AMS", "2026-06-01T10:00", "2026-12-04", 4000
+            ),
+            self._make_row(
+                "easyJet", "CPH", "AMS", "2026-06-02T10:00", "2026-12-04", 4200
+            ),
+        ]
+
+        result = build_airline_matrix(rows)
+        if "CPH-AMS" in result:
+            airlines = [e["airline"] for e in result["CPH-AMS"]]
+            assert "easyJet" not in airlines
+
+    def test_two_routes_independent(self):
+        """CPH-AMS and AMS-CPH are separate keys in the result."""
+        from src.html_generator import build_airline_matrix
+
+        rows = []
+        for _ in range(3):
+            rows.append(
+                self._make_row(
+                    "KLM", "CPH", "AMS", "2026-06-01T10:00", "2026-12-04", 5000
+                )
+            )
+            rows.append(
+                self._make_row(
+                    "KLM", "AMS", "CPH", "2026-06-01T10:00", "2026-12-04", 5500
+                )
+            )
+
+        result = build_airline_matrix(rows)
+        assert "CPH-AMS" in result
+        assert "AMS-CPH" in result
+
+    def test_empty_rows(self):
+        """Empty input returns empty dict."""
+        from src.html_generator import build_airline_matrix
+
+        result = build_airline_matrix([])
+        assert result == {}
