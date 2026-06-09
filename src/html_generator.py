@@ -1031,6 +1031,7 @@ def render_html(
     analysis: dict[str, Any],
     summary: dict[str, Any],
     airline_trends: dict[str, Any] | None = None,
+    airline_matrix: dict[str, Any] | None = None,
     inline_data: bool = False,
 ) -> tuple[str, str]:
     """Inline assets + JSON blobs into templates. Returns (index_html, airlines_html).
@@ -1046,6 +1047,8 @@ def render_html(
     """
     if airline_trends is None:
         airline_trends = {}
+    if airline_matrix is None:
+        airline_matrix = {}
 
     template = _read_text(TEMPLATE_PATH)
     styles = _read_text(STYLES_PATH)
@@ -1069,6 +1072,7 @@ def render_html(
         data_analysis = _safe_json(analysis)
         data_summary = _safe_json(summary)
         data_airline_trends = _safe_json(airline_trends)
+        data_airline_matrix = _safe_json(airline_matrix)
     else:
         data_metadata = ""
         data_calendar = ""
@@ -1076,6 +1080,7 @@ def render_html(
         data_analysis = ""
         data_summary = ""
         data_airline_trends = ""
+        data_airline_matrix = ""
 
     # Render index.html
     index_html = string.Template(template).safe_substitute(
@@ -1102,6 +1107,7 @@ def render_html(
         INLINE_APP_JS=app_js_airlines,
         RENDER_AIRLINE_TRENDS="",
         DATA_AIRLINE_TRENDS=data_airline_trends,
+        DATA_AIRLINE_MATRIX=data_airline_matrix,
     )
 
     return index_html, airlines_html
@@ -1124,6 +1130,7 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
     analysis = build_analysis(rows)
     summary = build_summary(rows)
     airline_trends = build_airline_trends(rows)
+    airline_matrix = build_airline_matrix(rows)
 
     if not inline_data:
         # Write the five blobs to data.json in the same directory as output_path
@@ -1134,6 +1141,7 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
             "analysis": analysis,
             "summary": summary,
             "airline_trends": airline_trends,
+            "airline_matrix": airline_matrix,
         }
         data_json_path = Path(output_path).parent / "data.json"
         data_json_path.write_text(
@@ -1147,6 +1155,7 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
         analysis=analysis,
         summary=summary,
         airline_trends=airline_trends,
+        airline_matrix=airline_matrix,
         inline_data=inline_data,
     )
     Path(output_path).write_text(index_html, encoding="utf-8")
