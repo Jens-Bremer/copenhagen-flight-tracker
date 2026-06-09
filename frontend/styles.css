@@ -640,9 +640,26 @@ body, .panel, .pairs-table, .calendar, .hero-card, .verdict-card {
   white-space: nowrap;
 }
 
+/* ───── Matrix routes side-by-side on wider screens ───────────────────────── */
+@media (min-width: 1200px) {
+  .matrix-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+  }
+
+  .matrix-section > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .matrix-route-block {
+    margin-bottom: 0;
+  }
+}
+
 /* ───── Matrix Tooltip (instant hover) ───────────────────────────────────── */
 #matrix-tooltip {
-  position: absolute;
+  position: fixed;
   background-color: #333333;
   color: #ffffff;
   padding: 8px 12px;
