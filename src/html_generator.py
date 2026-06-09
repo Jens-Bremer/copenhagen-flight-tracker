@@ -965,12 +965,15 @@ def build_airline_matrix(rows: list[dict]) -> dict:
                     abs_index = abs(index)
                     if abs_index <= 0.01:
                         category = "no"
-                    elif abs_index <= 0.05:
-                        category = "low"
-                    elif abs_index <= 0.15:
-                        category = "med"
                     else:
-                        category = "high"
+                        direction = "cheap" if index < 0 else "expensive"
+                        if abs_index <= 0.05:
+                            magnitude = "low"
+                        elif abs_index <= 0.15:
+                            magnitude = "med"
+                        else:
+                            magnitude = "high"
+                        category = f"{direction}-{magnitude}"
                     day_cells[buy_name] = {
                         "category": category,
                         "index": round(index, 4),

@@ -2588,15 +2588,15 @@ class TestBuildAirlineMatrix:
         assert matrix["Friday"]["Tuesday"] is not None  # 3 obs
 
     def test_category_bucketing(self):
-        """Relative index is bucketed into no/low/med/high correctly."""
+        """Relative index is bucketed into direction-aware categories correctly."""
         from src.html_generator import build_airline_matrix
 
         # overall_median = 4760 (9th of 17 sorted values)
-        # Mon: 3x3500 → index ≈ -0.265 → high
-        # Tue: 3x4600 → index ≈ -0.034 → low
-        # Wed: 3x4900 → index ≈ +0.029 → low
+        # Mon: 3x3500 → index ≈ -0.265 → cheap-high
+        # Tue: 3x4600 → index ≈ -0.034 → cheap-low
+        # Wed: 3x4900 → index ≈ +0.029 → expensive-low
         # Thu: 5x4760 → index = 0.0   → no   (5 obs to push median to 4760)
-        # Fri: 3x6500 → index ≈ +0.366 → high
+        # Fri: 3x6500 → index ≈ +0.366 → expensive-high
         rows = []
         for _ in range(3):
             rows.append(
@@ -2632,11 +2632,11 @@ class TestBuildAirlineMatrix:
         result = build_airline_matrix(rows)
         matrix = result["CPH-AMS"][0]["matrix"]["Friday"]
 
-        assert matrix["Monday"]["category"] == "high"
-        assert matrix["Tuesday"]["category"] == "low"
-        assert matrix["Wednesday"]["category"] == "low"
+        assert matrix["Monday"]["category"] == "cheap-high"
+        assert matrix["Tuesday"]["category"] == "cheap-low"
+        assert matrix["Wednesday"]["category"] == "expensive-low"
         assert matrix["Thursday"]["category"] == "no"
-        assert matrix["Friday"]["category"] == "high"
+        assert matrix["Friday"]["category"] == "expensive-high"
 
     def test_only_fri_sat_sun_travel_days(self):
         """Weekday/Thursday departure rows are excluded from matrix."""
@@ -2738,6 +2738,7 @@ class TestBuildAirlineMatrix:
         from src.html_generator import build_airline_matrix
 
         rows = [
+            # Tuesday-Friday: 9700, 9650, 9700 (median 9700)
             {
                 "airline": "KLM",
                 "origin": "CPH",
@@ -2774,6 +2775,43 @@ class TestBuildAirlineMatrix:
                 "duration_minutes": 120,
                 "price_currency": "EUR",
             },
+            # Monday-Friday: 10000, 10000, 10000 (establishes overall_median=10000)
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 1, 10, 0, tzinfo=timezone.utc),  # Monday
+                "departure_date": "2026-06-05",  # Friday
+                "price_cents": 10000,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 1, 10, 0, tzinfo=timezone.utc),
+                "departure_date": "2026-06-05",
+                "price_cents": 10000,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 1, 10, 0, tzinfo=timezone.utc),
+                "departure_date": "2026-06-05",
+                "price_cents": 10000,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
         ]
         result = build_airline_matrix(rows)
         cell = result["CPH-AMS"][0]["matrix"]["Friday"]["Tuesday"]
@@ -2786,6 +2824,7 @@ class TestBuildAirlineMatrix:
         from src.html_generator import build_airline_matrix
 
         rows = [
+            # Tuesday-Friday: 10800, 10800, 10800 (median 10800)
             {
                 "airline": "KLM",
                 "origin": "CPH",
@@ -2804,7 +2843,7 @@ class TestBuildAirlineMatrix:
                 "destination": "AMS",
                 "retrieved_at": datetime(2026, 6, 2, 10, 0, tzinfo=timezone.utc),
                 "departure_date": "2026-06-05",
-                "price_cents": 10900,
+                "price_cents": 10800,
                 "departure_at": datetime(2026, 6, 5, 10, 0),
                 "arrival_at": datetime(2026, 6, 5, 12, 0),
                 "duration_minutes": 120,
@@ -2822,6 +2861,55 @@ class TestBuildAirlineMatrix:
                 "duration_minutes": 120,
                 "price_currency": "EUR",
             },
+            # Other cells with 10000 to establish overall_median=10000
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 1, 10, 0, tzinfo=timezone.utc),  # Monday
+                "departure_date": "2026-06-05",  # Friday
+                "price_cents": 10000,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 1, 10, 0, tzinfo=timezone.utc),
+                "departure_date": "2026-06-05",
+                "price_cents": 10000,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 1, 10, 0, tzinfo=timezone.utc),
+                "departure_date": "2026-06-05",
+                "price_cents": 10000,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 3, 10, 0, tzinfo=timezone.utc),  # Wednesday
+                "departure_date": "2026-06-05",  # Friday
+                "price_cents": 10000,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
         ]
         result = build_airline_matrix(rows)
         cell = result["CPH-AMS"][0]["matrix"]["Friday"]["Tuesday"]
@@ -2830,17 +2918,18 @@ class TestBuildAirlineMatrix:
         assert cell["index"] > 0
 
     def test_cheap_high_category(self):
-        """Negative index > -0.15 should produce cheap-high category."""
+        """Negative index < -0.15 should produce cheap-high category."""
         from src.html_generator import build_airline_matrix
 
         rows = [
+            # Tuesday-Friday: 8400, 8400, 8400 (median 8400)
             {
                 "airline": "KLM",
                 "origin": "CPH",
                 "destination": "AMS",
                 "retrieved_at": datetime(2026, 6, 2, 10, 0, tzinfo=timezone.utc),
                 "departure_date": "2026-06-05",
-                "price_cents": 8500,
+                "price_cents": 8400,
                 "departure_at": datetime(2026, 6, 5, 10, 0),
                 "arrival_at": datetime(2026, 6, 5, 12, 0),
                 "duration_minutes": 120,
@@ -2852,7 +2941,7 @@ class TestBuildAirlineMatrix:
                 "destination": "AMS",
                 "retrieved_at": datetime(2026, 6, 2, 10, 0, tzinfo=timezone.utc),
                 "departure_date": "2026-06-05",
-                "price_cents": 8600,
+                "price_cents": 8400,
                 "departure_at": datetime(2026, 6, 5, 10, 0),
                 "arrival_at": datetime(2026, 6, 5, 12, 0),
                 "duration_minutes": 120,
@@ -2864,7 +2953,56 @@ class TestBuildAirlineMatrix:
                 "destination": "AMS",
                 "retrieved_at": datetime(2026, 6, 2, 10, 0, tzinfo=timezone.utc),
                 "departure_date": "2026-06-05",
-                "price_cents": 8550,
+                "price_cents": 8400,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+            # Other cells with 10000 to establish overall_median=10000
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 1, 10, 0, tzinfo=timezone.utc),  # Monday
+                "departure_date": "2026-06-05",  # Friday
+                "price_cents": 10000,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 1, 10, 0, tzinfo=timezone.utc),
+                "departure_date": "2026-06-05",
+                "price_cents": 10000,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 1, 10, 0, tzinfo=timezone.utc),
+                "departure_date": "2026-06-05",
+                "price_cents": 10000,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 3, 10, 0, tzinfo=timezone.utc),  # Wednesday
+                "departure_date": "2026-06-05",  # Friday
+                "price_cents": 10000,
                 "departure_at": datetime(2026, 6, 5, 10, 0),
                 "arrival_at": datetime(2026, 6, 5, 12, 0),
                 "duration_minutes": 120,
@@ -2882,13 +3020,14 @@ class TestBuildAirlineMatrix:
         from src.html_generator import build_airline_matrix
 
         rows = [
+            # Tuesday-Friday: 11600, 11600, 11600 (median 11600)
             {
                 "airline": "KLM",
                 "origin": "CPH",
                 "destination": "AMS",
                 "retrieved_at": datetime(2026, 6, 2, 10, 0, tzinfo=timezone.utc),
                 "departure_date": "2026-06-05",
-                "price_cents": 11500,
+                "price_cents": 11600,
                 "departure_at": datetime(2026, 6, 5, 10, 0),
                 "arrival_at": datetime(2026, 6, 5, 12, 0),
                 "duration_minutes": 120,
@@ -2912,7 +3051,56 @@ class TestBuildAirlineMatrix:
                 "destination": "AMS",
                 "retrieved_at": datetime(2026, 6, 2, 10, 0, tzinfo=timezone.utc),
                 "departure_date": "2026-06-05",
-                "price_cents": 11500,
+                "price_cents": 11600,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+            # Other cells with 10000 to establish overall_median=10000
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 1, 10, 0, tzinfo=timezone.utc),  # Monday
+                "departure_date": "2026-06-05",  # Friday
+                "price_cents": 10000,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 1, 10, 0, tzinfo=timezone.utc),
+                "departure_date": "2026-06-05",
+                "price_cents": 10000,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 1, 10, 0, tzinfo=timezone.utc),
+                "departure_date": "2026-06-05",
+                "price_cents": 10000,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 3, 10, 0, tzinfo=timezone.utc),  # Wednesday
+                "departure_date": "2026-06-05",  # Friday
+                "price_cents": 10000,
                 "departure_at": datetime(2026, 6, 5, 10, 0),
                 "arrival_at": datetime(2026, 6, 5, 12, 0),
                 "duration_minutes": 120,
