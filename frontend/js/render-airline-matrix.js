@@ -3,24 +3,33 @@
 // Reads DATA_AIRLINE_MATRIX JSON blob embedded in the page.
 
 const MATRIX_CATEGORY_COLOR = {
-  no:   '#e8e8e8',
-  low:  '#fde4a3',
-  med:  '#fdaa4f',
-  high: '#c23c2a',
+  no:              '#e8e8e8',  // gray (neutral)
+  'cheap-low':     '#c8e6c9',  // light green
+  'cheap-med':     '#66bb6a',  // medium green
+  'cheap-high':    '#2e7d32',  // dark green
+  'expensive-low':  '#ffccbc', // light coral
+  'expensive-med':  '#ff7043', // medium orange-red
+  'expensive-high': '#c62828', // dark red
 };
 
 const MATRIX_CATEGORY_LABEL = {
-  no:   'No',
-  low:  'Low',
-  med:  'Med',
-  high: 'High',
+  no:              'No',
+  'cheap-low':     'Low',
+  'cheap-med':     'Med',
+  'cheap-high':    'High',
+  'expensive-low':  'Low',
+  'expensive-med':  'Med',
+  'expensive-high': 'High',
 };
 
 const MATRIX_CATEGORY_DESCRIPTION = {
-  no:   'No meaningful seasonality (≤1%)',
-  low:  'Weak seasonality (1–5%)',
-  med:  'Moderate seasonality (5–15%)',
-  high: 'Strong seasonality (>15%)',
+  no:              'No meaningful seasonality (≤1%)',
+  'cheap-low':     'Weak cheap season (1–5% below average)',
+  'cheap-med':     'Moderate cheap season (5–15% below average)',
+  'cheap-high':    'Strong cheap season (>15% below average)',
+  'expensive-low':  'Weak expensive season (1–5% above average)',
+  'expensive-med':  'Moderate expensive season (5–15% above average)',
+  'expensive-high': 'Strong expensive season (>15% above average)',
 };
 
 const MATRIX_TRAVEL_DAYS = ['Friday', 'Saturday', 'Sunday'];
@@ -93,7 +102,7 @@ function _matrixBuildTable(matrix) {
       } else {
         td.className = 'matrix-cell';
         td.style.backgroundColor = MATRIX_CATEGORY_COLOR[cell.category];
-        if (cell.category === 'high') td.style.color = '#fff';
+        if (cell.category === 'expensive-high') { td.style.color = '#fff'; }
         td.textContent = MATRIX_CATEGORY_LABEL[cell.category];
       }
 
