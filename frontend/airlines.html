@@ -1770,16 +1770,10 @@ function _matrixFormatIndex(index) {
 
 function _matrixBuildTooltip(buyDay, travelDay, cell) {
   if (!cell) return `Buy ${buyDay} → fly ${travelDay}\nNo data (<3 observations)`;
-  const direction = cell.index > 0.01
-    ? 'more expensive'
-    : cell.index < -0.01
-    ? 'cheaper'
-    : 'about average';
   return [
     `Buy ${buyDay} → fly ${travelDay}`,
     `Relative index: ${_matrixFormatIndex(cell.index)}`,
     `Observations: ${cell.n}`,
-    `Interpretation: ${MATRIX_CATEGORY_DESCRIPTION[cell.category]} — ${direction} than average`,
   ].join('\n');
 }
 
