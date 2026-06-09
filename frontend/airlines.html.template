@@ -22,11 +22,18 @@
       <div class="chart-wrap"><canvas id="airline-trend-out" role="img" aria-label="CPH to AMS price trends by airline"></canvas></div>
       <div class="chart-wrap"><canvas id="airline-trend-back" role="img" aria-label="AMS to CPH price trends by airline"></canvas></div>
     </section>
+
+    <section class="panel matrix-section" aria-label="Weekly seasonality matrix">
+      <h2 class="panel__heading">Weekly Seasonality Matrix</h2>
+      <p class="panel__subtitle">Relative price by day-of-week you buy vs. target travel day (Fri / Sat / Sun). Based on all historical observations.</p>
+      <div id="airline-matrix-container"></div>
+    </section>
   </main>
 
   ${INLINE_FOOTER}
 
   <script type="application/json" id="DATA_AIRLINE_TRENDS">${DATA_AIRLINE_TRENDS}</script>
+  <script type="application/json" id="DATA_AIRLINE_MATRIX">${DATA_AIRLINE_MATRIX}</script>
   <div id="data-load-error" style="display:none;position:fixed;inset:0;z-index:9999;background:#fff3cd;color:#856404;padding:2rem;font-family:sans-serif;font-size:1.1rem;"></div>
 
   <script>${INLINE_CHART_JS}</script>
@@ -40,6 +47,11 @@
         console.error('Failed to render airline trends:', e);
         document.getElementById('data-load-error').textContent = 'Failed to render airline trends. See console for details.';
         document.getElementById('data-load-error').style.display = 'block';
+      }
+      try {
+        renderAirlineMatrix();
+      } catch (e) {
+        console.error('Failed to render airline matrix:', e);
       }
     });
   </script>
