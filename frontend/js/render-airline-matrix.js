@@ -106,7 +106,15 @@ function _matrixBuildTable(matrix) {
         td.textContent = MATRIX_CATEGORY_LABEL[cell.category];
       }
 
-      td.title = _matrixBuildTooltip(buyDay, travelDay, cell || null);
+      // Instant tooltip on hover (no title attribute delay)
+      const tooltipText = _matrixBuildTooltip(buyDay, travelDay, cell || null);
+      td.addEventListener('mouseenter', function() {
+        _showTooltip(tooltipText, this);
+      });
+      td.addEventListener('mouseleave', function() {
+        _hideTooltip();
+      });
+
       row.appendChild(td);
     }
   }
