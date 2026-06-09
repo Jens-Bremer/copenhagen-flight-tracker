@@ -53,6 +53,7 @@ JS_FILE_ORDER_AIRLINES = [
     "utils.js",
     "data.js",
     "charts.js",
+    "render-airline-matrix.js",
     "render-airline-trends.js",
 ]
 
@@ -872,6 +873,127 @@ def build_airline_trends(rows: list[dict]) -> dict:
     return result
 
 
+def build_airline_matrix(rows: list[dict]) -> dict:
+    """
+    Build weekly seasonality matrix per airline/route.
+
+    For each (airline, route), compute relative price index per cell
+    (buy_weekday x travel_weekday) where travel_weekday is Fri/Sat/Sun only.
+
+    Args:
+        rows: Observations with keys: airline, origin, destination, retrieved_at,
+            departure_date, price_cents
+
+    Returns:
+        {
+          "CPH-AMS": [
+            {
+              "airline": "KLM",
+              "color": "#00A1DE",
+              "matrix": {
+                "Friday": {
+                  "Monday": {"category": "low", "index": -0.032, "n": 8},
+                  "Tuesday": None,
+                  ...
+                },
+                "Saturday": { ... },
+                "Sunday": { ... }
+              }
+            },
+            ...
+          ],
+          "AMS-CPH": [ ... ]
+        }
+
+        Cell is None when fewer than 3 observations.
+    """
+    import statistics
+
+    TRAVEL_DAYS = {4: "Friday", 5: "Saturday", 6: "Sunday"}
+    BUY_DAY_NAMES = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+    ]
+
+    # Group prices by (route, airline, buy_weekday, travel_weekday)
+    grouped: dict = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    )
+    for row in rows:
+        dep_weekday = date_type.fromisoformat(row["departure_date"]).weekday()
+        if dep_weekday not in TRAVEL_DAYS:
+            continue
+        route = _route_key(row)
+        airline = row["airline"]
+        buy_weekday = row["retrieved_at"].weekday()
+        grouped[route][airline][buy_weekday][dep_weekday].append(row["price_cents"])
+
+    result: dict = {}
+    for route in sorted(grouped.keys()):
+        airlines_data = []
+        for airline in sorted(grouped[route].keys()):
+            buy_day_map = grouped[route][airline]
+
+            # Collect all prices for overall median
+            all_prices = [
+                p
+                for buy_prices in buy_day_map.values()
+                for cell_prices in buy_prices.values()
+                for p in cell_prices
+            ]
+            if len(all_prices) < 3:
+                continue
+
+            overall_median = statistics.median(all_prices)
+
+            matrix: dict = {}
+            for travel_name in TRAVEL_DAYS.values():
+                travel_wd = next(k for k, v in TRAVEL_DAYS.items() if v == travel_name)
+                day_cells: dict = {}
+                for buy_wd, buy_name in enumerate(BUY_DAY_NAMES):
+                    prices = buy_day_map.get(buy_wd, {}).get(travel_wd, [])
+                    if len(prices) < 3:
+                        day_cells[buy_name] = None
+                        continue
+                    cell_median = statistics.median(prices)
+                    index = (cell_median - overall_median) / overall_median
+                    abs_index = abs(index)
+                    if abs_index <= 0.01:
+                        category = "no"
+                    else:
+                        direction = "cheap" if index < 0 else "expensive"
+                        if abs_index <= 0.05:
+                            magnitude = "low"
+                        elif abs_index <= 0.15:
+                            magnitude = "med"
+                        else:
+                            magnitude = "high"
+                        category = f"{direction}-{magnitude}"
+                    day_cells[buy_name] = {
+                        "category": category,
+                        "index": round(index, 4),
+                        "n": len(prices),
+                    }
+                matrix[travel_name] = day_cells
+
+            airlines_data.append(
+                {
+                    "airline": airline,
+                    "color": get_airline_color(airline),
+                    "matrix": matrix,
+                }
+            )
+
+        result[route] = airlines_data
+
+    return result
+
+
 def get_airline_color(airline: str) -> str:
     """
     Get colour for airline from locked AIRLINE_COLORS, or deterministic hash fallback.
@@ -913,6 +1035,7 @@ def render_html(
     analysis: dict[str, Any],
     summary: dict[str, Any],
     airline_trends: dict[str, Any] | None = None,
+    airline_matrix: dict[str, Any] | None = None,
     inline_data: bool = False,
 ) -> tuple[str, str]:
     """Inline assets + JSON blobs into templates. Returns (index_html, airlines_html).
@@ -928,6 +1051,8 @@ def render_html(
     """
     if airline_trends is None:
         airline_trends = {}
+    if airline_matrix is None:
+        airline_matrix = {}
 
     template = _read_text(TEMPLATE_PATH)
     styles = _read_text(STYLES_PATH)
@@ -936,7 +1061,8 @@ def render_html(
     boxplot_js = _read_text(BOXPLOT_JS_PATH)
     app_js = _build_app_js()
     app_js_airlines = _build_app_js(
-        JS_FILE_ORDER_AIRLINES, expose_functions=["renderAirlineTrends"]
+        JS_FILE_ORDER_AIRLINES,
+        expose_functions=["renderAirlineMatrix", "renderAirlineTrends"],
     )
 
     # Load header, footer
@@ -951,6 +1077,7 @@ def render_html(
         data_analysis = _safe_json(analysis)
         data_summary = _safe_json(summary)
         data_airline_trends = _safe_json(airline_trends)
+        data_airline_matrix = _safe_json(airline_matrix)
     else:
         data_metadata = ""
         data_calendar = ""
@@ -958,6 +1085,7 @@ def render_html(
         data_analysis = ""
         data_summary = ""
         data_airline_trends = ""
+        data_airline_matrix = ""
 
     # Render index.html
     index_html = string.Template(template).safe_substitute(
@@ -984,6 +1112,7 @@ def render_html(
         INLINE_APP_JS=app_js_airlines,
         RENDER_AIRLINE_TRENDS="",
         DATA_AIRLINE_TRENDS=data_airline_trends,
+        DATA_AIRLINE_MATRIX=data_airline_matrix,
     )
 
     return index_html, airlines_html
@@ -1006,6 +1135,7 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
     analysis = build_analysis(rows)
     summary = build_summary(rows)
     airline_trends = build_airline_trends(rows)
+    airline_matrix = build_airline_matrix(rows)
 
     if not inline_data:
         # Write the five blobs to data.json in the same directory as output_path
@@ -1016,6 +1146,7 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
             "analysis": analysis,
             "summary": summary,
             "airline_trends": airline_trends,
+            "airline_matrix": airline_matrix,
         }
         data_json_path = Path(output_path).parent / "data.json"
         data_json_path.write_text(
@@ -1029,6 +1160,7 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
         analysis=analysis,
         summary=summary,
         airline_trends=airline_trends,
+        airline_matrix=airline_matrix,
         inline_data=inline_data,
     )
     Path(output_path).write_text(index_html, encoding="utf-8")

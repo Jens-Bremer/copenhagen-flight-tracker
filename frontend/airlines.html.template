@@ -22,11 +22,35 @@
       <div class="chart-wrap"><canvas id="airline-trend-out" role="img" aria-label="CPH to AMS price trends by airline"></canvas></div>
       <div class="chart-wrap"><canvas id="airline-trend-back" role="img" aria-label="AMS to CPH price trends by airline"></canvas></div>
     </section>
+
+    <section class="panel matrix-section" aria-label="Weekly seasonality matrix">
+      <h2 class="panel__heading">Weekly Seasonality Matrix</h2>
+      <p class="panel__subtitle">Does the day of the week you buy matter? This matrix shows whether buying on a given weekday is historically cheaper or pricier for Friday, Saturday, or Sunday flights — compared to that airline's average price on the route.</p>
+
+      <div class="matrix-explainer">
+        <p class="matrix-explainer__how-to-read">
+          <strong>How to read:</strong> Select an airline, then find the row for the day you plan to buy and the column for your departure day.
+          The cell colour shows how much prices on that combination differ from average. <strong>High</strong> means a strong difference (&gt;15%) —
+          hover the cell to see whether it's cheaper or more expensive. <strong>No</strong> means no meaningful pattern.
+          A <strong>High</strong> cell in a cheap direction = good day to buy. A <strong>High</strong> cell in an expensive direction = avoid that day.
+        </p>
+        <div class="matrix-explainer__legend">
+          <span class="matrix-legend-item"><span class="matrix-legend-swatch" style="background:#c23c2a;"></span><strong>High</strong> &gt;15% difference</span>
+          <span class="matrix-legend-item"><span class="matrix-legend-swatch" style="background:#fdaa4f;"></span><strong>Med</strong> 5–15%</span>
+          <span class="matrix-legend-item"><span class="matrix-legend-swatch" style="background:#fde4a3;"></span><strong>Low</strong> 1–5%</span>
+          <span class="matrix-legend-item"><span class="matrix-legend-swatch" style="background:#e8e8e8;"></span><strong>No</strong> ≤1%, no pattern</span>
+          <span class="matrix-legend-item"><span class="matrix-legend-swatch matrix-legend-swatch--empty">·</span>not enough data</span>
+        </div>
+      </div>
+
+      <div id="airline-matrix-container"></div>
+    </section>
   </main>
 
   ${INLINE_FOOTER}
 
   <script type="application/json" id="DATA_AIRLINE_TRENDS">${DATA_AIRLINE_TRENDS}</script>
+  <script type="application/json" id="DATA_AIRLINE_MATRIX">${DATA_AIRLINE_MATRIX}</script>
   <div id="data-load-error" style="display:none;position:fixed;inset:0;z-index:9999;background:#fff3cd;color:#856404;padding:2rem;font-family:sans-serif;font-size:1.1rem;"></div>
 
   <script>${INLINE_CHART_JS}</script>
@@ -40,6 +64,11 @@
         console.error('Failed to render airline trends:', e);
         document.getElementById('data-load-error').textContent = 'Failed to render airline trends. See console for details.';
         document.getElementById('data-load-error').style.display = 'block';
+      }
+      try {
+        renderAirlineMatrix();
+      } catch (e) {
+        console.error('Failed to render airline matrix:', e);
       }
     });
   </script>
