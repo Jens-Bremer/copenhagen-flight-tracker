@@ -173,6 +173,31 @@ function _matrixBuildRouteBlock(route, airlines) {
   return block;
 }
 
+function _showTooltip(text, cellElement) {
+  const tooltip = document.getElementById('matrix-tooltip');
+  if (!tooltip) return;
+
+  tooltip.textContent = text;
+  tooltip.classList.add('visible');
+
+  // Position below the cell
+  const rect = cellElement.getBoundingClientRect();
+  const tooltipHeight = tooltip.offsetHeight;
+
+  // Calculate position: centered horizontally on cell, below it
+  const left = rect.left + (rect.width / 2) - (tooltip.offsetWidth / 2);
+  const top = rect.bottom + 8; // 8px gap below cell
+
+  tooltip.style.left = left + 'px';
+  tooltip.style.top = top + 'px';
+}
+
+function _hideTooltip() {
+  const tooltip = document.getElementById('matrix-tooltip');
+  if (!tooltip) return;
+  tooltip.classList.remove('visible');
+}
+
 function renderAirlineMatrix() {
   const container = document.getElementById('airline-matrix-container');
   if (!container) return;
