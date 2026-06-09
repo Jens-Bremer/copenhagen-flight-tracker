@@ -50,11 +50,23 @@ function _matrixBuildTable(matrix) {
   const table = document.createElement('table');
   table.className = 'matrix-table';
 
-  // Header row
+  // Axis label row: "Departure day →" spanning the 3 travel-day columns
   const thead = table.createTHead();
+  const axisRow = thead.insertRow();
+  const axisCorner = document.createElement('th');
+  axisRow.appendChild(axisCorner);
+  const axisTh = document.createElement('th');
+  axisTh.colSpan = MATRIX_TRAVEL_DAYS.length;
+  axisTh.textContent = 'Departure day →';
+  axisTh.className = 'matrix-axis-label';
+  axisRow.appendChild(axisTh);
+
+  // Header row: corner = "Buy day ↓", then one TH per travel day
   const headerRow = thead.insertRow();
-  const emptyTh = document.createElement('th');
-  headerRow.appendChild(emptyTh);
+  const cornerTh = document.createElement('th');
+  cornerTh.textContent = 'Buy day ↓';
+  cornerTh.className = 'matrix-corner-label';
+  headerRow.appendChild(cornerTh);
   for (const travelDay of MATRIX_TRAVEL_DAYS) {
     const th = document.createElement('th');
     th.textContent = travelDay;

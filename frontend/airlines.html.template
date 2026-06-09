@@ -25,7 +25,24 @@
 
     <section class="panel matrix-section" aria-label="Weekly seasonality matrix">
       <h2 class="panel__heading">Weekly Seasonality Matrix</h2>
-      <p class="panel__subtitle">Relative price by day-of-week you buy vs. target travel day (Fri / Sat / Sun). Based on all historical observations.</p>
+      <p class="panel__subtitle">Does the day of the week you buy matter? This matrix shows whether buying on a given weekday is historically cheaper or pricier for Friday, Saturday, or Sunday flights — compared to that airline's average price on the route.</p>
+
+      <div class="matrix-explainer">
+        <p class="matrix-explainer__how-to-read">
+          <strong>How to read:</strong> Select an airline, then find the row for the day you plan to buy and the column for your departure day.
+          The cell colour shows how much prices on that combination differ from average. <strong>High</strong> means a strong difference (&gt;15%) —
+          hover the cell to see whether it's cheaper or more expensive. <strong>No</strong> means no meaningful pattern.
+          A <strong>High</strong> cell in a cheap direction = good day to buy. A <strong>High</strong> cell in an expensive direction = avoid that day.
+        </p>
+        <div class="matrix-explainer__legend">
+          <span class="matrix-legend-item"><span class="matrix-legend-swatch" style="background:#c23c2a;"></span><strong>High</strong> &gt;15% difference</span>
+          <span class="matrix-legend-item"><span class="matrix-legend-swatch" style="background:#fdaa4f;"></span><strong>Med</strong> 5–15%</span>
+          <span class="matrix-legend-item"><span class="matrix-legend-swatch" style="background:#fde4a3;"></span><strong>Low</strong> 1–5%</span>
+          <span class="matrix-legend-item"><span class="matrix-legend-swatch" style="background:#e8e8e8;"></span><strong>No</strong> ≤1%, no pattern</span>
+          <span class="matrix-legend-item"><span class="matrix-legend-swatch matrix-legend-swatch--empty">·</span>not enough data</span>
+        </div>
+      </div>
+
       <div id="airline-matrix-container"></div>
     </section>
   </main>

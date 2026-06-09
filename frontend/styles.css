@@ -572,3 +572,70 @@ body, .panel, .pairs-table, .calendar, .hero-card, .verdict-card {
   padding-right: 8px;
   white-space: nowrap;
 }
+
+/* ─── Matrix explainer & legend ──────────────────────────────────────────── */
+
+.matrix-explainer {
+  margin-bottom: 1.5rem;
+  padding: 0.9rem 1rem;
+  background: #f7f4ee;
+  border-radius: 6px;
+  border-left: 3px solid #d4a853;
+}
+
+.matrix-explainer__how-to-read {
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: #444;
+  margin: 0 0 0.75rem;
+}
+
+.matrix-explainer__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+}
+
+.matrix-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: #444;
+}
+
+.matrix-legend-swatch {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  border: 1px solid rgba(0,0,0,0.08);
+}
+
+.matrix-legend-swatch--empty {
+  background: #f0f0f0;
+  color: #bbb;
+  font-size: 0.75rem;
+  text-align: center;
+  line-height: 16px;
+}
+
+/* ─── Matrix axis labels ─────────────────────────────────────────────────── */
+
+.matrix-axis-label {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #999;
+  text-align: center;
+  padding-bottom: 2px;
+  letter-spacing: 0.01em;
+}
+
+.matrix-corner-label {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: #999;
+  text-align: left;
+  white-space: nowrap;
+}
