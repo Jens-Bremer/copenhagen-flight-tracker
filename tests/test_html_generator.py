@@ -2732,3 +2732,195 @@ class TestBuildAirlineMatrix:
         assert matrix["Sunday"]["Monday"]["n"] == 3
         # Friday flights not polluted by Saturday/Sunday obs
         assert matrix["Friday"]["Monday"] is None
+
+    def test_cheap_low_category(self):
+        """Negative index -0.03 should produce cheap-low category."""
+        from src.html_generator import build_airline_matrix
+
+        rows = [
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 2, 10, 0, tzinfo=timezone.utc),  # Tuesday
+                "departure_date": "2026-06-05",  # Friday
+                "price_cents": 9700,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 2, 10, 0, tzinfo=timezone.utc),
+                "departure_date": "2026-06-05",
+                "price_cents": 9650,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 2, 10, 0, tzinfo=timezone.utc),
+                "departure_date": "2026-06-05",
+                "price_cents": 9700,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+        ]
+        result = build_airline_matrix(rows)
+        cell = result["CPH-AMS"][0]["matrix"]["Friday"]["Tuesday"]
+        assert cell is not None
+        assert cell["category"] == "cheap-low"
+        assert cell["index"] < 0
+
+    def test_expensive_med_category(self):
+        """Positive index +0.08 should produce expensive-med category."""
+        from src.html_generator import build_airline_matrix
+
+        rows = [
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 2, 10, 0, tzinfo=timezone.utc),  # Tuesday
+                "departure_date": "2026-06-05",  # Friday
+                "price_cents": 10800,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 2, 10, 0, tzinfo=timezone.utc),
+                "departure_date": "2026-06-05",
+                "price_cents": 10900,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 2, 10, 0, tzinfo=timezone.utc),
+                "departure_date": "2026-06-05",
+                "price_cents": 10800,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+        ]
+        result = build_airline_matrix(rows)
+        cell = result["CPH-AMS"][0]["matrix"]["Friday"]["Tuesday"]
+        assert cell is not None
+        assert cell["category"] == "expensive-med"
+        assert cell["index"] > 0
+
+    def test_cheap_high_category(self):
+        """Negative index > -0.15 should produce cheap-high category."""
+        from src.html_generator import build_airline_matrix
+
+        rows = [
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 2, 10, 0, tzinfo=timezone.utc),
+                "departure_date": "2026-06-05",
+                "price_cents": 8500,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 2, 10, 0, tzinfo=timezone.utc),
+                "departure_date": "2026-06-05",
+                "price_cents": 8600,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 2, 10, 0, tzinfo=timezone.utc),
+                "departure_date": "2026-06-05",
+                "price_cents": 8550,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+        ]
+        result = build_airline_matrix(rows)
+        cell = result["CPH-AMS"][0]["matrix"]["Friday"]["Tuesday"]
+        assert cell is not None
+        assert cell["category"] == "cheap-high"
+        assert cell["index"] < -0.15
+
+    def test_expensive_high_category(self):
+        """Positive index > +0.15 should produce expensive-high category."""
+        from src.html_generator import build_airline_matrix
+
+        rows = [
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 2, 10, 0, tzinfo=timezone.utc),
+                "departure_date": "2026-06-05",
+                "price_cents": 11500,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 2, 10, 0, tzinfo=timezone.utc),
+                "departure_date": "2026-06-05",
+                "price_cents": 11600,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+            {
+                "airline": "KLM",
+                "origin": "CPH",
+                "destination": "AMS",
+                "retrieved_at": datetime(2026, 6, 2, 10, 0, tzinfo=timezone.utc),
+                "departure_date": "2026-06-05",
+                "price_cents": 11500,
+                "departure_at": datetime(2026, 6, 5, 10, 0),
+                "arrival_at": datetime(2026, 6, 5, 12, 0),
+                "duration_minutes": 120,
+                "price_currency": "EUR",
+            },
+        ]
+        result = build_airline_matrix(rows)
+        cell = result["CPH-AMS"][0]["matrix"]["Friday"]["Tuesday"]
+        assert cell is not None
+        assert cell["category"] == "expensive-high"
+        assert cell["index"] > 0.15
