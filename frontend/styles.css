@@ -476,3 +476,99 @@ a, a:visited {
 body, .panel, .pairs-table, .calendar, .hero-card, .verdict-card {
   -webkit-text-fill-color: currentColor;
 }
+
+/* ─── Airline Seasonality Matrix ─────────────────────────────────────────── */
+
+.matrix-section {
+  margin-top: 2rem;
+}
+
+.matrix-route-block {
+  margin-bottom: 2.5rem;
+}
+
+.matrix-route-block h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: var(--color-text, #1a1a1a);
+}
+
+.airline-selector-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.airline-selector-group label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.75rem;
+  border: 1.5px solid #ccc;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  user-select: none;
+}
+
+.airline-selector-group input[type="radio"] {
+  accent-color: #333;
+  width: 13px;
+  height: 13px;
+}
+
+.airline-selector-group label:has(input:checked) {
+  border-color: #333;
+  background: #f0f0f0;
+}
+
+.airline-matrix {
+  overflow-x: auto;
+}
+
+.matrix-table {
+  border-collapse: separate;
+  border-spacing: 3px;
+  font-size: 0.75rem;
+}
+
+.matrix-table th {
+  font-weight: 600;
+  font-size: 0.75rem;
+  padding: 0 6px 6px;
+  text-align: center;
+  color: #555;
+}
+
+.matrix-table th:first-child {
+  text-align: left;
+  min-width: 80px;
+}
+
+.matrix-cell {
+  width: 52px;
+  height: 40px;
+  text-align: center;
+  vertical-align: middle;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: default;
+}
+
+.matrix-cell--empty {
+  background: #f0f0f0;
+  color: #bbb;
+  font-size: 0.65rem;
+}
+
+.matrix-buy-label {
+  font-size: 0.75rem;
+  color: #555;
+  padding-right: 8px;
+  white-space: nowrap;
+}
