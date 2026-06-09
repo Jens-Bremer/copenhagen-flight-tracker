@@ -183,6 +183,15 @@ function renderAirlineMatrix() {
   const text = blob.textContent.trim();
   if (!text) return;
 
+  // ─── Create tooltip element ───────────────────────────────────────────────
+  let tooltip = document.getElementById('matrix-tooltip');
+  if (!tooltip) {
+    tooltip = document.createElement('div');
+    tooltip.id = 'matrix-tooltip';
+    document.body.appendChild(tooltip);
+  }
+  // ───────────────────────────────────────────────────────────────────────────
+
   let data;
   try {
     data = JSON.parse(text);
