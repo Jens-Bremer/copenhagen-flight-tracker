@@ -836,8 +836,10 @@ def build_health(generated_at: datetime) -> dict[str, Any]:
                 health["health_status"] = "critical"
 
             # Check if there are active blocks (bot challenge or rate limit)
-            if health["failures_by_kind"].get("bot_challenge", 0) > 0 or \
-               health["failures_by_kind"].get("rate_limited", 0) > 0:
+            if (
+                health["failures_by_kind"].get("bot_challenge", 0) > 0
+                or health["failures_by_kind"].get("rate_limited", 0) > 0
+            ):
                 health["health_status"] = "blocked"
 
             # Calculate hours since last run
