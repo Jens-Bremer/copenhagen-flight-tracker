@@ -842,8 +842,23 @@ def build_health(generated_at: datetime) -> dict[str, Any]:
             ):
                 health["health_status"] = "blocked"
 
-            # Calculate hours since last run
-            if health["last_run"]:
+            # Calculate hours since last run. Prefer the precise
+            # `completed_at` (aware UTC ISO-8601) written by run_daily; fall
+            # back to `run_date` (date-only, midnight UTC) only for old
+            # heartbeats written before completed_at existed.
+            completed_at = heartbeat.get("completed_at")
+            if completed_at:
+                try:
+                    last_run_dt = datetime.fromisoformat(completed_at)
+                    if last_run_dt.tzinfo is None:
+                        last_run_dt = last_run_dt.replace(tzinfo=timezone.utc)
+                    delta = generated_at - last_run_dt
+                    health["hours_since_last_run"] = round(
+                        delta.total_seconds() / 3600, 1
+                    )
+                except (ValueError, TypeError):
+                    pass
+            elif health["last_run"]:
                 try:
                     last_run_date = datetime.fromisoformat(health["last_run"])
                     if last_run_date.tzinfo is None:
