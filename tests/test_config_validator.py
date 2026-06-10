@@ -37,6 +37,7 @@ def _cfg(**overrides):
         "PLAYWRIGHT_BROWSER": "chromium",
         "PLAYWRIGHT_TIMEOUT_MS": 20000,
         "PROXY_SPLIT_RATIO": 0.5,
+        "NTFY_TOPIC": "test-topic",
     }
     base.update(overrides)
     return base
@@ -712,3 +713,25 @@ def test_proxy_split_ratio_rejects_string():
     cfg["PROXY_SPLIT_RATIO"] = "0.5"
     with pytest.raises(ValueError, match="PROXY_SPLIT_RATIO"):
         validate_config(cfg)
+
+
+# --- NTFY_TOPIC ---
+
+
+def test_ntfy_topic_valid_passes():
+    validate_config(_cfg(NTFY_TOPIC="my-topic"))  # must not raise
+
+
+def test_ntfy_topic_empty_string_raises():
+    with pytest.raises(ValueError, match="NTFY_TOPIC"):
+        validate_config(_cfg(NTFY_TOPIC=""))
+
+
+def test_ntfy_topic_none_raises():
+    with pytest.raises(ValueError, match="NTFY_TOPIC"):
+        validate_config(_cfg(NTFY_TOPIC=None))
+
+
+def test_ntfy_topic_non_string_raises():
+    with pytest.raises(ValueError, match="NTFY_TOPIC"):
+        validate_config(_cfg(NTFY_TOPIC=123))

@@ -34,19 +34,19 @@ def test_passes_timeout_to_urlopen(monkeypatch):
     assert mock_open.call_args.kwargs["timeout"] == 10
 
 
-def test_returns_true_silently_when_topic_is_empty(monkeypatch):
+def test_returns_false_when_topic_is_empty(monkeypatch):
     monkeypatch.setattr(config, "NTFY_TOPIC", "")
     with patch("urllib.request.urlopen") as mock_open:
         result = send_alert("title", "message")
-    assert result is True
+    assert result is False
     mock_open.assert_not_called()
 
 
-def test_returns_true_silently_when_topic_is_none(monkeypatch):
+def test_returns_false_when_topic_is_none(monkeypatch):
     monkeypatch.setattr(config, "NTFY_TOPIC", None)
     with patch("urllib.request.urlopen") as mock_open:
         result = send_alert("title", "message")
-    assert result is True
+    assert result is False
     mock_open.assert_not_called()
 
 
