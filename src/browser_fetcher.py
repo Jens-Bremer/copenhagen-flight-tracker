@@ -298,25 +298,20 @@ def reset_last_route_label() -> None:
     _last_route_label = None
 
 
-def browser_fetch(params: dict) -> BrowserResponse:
-    """Navigate to Google Flights via a real headed browser and return the page body.
+def _fetch_via(url: str, use_proxy: bool) -> BrowserResponse:
+    """Fetch ``url`` through the requested context and validate the response.
 
-    Replaces patched_fetch as the transport layer. fast_flights' URL construction
-    and response parsing are unchanged — only the HTTP layer is swapped.
-    Routing decision: randomly choose direct or proxy context based on _proxy_url
-    and PROXY_SPLIT_RATIO. If proxy route fails, retries once on direct context
-    before raising. page.close() is always called via finally so no pages leak.
+    Performs goto, dwell, body extraction, and the full block-detection
+    checks (status code, byte floor, suspicious title). Raises the same
+    typed errors as ``browser_fetch`` itself — NetworkError, RateLimitedError,
+    BotChallengeError, or RuntimeError — so callers can catch any of them and
+    decide whether to fall back to a different route.
     """
-    url = "https://www.google.com/travel/flights?" + urlencode(params)
-
     global _last_route_label
 
-    # Routing decision: 50/50 split if proxy is available
-    use_proxy = _proxy_url is not None and random.random() < config.PROXY_SPLIT_RATIO
     context = _get_context(use_proxy=use_proxy)
-    route_label = "proxy" if use_proxy else "direct"
-    _last_route_label = route_label
-    logger.info("routing via %s", route_label)
+    _last_route_label = "proxy" if use_proxy else "direct"
+    logger.info("routing via %s", _last_route_label)
 
     page = context.new_page()
     try:
@@ -327,25 +322,7 @@ def browser_fetch(params: dict) -> BrowserResponse:
                 wait_until="domcontentloaded",
             )
         except Exception as exc:
-            # If proxy route failed and we started with proxy, retry once on direct
-            if use_proxy:
-                logger.warning(
-                    "Proxy route failed (%s), retrying on direct context", str(exc)
-                )
-                page.close()
-                _last_route_label = "direct"
-                context = _get_context(use_proxy=False)
-                page = context.new_page()
-                try:
-                    response = page.goto(
-                        url,
-                        timeout=config.PLAYWRIGHT_TIMEOUT_MS,
-                        wait_until="domcontentloaded",
-                    )
-                except Exception as exc2:
-                    raise NetworkError(str(exc2)) from exc2
-            else:
-                raise NetworkError(str(exc)) from exc
+            raise NetworkError(str(exc)) from exc
 
         if response is None:
             raise NetworkError("page.goto returned no response")
@@ -398,6 +375,41 @@ def browser_fetch(params: dict) -> BrowserResponse:
             raise BotChallengeError(f"detected pattern in title: {pattern}")
 
     return BrowserResponse(status, body)
+
+
+def browser_fetch(params: dict) -> BrowserResponse:
+    """Navigate to Google Flights via a real headed browser and return the page body.
+
+    Replaces patched_fetch as the transport layer. fast_flights' URL construction
+    and response parsing are unchanged — only the HTTP layer is swapped.
+    Routing decision: randomly choose direct or proxy context based on _proxy_url
+    and PROXY_SPLIT_RATIO.
+
+    If the chosen route was proxy AND it fails for ANY of the recoverable
+    reasons (network failure on goto, blocked body, suspicious title, rate
+    limit), retry once on the direct context. This covers two real-world
+    cases: Squid hiccups (goto raises) and proxy IPs that Google has flagged
+    (returns 200 but with a block page). Direct→proxy fallback is NOT done —
+    if direct sees a block, the local IP is the problem and a proxy retry
+    would just burn the proxy's reputation too.
+    """
+    url = "https://www.google.com/travel/flights?" + urlencode(params)
+
+    # Routing decision: 50/50 split if proxy is available
+    use_proxy = _proxy_url is not None and random.random() < config.PROXY_SPLIT_RATIO
+
+    if not use_proxy:
+        return _fetch_via(url, use_proxy=False)
+
+    try:
+        return _fetch_via(url, use_proxy=True)
+    except (NetworkError, BotChallengeError, RateLimitedError) as exc:
+        logger.warning(
+            "Proxy route failed (%s: %s), retrying on direct context",
+            type(exc).__name__,
+            exc,
+        )
+        return _fetch_via(url, use_proxy=False)
 
 
 def install_browser_patch() -> None:
