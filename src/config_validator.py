@@ -41,6 +41,7 @@ def validate_config(cfg: dict) -> None:
     _check_playwright_browser(cfg.get("PLAYWRIGHT_BROWSER"))
     _check_playwright_timeout_ms(cfg.get("PLAYWRIGHT_TIMEOUT_MS"))
     _check_proxy_split_ratio(cfg.get("PROXY_SPLIT_RATIO"))
+    _check_ntfy_topic(cfg.get("NTFY_TOPIC"))
 
 
 def _check_routes(routes) -> None:
@@ -243,3 +244,8 @@ def _check_proxy_split_ratio(value) -> None:
         raise ValueError(
             "PROXY_SPLIT_RATIO must be a float between 0.0 and 1.0 (inclusive)"
         )
+
+
+def _check_ntfy_topic(value) -> None:
+    if not isinstance(value, str) or value == "":
+        raise ValueError("NTFY_TOPIC must be a non-empty string")
