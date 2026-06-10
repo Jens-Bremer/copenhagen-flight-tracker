@@ -1,21 +1,17 @@
-"""Proxy rotation for flight scraping.
+"""Proxy management for flight scraping.
 
-Loads a proxy list file (format: host:port:username:password)
-and provides round-robin rotation. Each call to ProxyRotator.get_next() returns
-the next proxy URL in the cycle.
+Loads a proxy list file (format: host:port:username:password).
+The scheduler uses a single reliable proxy (no rotation) to avoid
+fingerprint variation that triggers bot detection.
 
 Usage:
-    from src.proxy_manager import load_proxies, ProxyRotator
+    from src.proxy_manager import load_proxies
 
     proxies = load_proxies("data/proxies.txt")
-    rotator = ProxyRotator(proxies)
-
-    proxy = rotator.get_next()  # "http://user:pass@host:port"
+    # proxies[0] is used for requests; single proxy is intentional
 """
 
 import logging
-from itertools import cycle
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -54,31 +50,3 @@ def load_proxies(path: str) -> list[str]:
 
     logger.info("Loaded %d proxies from %s", len(proxies), path)
     return proxies
-
-
-class ProxyRotator:
-    """Round-robin proxy rotator.
-
-    Not thread-safe — designed for the single-threaded scraper loop.
-    Returns None from get_next() if initialized with an empty list
-    (allows graceful fallback to direct connection).
-    """
-
-    def __init__(self, proxies: list[str]):
-        """Create a rotator over an already-parsed list of proxy URLs."""
-        self._proxies = proxies
-        self._cycle = cycle(proxies) if proxies else None
-
-    def get_next(self) -> Optional[str]:
-        """Return the next proxy URL in rotation, or None if no proxies loaded."""
-        if self._cycle is None:
-            return None
-        return next(self._cycle)
-
-    def __len__(self) -> int:
-        """Return the number of proxies in the pool."""
-        return len(self._proxies)
-
-    def __repr__(self) -> str:
-        """Return a concise debug representation."""
-        return f"ProxyRotator(count={len(self._proxies)})"
