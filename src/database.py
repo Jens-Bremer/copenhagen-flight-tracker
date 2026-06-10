@@ -4,6 +4,18 @@ import os
 import sqlite3
 from typing import Optional
 
+# SQLite WAL mode and timeout settings for robustness on Windows
+_WAL_MODE = "WAL"
+_BUSY_TIMEOUT_MS = 5000
+
+
+def _configure_connection(conn: sqlite3.Connection) -> None:
+    """Apply resilience settings: WAL mode + busy timeout."""
+    conn.execute(f"PRAGMA journal_mode={_WAL_MODE};")
+    conn.execute(f"PRAGMA busy_timeout={_BUSY_TIMEOUT_MS};")
+    conn.commit()
+
+
 _CREATE_TABLE = """
 CREATE TABLE IF NOT EXISTS flight_observations (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,6 +62,7 @@ def initialize_database(db_path: str) -> None:
     os.makedirs(os.path.dirname(os.path.abspath(db_path)), exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
+        _configure_connection(conn)
         conn.execute(_CREATE_TABLE)
         conn.execute(_CREATE_INDEX)
         conn.commit()
@@ -66,6 +79,7 @@ def insert_observations(db_path: str, observations: list) -> int:
         return 0
     conn = sqlite3.connect(db_path)
     try:
+        _configure_connection(conn)
         conn.executemany(_INSERT, observations)
         conn.commit()
         return len(observations)
@@ -98,6 +112,7 @@ def query_price_history(
     sql += " ORDER BY retrieved_at ASC"
 
     conn = sqlite3.connect(db_path)
+    _configure_connection(conn)
     conn.row_factory = sqlite3.Row
     try:
         rows = conn.execute(sql, params).fetchall()
