@@ -304,10 +304,39 @@ def run_collection(
         if idx < total_jobs and intervals:
             sleep_fn(intervals[idx - 1])
 
+    # Circuit-breaker: if we've seen too many bot challenges or rate limits in a
+    # row (indicating an active block), skip the retry pass. Retrying against an
+    # active block doubles request volume and makes the situation worse.
+    # Count consecutive blocks in the failures we saw.
+    consecutive_blocks = 0
+    for origin, destination, departure_date, _reason in failed_jobs:
+        job_key = (origin, destination, departure_date)
+        exc = first_pass_exceptions.get(job_key)
+        if exc and _classify_failure(exc) in ("bot_challenge", "rate_limited"):
+            consecutive_blocks += 1
+        else:
+            consecutive_blocks = 0  # Reset on non-block failure
+
+    circuit_breaker_triggered = consecutive_blocks >= 3
+    if circuit_breaker_triggered:
+        logger.error(
+            "Circuit-breaker triggered: %d consecutive bot challenges/rate limits. "
+            "Skipping retry pass to avoid making the block worse.",
+            consecutive_blocks,
+        )
+        send_alert(
+            title="Flight tracker: circuit breaker triggered",
+            message=(
+                f"Detected {consecutive_blocks} consecutive rate limits/bot "
+                "challenges. Skipping retry to protect your IP."
+            ),
+            priority="urgent",
+        )
+
     # Retry pass — exceptions raised here REPLACE the first-pass exception
     # for the same job, so failures_by_kind reflects the final outcome.
     retry_exceptions: dict[tuple, BaseException] = {}
-    if failed_jobs:
+    if failed_jobs and not circuit_breaker_triggered:
         logger.info("Starting retry pass for %d failed job(s)", len(failed_jobs))
         retry_results = []
         for origin, destination, departure_date, _reason in failed_jobs:
