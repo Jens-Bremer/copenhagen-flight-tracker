@@ -5,7 +5,7 @@ import os
 import sys
 import tempfile
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Callable, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -197,6 +197,10 @@ def _write_heartbeat(
     os.makedirs(target_dir, exist_ok=True)
     if failures_by_kind is None:
         failures_by_kind = _empty_failures_by_kind()
+    # completed_at is an aware UTC timestamp written at the moment the
+    # heartbeat is finalised. The dashboard uses it (not run_date, which is
+    # date-only) to compute "X hours since last run".
+    completed_at = datetime.now(timezone.utc).isoformat()
     with tempfile.NamedTemporaryFile(
         mode="w",
         dir=target_dir,
@@ -207,6 +211,7 @@ def _write_heartbeat(
         json.dump(
             {
                 "run_date": run_date,
+                "completed_at": completed_at,
                 "total_observations": total_observations,
                 "failed_jobs_count": failed_jobs_count,
                 "total_jobs": total_jobs,
