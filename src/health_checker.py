@@ -292,6 +292,21 @@ def check_observation_count(
     return []
 
 
+def _check_db_integrity(db_path: str) -> Optional[str]:
+    """Check database integrity using PRAGMA integrity_check.
+
+    Catches corruption from unexpected shutdown, disk errors, etc.
+    """
+    try:
+        with _db_connection(db_path) as conn:
+            result = conn.execute("PRAGMA integrity_check;").fetchone()
+            if result and result[0] != "ok":
+                return f"[urgent] Database integrity check failed: {result[0]}"
+    except Exception as exc:
+        return f"[urgent] Database integrity check error: {exc}"
+    return None
+
+
 def run_health_check(
     db_path: str, heartbeat_path: Optional[str] = None, run_date: Optional[str] = None
 ) -> list:
@@ -312,6 +327,7 @@ def run_health_check(
         _check_zero_observations_today(db_path),
         _check_observation_count_drop(db_path),
         _check_currency_inconsistency(db_path),
+        _check_db_integrity(db_path),
     ]
     problems = [c for c in single_checks if c is not None]
     problems.extend(check_missing_routes(db_path, run_date, config.ROUTES))
