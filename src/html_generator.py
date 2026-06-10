@@ -39,6 +39,7 @@ JS_FILE_ORDER = [
     "state.js",
     "utils.js",
     "data.js",
+    "health-dashboard.js",
     "calendar.js",
     "drilldown.js",
     "charts.js",
@@ -783,6 +784,79 @@ def _build_app_js(
     return f"(function () {{\n'use strict';\n\n{body}{expose_lines}\n}})();"
 
 
+def build_health(generated_at: datetime) -> dict[str, Any]:
+    """Build health status from heartbeat file and database state.
+
+    Returns a dict with scraper health metrics: last run time, job status,
+    failures, and overall health score.
+    """
+    import os
+
+    heartbeat_path = os.path.join(
+        os.path.dirname(os.path.abspath(config.DATABASE_PATH)), "last_run.json"
+    )
+
+    health = {
+        "generated_at": generated_at.isoformat(),
+        "last_run": None,
+        "observations_total": 0,
+        "failed_jobs": 0,
+        "total_jobs": 0,
+        "success_rate": 100.0,
+        "failures_by_kind": {},
+        "health_status": "unknown",
+        "hours_since_last_run": None,
+    }
+
+    if os.path.exists(heartbeat_path):
+        try:
+            with open(heartbeat_path) as f:
+                heartbeat = json.load(f)
+
+            health["last_run"] = heartbeat.get("run_date")
+            health["observations_total"] = heartbeat.get("total_observations", 0)
+            health["failed_jobs"] = heartbeat.get("failed_jobs_count", 0)
+            health["total_jobs"] = heartbeat.get("total_jobs", 0)
+            health["failures_by_kind"] = heartbeat.get("failures_by_kind", {})
+
+            if health["total_jobs"] > 0:
+                health["success_rate"] = round(
+                    (health["total_jobs"] - health["failed_jobs"])
+                    / health["total_jobs"]
+                    * 100,
+                    1,
+                )
+
+            # Determine health status based on success rate and failure types
+            if health["success_rate"] >= 95:
+                health["health_status"] = "healthy"
+            elif health["success_rate"] >= 80:
+                health["health_status"] = "degraded"
+            else:
+                health["health_status"] = "critical"
+
+            # Check if there are active blocks (bot challenge or rate limit)
+            if health["failures_by_kind"].get("bot_challenge", 0) > 0 or \
+               health["failures_by_kind"].get("rate_limited", 0) > 0:
+                health["health_status"] = "blocked"
+
+            # Calculate hours since last run
+            if health["last_run"]:
+                try:
+                    last_run_date = datetime.fromisoformat(health["last_run"])
+                    if last_run_date.tzinfo is None:
+                        last_run_date = last_run_date.replace(tzinfo=timezone.utc)
+                    delta = generated_at - last_run_date
+                    hours = round(delta.total_seconds() / 3600, 1)
+                    health["hours_since_last_run"] = hours
+                except (ValueError, TypeError):
+                    pass
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    return health
+
+
 def build_airline_trends(rows: list[dict]) -> dict:
     """
     Build per-airline price progression by days_before across two routes.
@@ -1034,6 +1108,7 @@ def render_html(
     flights: dict[str, Any],
     analysis: dict[str, Any],
     summary: dict[str, Any],
+    health: dict[str, Any] | None = None,
     airline_trends: dict[str, Any] | None = None,
     airline_matrix: dict[str, Any] | None = None,
     inline_data: bool = False,
@@ -1049,6 +1124,8 @@ def render_html(
     ``data.json`` instead.  The caller is responsible for writing that file (see
     :func:`generate`).
     """
+    if health is None:
+        health = {}
     if airline_trends is None:
         airline_trends = {}
     if airline_matrix is None:
@@ -1076,6 +1153,7 @@ def render_html(
         data_flights = _safe_json(flights)
         data_analysis = _safe_json(analysis)
         data_summary = _safe_json(summary)
+        data_health = _safe_json(health)
         data_airline_trends = _safe_json(airline_trends)
         data_airline_matrix = _safe_json(airline_matrix)
     else:
@@ -1084,6 +1162,7 @@ def render_html(
         data_flights = ""
         data_analysis = ""
         data_summary = ""
+        data_health = ""
         data_airline_trends = ""
         data_airline_matrix = ""
 
@@ -1101,6 +1180,7 @@ def render_html(
         DATA_FLIGHTS=data_flights,
         DATA_ANALYSIS=data_analysis,
         DATA_SUMMARY=data_summary,
+        DATA_HEALTH=data_health,
     )
 
     # Render airlines.html (render function is in app_js_airlines)
@@ -1134,17 +1214,19 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
     flights = build_flights(rows, generated_at=now)
     analysis = build_analysis(rows)
     summary = build_summary(rows)
+    health = build_health(generated_at=now)
     airline_trends = build_airline_trends(rows)
     airline_matrix = build_airline_matrix(rows)
 
     if not inline_data:
-        # Write the five blobs to data.json in the same directory as output_path
+        # Write the data blobs to data.json in the same directory as output_path
         data_payload = {
             "metadata": metadata,
             "calendar": calendar,
             "flights": flights,
             "analysis": analysis,
             "summary": summary,
+            "health": health,
             "airline_trends": airline_trends,
             "airline_matrix": airline_matrix,
         }
@@ -1159,6 +1241,7 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
         flights=flights,
         analysis=analysis,
         summary=summary,
+        health=health,
         airline_trends=airline_trends,
         airline_matrix=airline_matrix,
         inline_data=inline_data,

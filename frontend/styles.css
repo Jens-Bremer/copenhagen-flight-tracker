@@ -674,3 +674,100 @@ body, .panel, .pairs-table, .calendar, .hero-card, .verdict-card {
 #matrix-tooltip.visible {
   display: block;
 }
+
+/* ───── Health Dashboard ───────────────────────────────────────────────────── */
+.health-dashboard {
+  background: linear-gradient(135deg, #f9f2e3 0%, #f3e7c9 100%);
+  border-top: 3px solid var(--color-brown);
+}
+
+.health-status {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  padding: 1rem 0;
+}
+
+.health-metric {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 1rem;
+  text-align: center;
+}
+
+.health-metric__label {
+  font-size: 0.85rem;
+  color: #666;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.health-metric__value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-brown);
+}
+
+.health-metric__value.status-healthy {
+  color: #3d7a3d;
+}
+
+.health-metric__value.status-degraded {
+  color: var(--color-orange);
+}
+
+.health-metric__value.status-critical {
+  color: var(--color-red);
+}
+
+.health-metric__value.status-blocked {
+  color: var(--color-red);
+}
+
+.health-metric__value.status-unknown {
+  color: #999;
+}
+
+.health-status-badge {
+  display: inline-block;
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.health-status-badge.healthy {
+  background: #e8f5e9;
+  color: #1b5e20;
+}
+
+.health-status-badge.degraded {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.health-status-badge.critical {
+  background: #ffebee;
+  color: #b71c1c;
+}
+
+.health-status-badge.blocked {
+  background: #ffebee;
+  color: #b71c1c;
+  animation: blink 1.5s infinite;
+}
+
+.health-status-badge.unknown {
+  background: #f5f5f5;
+  color: #424242;
+}
+
+@keyframes blink {
+  0%, 50%, 100% { opacity: 1; }
+  25%, 75% { opacity: 0.6; }
+}

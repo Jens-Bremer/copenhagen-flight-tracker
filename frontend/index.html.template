@@ -24,6 +24,12 @@
       </div>
     </section>
 
+    <!-- 1.5. Scraper health dashboard -->
+    <section class="panel health-dashboard" aria-label="Scraper health status">
+      <h2 class="panel__heading">Scraper Health</h2>
+      <div id="health-status-card" class="health-status"></div>
+    </section>
+
     <!-- 2. Hero summary -->
     <section class="panel hero-summary" aria-label="Quick summary">
       <div id="hero-best-time" class="hero-card"></div>
@@ -120,6 +126,7 @@
   <script type="application/json" id="DATA_FLIGHTS">${DATA_FLIGHTS}</script>
   <script type="application/json" id="DATA_ANALYSIS">${DATA_ANALYSIS}</script>
   <script type="application/json" id="DATA_SUMMARY">${DATA_SUMMARY}</script>
+  <script type="application/json" id="DATA_HEALTH">${DATA_HEALTH}</script>
   <div id="data-load-error" style="display:none;position:fixed;inset:0;z-index:9999;background:#fff3cd;color:#856404;padding:2rem;font-family:sans-serif;font-size:1.1rem;"></div>
 
   <script>${INLINE_CHART_JS}</script>
