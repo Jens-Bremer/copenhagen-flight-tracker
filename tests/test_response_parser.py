@@ -179,6 +179,31 @@ def test_zloty_symbol_parses_as_pln():
     assert extract_price_parts("zł75") == (7500, "PLN")
 
 
+# --- European thousands without decimals (issue: 'kr1.234' must mean 1234 DKK) ---
+
+
+def test_european_thousands_dot_only_parses_as_thousands():
+    # "kr1.234" is European thousands format (Danish/German style) for 1234 DKK,
+    # NOT a US decimal 1.234. The dot is at position len-4, not len-3, so we
+    # treat it as a thousands separator.
+    assert extract_price_parts("kr1.234") == (123400, "DKK")
+
+
+def test_european_thousands_dot_only_larger_value():
+    # "€12.345" → 12345 EUR (Spanish/German thousands format).
+    assert extract_price_parts("€12.345") == (1234500, "EUR")
+
+
+def test_us_decimal_dot_only_preserved():
+    # "$12.34" → 12.34 USD; dot at position len-3 stays as decimal.
+    assert extract_price_parts("$12.34") == (1234, "USD")
+
+
+def test_us_decimal_three_digit_dollars_preserved():
+    # "$123.45" → 123.45 USD; dot at position len-3 stays as decimal.
+    assert extract_price_parts("$123.45") == (12345, "USD")
+
+
 # --- _parse_duration_to_minutes ---
 
 

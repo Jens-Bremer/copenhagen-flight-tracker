@@ -93,6 +93,14 @@ def extract_price_parts(raw_price: Optional[str]) -> tuple:
         else:
             # Likely US thousands: "1,000"
             amount_str = amount_str.replace(",", "")
+    elif "." in amount_str:
+        # Only dot: could be US decimal "1.50" or European thousands "1.234"
+        # If dot is at position len-3, it's likely a decimal; otherwise thousands
+        # (European DKK/NOK/SEK format: "kr1.234" → 1234 kroner, not 1.234).
+        if amount_str.rfind(".") != len(amount_str) - 3:
+            # Likely European thousands: "1.234"
+            amount_str = amount_str.replace(".", "")
+        # else: leave as-is — US decimal "1.50" is already correct for float()
 
     try:
         amount_cents = round(float(amount_str) * 100)
