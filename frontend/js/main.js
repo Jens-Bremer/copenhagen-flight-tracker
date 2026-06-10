@@ -97,6 +97,7 @@ function renderHero() {
 
 function renderAll() {
   renderHeader();
+  if (DATA.health) renderHealthDashboard(DATA.health);
   renderHero();
   renderCalendar();
   renderDrilldown();

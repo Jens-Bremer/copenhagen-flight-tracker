@@ -539,13 +539,14 @@ def test_render_html_inlines_assets_and_data():
         "DATA_FLIGHTS",
         "DATA_ANALYSIS",
         "DATA_SUMMARY",
+        "DATA_HEALTH",
     }
     for raw in blob_dict.values():
         json.loads(raw)
 
 
 def test_render_html_default_mode_blobs_are_empty():
-    """With inline_data=False (default) the five JSON script elements are empty
+    """With inline_data=False (default) JSON script elements are empty
     so the browser fetches data.json instead."""
     import re
 
@@ -555,17 +556,19 @@ def test_render_html_default_mode_blobs_are_empty():
         flights={"CPH-AMS": {}},
         analysis={"CPH-AMS": {}},
         summary={"CPH-AMS": {}},
+        health={"health_status": "unknown"},
     )
     pattern = r'<script type="application/json" id="(DATA_\w+)">(.*?)</script>'
     blobs = re.findall(pattern, index_html, re.S)
     blob_dict = {k: v for k, v in blobs}
-    # All five script elements must be present but contain no data
+    # All script elements must be present but contain no data
     assert set(blob_dict) == {
         "DATA_METADATA",
         "DATA_CALENDAR",
         "DATA_FLIGHTS",
         "DATA_ANALYSIS",
         "DATA_SUMMARY",
+        "DATA_HEALTH",
     }
     for raw in blob_dict.values():
         assert raw.strip() == "", (
