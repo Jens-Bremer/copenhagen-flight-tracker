@@ -23,9 +23,10 @@ data/proxies.txt
 logs/
 
 # Generated frontend output (sources in frontend/ are committed; the
-# HTML files beside them are regenerated each night and never committed)
+# HTML and data files beside them are regenerated each night and never committed)
 frontend/index.html
 frontend/airlines.html
+frontend/data.json
 
 # Environment / secrets
 .env
