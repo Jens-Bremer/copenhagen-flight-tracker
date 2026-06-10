@@ -16,6 +16,8 @@ def compute_sleep_intervals(
     Each interval has ±10% random jitter applied.
     If the current time is inside the window, computes the remaining time.
     The minimum interval is set by config.MIN_REQUEST_INTERVAL_SECONDS.
+
+    Note: window_start_hour and window_end_hour are in local server time.
     """
     if num_requests <= 1:
         return []
@@ -38,7 +40,10 @@ def compute_sleep_intervals(
 
 
 def seconds_until_window_start(window_start_hour: int) -> float:
-    """Return seconds until the window opens, or 0.0 if already inside."""
+    """Return seconds until the window opens, or 0.0 if already inside.
+
+    Note: window_start_hour is in local server time.
+    """
     now = datetime.now()
     window_open = now.replace(hour=window_start_hour, minute=0, second=0, microsecond=0)
     if now >= window_open:

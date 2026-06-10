@@ -302,6 +302,9 @@ def main() -> None:
         setup_schedule()
         logger.info("Scheduler running — press Ctrl+C to stop")
 
+        # All time comparisons use local server time (not UTC) to match the configured
+        # window hours (DAILY_WINDOW_START_HOUR, DAILY_WINDOW_END_HOUR).
+        # Date comparisons use local date (date.today()) for consistency.
         now = datetime.now()
         if config.DAILY_WINDOW_START_HOUR <= now.hour < config.DAILY_WINDOW_END_HOUR:
             # Check if today's run already happened (guards against post-reboot re-runs)
