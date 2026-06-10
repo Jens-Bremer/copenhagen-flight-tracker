@@ -30,7 +30,9 @@ def test_returns_none_on_exception():
 
 
 def test_returns_none_on_parse_error():
-    with patch("fast_flights.get_flights", side_effect=flight_fetcher.ParseError("bad JSON")):
+    with patch(
+        "fast_flights.get_flights", side_effect=flight_fetcher.ParseError("bad JSON")
+    ):
         result = fetch_flights_for_date(ORIGIN, DESTINATION, DEPARTURE)
     assert result is None
 
@@ -41,7 +43,9 @@ def test_propagates_bot_challenge_when_raise_on_failure():
         side_effect=flight_fetcher.BotChallengeError("captcha detected"),
     ):
         with pytest.raises(flight_fetcher.BotChallengeError):
-            fetch_flights_for_date(ORIGIN, DESTINATION, DEPARTURE, raise_on_failure=True)
+            fetch_flights_for_date(
+                ORIGIN, DESTINATION, DEPARTURE, raise_on_failure=True
+            )
 
 
 def test_propagates_rate_limited_when_raise_on_failure():
@@ -50,7 +54,9 @@ def test_propagates_rate_limited_when_raise_on_failure():
         side_effect=flight_fetcher.RateLimitedError("HTTP 429"),
     ):
         with pytest.raises(flight_fetcher.RateLimitedError):
-            fetch_flights_for_date(ORIGIN, DESTINATION, DEPARTURE, raise_on_failure=True)
+            fetch_flights_for_date(
+                ORIGIN, DESTINATION, DEPARTURE, raise_on_failure=True
+            )
 
 
 def test_propagates_network_error_when_raise_on_failure():
@@ -59,7 +65,9 @@ def test_propagates_network_error_when_raise_on_failure():
         side_effect=flight_fetcher.NetworkError("connection timeout"),
     ):
         with pytest.raises(flight_fetcher.NetworkError):
-            fetch_flights_for_date(ORIGIN, DESTINATION, DEPARTURE, raise_on_failure=True)
+            fetch_flights_for_date(
+                ORIGIN, DESTINATION, DEPARTURE, raise_on_failure=True
+            )
 
 
 def test_propagates_parse_error_when_raise_on_failure():
@@ -68,7 +76,9 @@ def test_propagates_parse_error_when_raise_on_failure():
         side_effect=flight_fetcher.ParseError("bad JSON"),
     ):
         with pytest.raises(flight_fetcher.ParseError):
-            fetch_flights_for_date(ORIGIN, DESTINATION, DEPARTURE, raise_on_failure=True)
+            fetch_flights_for_date(
+                ORIGIN, DESTINATION, DEPARTURE, raise_on_failure=True
+            )
 
 
 def test_exception_hierarchy_subclasses_flight_fetch_error():
