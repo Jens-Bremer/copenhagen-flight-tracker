@@ -304,8 +304,8 @@ def browser_fetch(params: dict) -> BrowserResponse:
     Replaces patched_fetch as the transport layer. fast_flights' URL construction
     and response parsing are unchanged — only the HTTP layer is swapped.
     Routing decision: randomly choose direct or proxy context based on _proxy_url
-    and PROXY_SPLIT_RATIO. page.close() is always called via finally so no pages
-    leak between requests.
+    and PROXY_SPLIT_RATIO. If proxy route fails, retries once on direct context
+    before raising. page.close() is always called via finally so no pages leak.
     """
     url = "https://www.google.com/travel/flights?" + urlencode(params)
 
@@ -327,7 +327,25 @@ def browser_fetch(params: dict) -> BrowserResponse:
                 wait_until="domcontentloaded",
             )
         except Exception as exc:
-            raise NetworkError(str(exc)) from exc
+            # If proxy route failed and we started with proxy, retry once on direct
+            if use_proxy:
+                logger.warning(
+                    "Proxy route failed (%s), retrying on direct context", str(exc)
+                )
+                page.close()
+                _last_route_label = "direct"
+                context = _get_context(use_proxy=False)
+                page = context.new_page()
+                try:
+                    response = page.goto(
+                        url,
+                        timeout=config.PLAYWRIGHT_TIMEOUT_MS,
+                        wait_until="domcontentloaded",
+                    )
+                except Exception as exc2:
+                    raise NetworkError(str(exc2)) from exc2
+            else:
+                raise NetworkError(str(exc)) from exc
 
         if response is None:
             raise NetworkError("page.goto returned no response")
