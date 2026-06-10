@@ -2,6 +2,7 @@
 
 import logging
 import time
+import urllib.error
 import urllib.request
 from urllib.parse import urlparse
 
@@ -16,10 +17,10 @@ _NTFY_RETRY_BACKOFF_SECONDS = 1
 
 
 def send_alert(title: str, message: str, priority: str = "default") -> bool:
-    """POST an alert to ntfy.sh with retry logic. Returns True on success, False on failure.
+    """POST an alert to ntfy.sh with retry logic.
 
-    Retries up to 3 times on transient errors (timeout, 5xx) with exponential backoff.
-    Never raises.
+    Returns True on success, False on failure. Retries up to 3 times on transient
+    errors (timeout, 5xx) with exponential backoff. Never raises.
     """
     if not config.NTFY_TOPIC:
         logger.error("NTFY_TOPIC is not set; alerts are disabled")
@@ -52,7 +53,7 @@ def send_alert(title: str, message: str, priority: str = "default") -> bool:
                     exc,
                 )
                 if attempt < _NTFY_RETRY_COUNT - 1:
-                    time.sleep(_NTFY_RETRY_BACKOFF_SECONDS * (2 ** attempt))
+                    time.sleep(_NTFY_RETRY_BACKOFF_SECONDS * (2**attempt))
                     continue
             else:
                 logger.error(
@@ -69,7 +70,7 @@ def send_alert(title: str, message: str, priority: str = "default") -> bool:
                 exc,
             )
             if attempt < _NTFY_RETRY_COUNT - 1:
-                time.sleep(_NTFY_RETRY_BACKOFF_SECONDS * (2 ** attempt))
+                time.sleep(_NTFY_RETRY_BACKOFF_SECONDS * (2**attempt))
                 continue
         except Exception as exc:
             logger.error("Unexpected error sending ntfy alert: %s", exc)
