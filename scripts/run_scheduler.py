@@ -118,20 +118,28 @@ def _daily_job(heartbeat_path: Optional[str] = None) -> None:
     from datetime import date
 
     logger.info("Scheduler: starting daily collection")
-    dates = generate_target_dates(date.today())
-    jobs = expand_jobs(config.ROUTES, dates)
-    intervals = compute_sleep_intervals(
-        len(jobs),
-        config.DAILY_WINDOW_START_HOUR,
-        config.DAILY_WINDOW_END_HOUR,
-    )
-    if heartbeat_path is None:
-        heartbeat_path = os.path.join(
-            os.path.dirname(os.path.abspath(config.DATABASE_PATH)), "last_run.json"
+    try:
+        dates = generate_target_dates(date.today())
+        jobs = expand_jobs(config.ROUTES, dates)
+        intervals = compute_sleep_intervals(
+            len(jobs),
+            config.DAILY_WINDOW_START_HOUR,
+            config.DAILY_WINDOW_END_HOUR,
         )
+        if heartbeat_path is None:
+            heartbeat_path = os.path.join(
+                os.path.dirname(os.path.abspath(config.DATABASE_PATH)), "last_run.json"
+            )
 
-    run_collection(jobs, config.DATABASE_PATH, heartbeat_path, intervals)
-    logger.info("Scheduler: daily collection finished")
+        run_collection(jobs, config.DATABASE_PATH, heartbeat_path, intervals)
+        logger.info("Scheduler: daily collection finished")
+    except Exception as exc:
+        logger.error("Daily collection failed: %s", exc)
+        send_alert(
+            title="Flight tracker: daily collection failed",
+            message=str(exc),
+            priority="high",
+        )
 
 
 def _backup_job() -> None:
@@ -154,11 +162,19 @@ def _backup_job() -> None:
 def _csv_export_job() -> None:
     """Export the full observations table to CSV. Called by the scheduler at 23:45."""
     logger.info("Scheduler: exporting CSV")
-    output_path = os.path.join(
-        os.path.dirname(os.path.abspath(config.DATABASE_PATH)), "flights_export.csv"
-    )
-    count = export_to_csv(config.DATABASE_PATH, output_path)
-    logger.info("Scheduler: exported %d rows to %s", count, output_path)
+    try:
+        output_path = os.path.join(
+            os.path.dirname(os.path.abspath(config.DATABASE_PATH)), "flights_export.csv"
+        )
+        count = export_to_csv(config.DATABASE_PATH, output_path)
+        logger.info("Scheduler: exported %d rows to %s", count, output_path)
+    except Exception as exc:
+        logger.error("CSV export failed: %s", exc)
+        send_alert(
+            title="Flight tracker: CSV export failed",
+            message=str(exc),
+            priority="high",
+        )
 
 
 def _frontend_csv_job() -> None:
