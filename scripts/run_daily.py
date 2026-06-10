@@ -304,30 +304,38 @@ def run_collection(
         if idx < total_jobs and intervals:
             sleep_fn(intervals[idx - 1])
 
-    # Circuit-breaker: if we've seen too many bot challenges or rate limits in a
-    # row (indicating an active block), skip the retry pass. Retrying against an
-    # active block doubles request volume and makes the situation worse.
-    # Count consecutive blocks in the failures we saw.
-    consecutive_blocks = 0
+    # Circuit-breaker: if we've seen a streak of 3+ bot challenges or rate
+    # limits anywhere in this run (indicating an active block), skip the retry
+    # pass. Retrying against an active block doubles request volume and makes
+    # the situation worse.
+    #
+    # We track the LONGEST consecutive streak across failed_jobs, not the
+    # trailing count — a single late non-block failure (e.g. a parse error on
+    # the final job) must not disarm the breaker when the IP was clearly being
+    # blocked earlier in the run.
+    longest_streak = 0
+    current_streak = 0
     for origin, destination, departure_date, _reason in failed_jobs:
         job_key = (origin, destination, departure_date)
         exc = first_pass_exceptions.get(job_key)
         if exc and _classify_failure(exc) in ("bot_challenge", "rate_limited"):
-            consecutive_blocks += 1
+            current_streak += 1
+            if current_streak > longest_streak:
+                longest_streak = current_streak
         else:
-            consecutive_blocks = 0  # Reset on non-block failure
+            current_streak = 0
 
-    circuit_breaker_triggered = consecutive_blocks >= 3
+    circuit_breaker_triggered = longest_streak >= 3
     if circuit_breaker_triggered:
         logger.error(
             "Circuit-breaker triggered: %d consecutive bot challenges/rate limits. "
             "Skipping retry pass to avoid making the block worse.",
-            consecutive_blocks,
+            longest_streak,
         )
         send_alert(
             title="Flight tracker: circuit breaker triggered",
             message=(
-                f"Detected {consecutive_blocks} consecutive rate limits/bot "
+                f"Detected {longest_streak} consecutive rate limits/bot "
                 "challenges. Skipping retry to protect your IP."
             ),
             priority="urgent",
