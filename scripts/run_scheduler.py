@@ -196,16 +196,26 @@ def _frontend_csv_job() -> None:
     """Build the slim frontend CSV from flights_export.csv. Called by the
     scheduler at 23:46, one minute after the full CSV export at 23:45."""
     logger.info("Scheduler: building frontend CSV")
-    data_dir = os.path.dirname(os.path.abspath(config.DATABASE_PATH))
-    input_path = os.path.join(data_dir, "flights_export.csv")
-    output_path = os.path.join(data_dir, "flights_frontend.csv")
-    written, status = build_frontend_csv(input_path, output_path)
-    logger.info(
-        "Scheduler: frontend CSV finished — rows=%d status=%s output=%s",
-        written,
-        status,
-        output_path,
-    )
+    try:
+        data_dir = os.path.dirname(os.path.abspath(config.DATABASE_PATH))
+        input_path = os.path.join(data_dir, "flights_export.csv")
+        output_path = os.path.join(data_dir, "flights_frontend.csv")
+        written, status = build_frontend_csv(input_path, output_path)
+        logger.info(
+            "Scheduler: frontend CSV finished — rows=%d status=%s output=%s",
+            written,
+            status,
+            output_path,
+        )
+    except Exception as exc:
+        logger.error("Frontend CSV build failed: %s", exc)
+        send_alert(
+            title="Flight tracker: frontend CSV build failed",
+            message=str(exc),
+            priority="high",
+        )
+        return  # Skip HTML chain when the slim CSV is missing/stale.
+
     # Chain the HTML build inline so it runs as soon as the slim CSV is
     # ready — no fixed-time schedule entry, which would race when the CSV
     # job overruns its expected window.
@@ -247,7 +257,16 @@ def _health_check_job() -> None:
     Called by the scheduler at 23:30.
     """
     logger.info("Scheduler: running health check")
-    problems = run_health_check(config.DATABASE_PATH)
+    try:
+        problems = run_health_check(config.DATABASE_PATH)
+    except Exception as exc:
+        logger.error("Health check failed: %s", exc)
+        send_alert(
+            title="Flight tracker: health check failed",
+            message=str(exc),
+            priority="high",
+        )
+        return
     if not problems:
         logger.info("Scheduler: health check passed")
         return
