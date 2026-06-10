@@ -77,6 +77,9 @@ def _check_stale_pid_file() -> Optional[int]:
         None  — safe to proceed (no file, stale file cleaned up, or malformed
                 file cleaned up).
         int   — a live process owns the PID file; caller should refuse to start.
+
+    Note: On Windows, os.kill(pid, 0) may raise OSError (not ProcessLookupError)
+    for dead processes. This is handled by catching OSError as "not alive".
     """
     if not os.path.exists(PID_FILE):
         return None
@@ -102,6 +105,16 @@ def _check_stale_pid_file() -> Optional[int]:
     except PermissionError:
         # Process exists but is owned by another user — treat as alive.
         return pid
+    except OSError:
+        # On Windows, os.kill(pid, 0) may raise OSError (not ProcessLookupError)
+        # for a dead process. Treat any OSError as "process not alive".
+        logger.info(
+            "Removing stale PID file (pid=%d not alive or inaccessible): %s",
+            pid,
+            PID_FILE,
+        )
+        _remove_pid_file()
+        return None
 
     return pid
 
