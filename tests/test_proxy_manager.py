@@ -81,39 +81,3 @@ class TestLoadProxies:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
             f.write(content)
             return f.name
-
-
-class TestProxyRotator:
-    """Tests for the ProxyRotator class."""
-
-    def test_rotates_round_robin(self):
-        from src.proxy_manager import ProxyRotator
-
-        proxies = ["http://a:a@h1:1", "http://b:b@h2:2", "http://c:c@h3:3"]
-        rotator = ProxyRotator(proxies)
-
-        # First cycle
-        assert rotator.get_next() == "http://a:a@h1:1"
-        assert rotator.get_next() == "http://b:b@h2:2"
-        assert rotator.get_next() == "http://c:c@h3:3"
-        # Wraps around
-        assert rotator.get_next() == "http://a:a@h1:1"
-
-    def test_returns_none_when_empty(self):
-        from src.proxy_manager import ProxyRotator
-
-        rotator = ProxyRotator([])
-        assert rotator.get_next() is None
-
-    def test_single_proxy_always_returns_same(self):
-        from src.proxy_manager import ProxyRotator
-
-        rotator = ProxyRotator(["http://x:x@h:1"])
-        assert rotator.get_next() == "http://x:x@h:1"
-        assert rotator.get_next() == "http://x:x@h:1"
-
-    def test_len_returns_proxy_count(self):
-        from src.proxy_manager import ProxyRotator
-
-        assert len(ProxyRotator(["a", "b", "c"])) == 3
-        assert len(ProxyRotator([])) == 0

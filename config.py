@@ -16,16 +16,6 @@ PASSENGERS_ADULTS = 1
 TRIP_TYPE = "one-way"
 MAX_STOPS = 0  # 0 = nonstop only
 
-# primp impersonation profile used by patched_fetch. MUST exist in the installed
-# primp version — when it doesn't, primp silently picks a random profile, which
-# gives every request a different TLS fingerprint and gets the scraper flagged
-# as a bot. If you ever upgrade primp and need to change this, valid candidates
-# at the time of writing: chrome_120, chrome_124, chrome_126-131, chrome_133,
-# firefox_133, firefox_135. install_fetch_patch() probes the profile at startup
-# and raises a clear error if it's not available, so an unsafe fallback can
-# never silently happen.
-IMPERSONATION = "chrome_131"
-
 # --- Pacing ---
 DAILY_WINDOW_START_HOUR = 6  # Local server time, 06:00
 DAILY_WINDOW_END_HOUR = 22  # Local server time, 22:00
