@@ -11,10 +11,12 @@ if (Test-Path $PidFile) {
         $proc | Stop-Process
         $proc | Wait-Process -Timeout 30
         Write-Host "Scheduler stopped."
-    } catch [Microsoft.PowerShell.Commands.ProcessCommandException] {
+    }
+    catch [Microsoft.PowerShell.Commands.ProcessCommandException] {
         Write-Host "Stale PID file (process $sched not running); ignoring."
     }
-} else {
+}
+else {
     Write-Host "No scheduler PID file found; assuming not running."
 }
 
@@ -25,14 +27,22 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Host "Pulling latest code..."
-git pull --rebase
+try {
+    Write-Host "Pulling latest code..."
+    git pull --rebase
 
-if (Test-Path .venv\Scripts\Activate.ps1) { . .venv\Scripts\Activate.ps1 }
-pip install -e .
+    if (Test-Path .venv\Scripts\Activate.ps1) { . .venv\Scripts\Activate.ps1 }
+    pip install -e .
 
-python -c "from src.config_validator import validate_config; import config; validate_config(vars(config))"
-python scripts\setup_db.py
-
-Start-Process -WindowStyle Hidden python -ArgumentList 'scripts\run_scheduler.py'
-Write-Host "Update complete — scheduler restarted."
+    python -c "from src.config_validator import validate_config; import config; validate_config(vars(config))"
+    python scripts\setup_db.py
+    Write-Host "Update successful."
+}
+catch {
+    Write-Host "Update failed: $_"
+}
+finally {
+    Write-Host "Restarting scheduler..."
+    Start-Process -WindowStyle Hidden python -ArgumentList 'scripts\run_scheduler.py'
+    Write-Host "Update complete — scheduler restarted."
+}
