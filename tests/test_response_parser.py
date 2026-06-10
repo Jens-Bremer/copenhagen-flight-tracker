@@ -167,8 +167,8 @@ def test_empty_string_returns_none():
     assert extract_price_parts("") == (None, None)
 
 
-def test_kr_prefix_parses_as_sek():
-    assert extract_price_parts("kr123") == (12300, "SEK")
+def test_kr_prefix_parses_as_dkk():
+    assert extract_price_parts("kr123") == (12300, "DKK")
 
 
 def test_fr_prefix_parses_as_chf():

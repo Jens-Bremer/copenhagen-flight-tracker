@@ -13,9 +13,9 @@ _CURRENCY_SYMBOLS = {
     "€": "EUR",
     "$": "USD",
     "£": "GBP",
-    # Common European prefixes/symbols.
-    # Note: "kr" is shared (DKK/NOK/SEK); we treat it as SEK as a rough default.
-    "kr": "SEK",
+    # "kr" is shared (DKK/NOK/SEK); default to DKK for Copenhagen routes.
+    # For other Nordic routes, update this or route-specific detection.
+    "kr": "DKK",
     "Fr": "CHF",
     "zł": "PLN",
 }
@@ -51,8 +51,9 @@ def _parse_duration_to_minutes(duration: Optional[str]) -> Optional[int]:
 
 
 def extract_price_parts(raw_price: Optional[str]) -> tuple:
-    """Parse a raw price string (e.g. '€89') into (amount_in_cents, currency_code).
+    """Parse a raw price string (e.g. '€89', '€1.234,50') to (amount, currency).
 
+    Handles US format (1234.50) and European format (1.234,50 or 1,234.50).
     Returns (None, None) if the price is missing or uses an unknown symbol.
     """
     if not raw_price:
@@ -67,10 +68,37 @@ def extract_price_parts(raw_price: Optional[str]) -> tuple:
     if not currency:
         logger.warning("Unknown currency symbol in price: %r", raw_price)
         return (None, None)
-    match = re.search(r"[\d]+(?:\.\d+)?", raw_price)
+
+    # Extract the numeric part (e.g., "1234.50", "1.234,50", "1,234.50")
+    match = re.search(r"[\d.,]+", raw_price)
     if not match:
         return (None, None)
-    amount_cents = round(float(match.group()) * 100)
+
+    amount_str = match.group().strip()
+    # Normalize: if the number has both . and ,, the rightmost is the decimal separator
+    # Examples: "1.234,50" → "1234.50", "1,234.50" → "1234.50"
+    if "." in amount_str and "," in amount_str:
+        if amount_str.rfind(",") > amount_str.rfind("."):
+            # European format: "1.234,50"
+            amount_str = amount_str.replace(".", "").replace(",", ".")
+        else:
+            # Ambiguous, but assume US format: "1,234.50"
+            amount_str = amount_str.replace(",", "")
+    elif "," in amount_str:
+        # Only comma: could be European "1,50" or US thousands "1,000"
+        # If comma is at position len-3, it's likely a decimal; otherwise thousands
+        if amount_str.rfind(",") == len(amount_str) - 3:
+            # Likely European decimal: "1,50"
+            amount_str = amount_str.replace(",", ".")
+        else:
+            # Likely US thousands: "1,000"
+            amount_str = amount_str.replace(",", "")
+
+    try:
+        amount_cents = round(float(amount_str) * 100)
+    except ValueError:
+        logger.warning("Could not parse amount from price: %r", raw_price)
+        return (None, None)
     return (amount_cents, currency)
 
 
