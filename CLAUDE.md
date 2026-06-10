@@ -41,7 +41,7 @@ python scripts/query_prices.py --date YYYY-MM-DD
 # Generate frontend manually
 python scripts/generate_html.py
 
-# Run the complete test suite (333 tests)
+# Run the complete test suite (673 tests)
 pytest tests/
 ```
 
@@ -71,9 +71,12 @@ date_generator → route_expander → flight_fetcher → response_parser → dat
 ### Frontend Pipeline
 The static dashboard is regenerated nightly with zero runtime fetches:
 1. `src/frontend_csv_builder.py` reads the DB and writes `data/flights_frontend.csv` (slim, typed, sorted).
-2. `src/html_generator.py` reads that CSV, computes analytics (`src/analytics.py`), and writes `frontend/index.html`.
-3. Chart.js is vendored under `frontend/vendor/` and inlined into the HTML at build time.
-4. The browser runs `frontend/app.js` (IIFE) against five embedded JSON blobs — no network requests needed.
+2. `src/analytics.py` aggregates observations by route and date (computes min/avg/max prices and volatility).
+3. `src/html_generator.py` reads the frontend CSV and analytics output, then writes `frontend/index.html` inline with:
+   - Chart.js vendored under `frontend/vendor/` and embedded in the HTML
+   - 14 JavaScript modules (`frontend/*.js`) bundled as IIFEs
+   - Five embedded JSON data blobs (routes, dates, prices, etc.)
+4. The browser loads the static HTML — no network requests, no build step needed.
 
 ### Module Contract
 Each `src/` module imports only from `config` and stdlib/installed packages — **no cross-imports between `src/` modules** except for the analytics/HTML/CSV pipeline (`analytics.py`, `frontend_csv_builder.py`, `html_generator.py`, `price_alerter.py`) which form an allowed dependency chain. Every public function has type hints and a docstring. Pure functions stay in `src/`, while side effects (DB writes, HTTP calls, sleeps) are orchestrated in `scripts/`.
