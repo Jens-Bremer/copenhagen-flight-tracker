@@ -1,10 +1,12 @@
 import atexit
+import json
 import logging
 import os
 import signal
 import sys
 import tempfile
 import time
+from datetime import date, datetime
 from typing import Optional
 
 import schedule
@@ -287,15 +289,34 @@ def main() -> None:
         setup_schedule()
         logger.info("Scheduler running — press Ctrl+C to stop")
 
-        from datetime import datetime
-
         now = datetime.now()
         if config.DAILY_WINDOW_START_HOUR <= now.hour < config.DAILY_WINDOW_END_HOUR:
-            logger.info(
-                "Started within the operating window. "
-                "Executing immediate collection with compressed intervals."
+            # Check if today's run already happened (guards against post-reboot re-runs)
+            heartbeat_path = os.path.join(
+                os.path.dirname(os.path.abspath(config.DATABASE_PATH)), "last_run.json"
             )
-            _daily_job()
+            today_str = date.today().isoformat()
+            already_ran_today = False
+            if os.path.exists(heartbeat_path):
+                try:
+                    with open(heartbeat_path) as f:
+                        heartbeat = json.load(f)
+                    if heartbeat.get("run_date") == today_str:
+                        already_ran_today = True
+                        logger.info(
+                            "Today's collection already ran at startup; skipping"
+                        )
+                except (json.JSONDecodeError, OSError):
+                    logger.warning(
+                        "Could not read heartbeat file; proceeding with collection"
+                    )
+
+            if not already_ran_today:
+                logger.info(
+                    "Started within the operating window. "
+                    "Executing immediate collection with compressed intervals."
+                )
+                _daily_job()
 
         try:
             while True:
