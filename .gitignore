@@ -55,3 +55,6 @@ docs/superpowers/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Live config — edit directly; tracked template is config.example.py
+config.py

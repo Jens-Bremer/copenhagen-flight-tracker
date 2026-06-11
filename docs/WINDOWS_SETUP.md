@@ -13,7 +13,23 @@ This document describes how to set up the flight tracker daemon to run continuou
 
 ## Initial Setup
 
-### 1. Install Dependencies
+### 1. Configure the Application
+
+On first install, copy the config template:
+
+```bash
+# Windows (Command Prompt)
+copy config.example.py config.py
+
+# Or on Unix/macOS
+cp config.example.py config.py
+```
+
+Then edit `config.py` and replace the placeholders:
+- `NTFY_TOPIC`: change to a random unguessable string for notifications
+- Any IP addresses or local values for your setup
+
+### 2. Install Dependencies
 
 ```bash
 pip install -e .

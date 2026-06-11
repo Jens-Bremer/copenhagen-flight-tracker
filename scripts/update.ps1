@@ -20,16 +20,12 @@ else {
     Write-Host "No scheduler PID file found; assuming not running."
 }
 
-# Refuse update if working tree has uncommitted edits to tracked files.
-git diff --quiet HEAD
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Refusing to update: uncommitted changes to tracked files."
-    exit 1
-}
+# config.py is intentionally untracked (see config.example.py for the template).
+# Use --autostash to safely handle any remaining tracked-file edits during rebase.
 
 try {
     Write-Host "Pulling latest code..."
-    git pull --rebase
+    git pull --rebase --autostash
 
     if (Test-Path .venv\Scripts\Activate.ps1) { . .venv\Scripts\Activate.ps1 }
     pip install -e .
