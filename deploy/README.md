@@ -1,4 +1,7 @@
-# deploy/
+# deploy/ (Linux/Historical)
+
+> **Important:** This directory contains Linux/systemd deployment files for historical reference only.
+> This project is deployed on **Windows** via Task Scheduler. See `docs/WINDOWS_SETUP.md` for the current setup.
 
 **Linux only** — Deployment files for systemd-based systems (no longer actively maintained; reference only).
 
