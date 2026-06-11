@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import signal
+import subprocess
 import sys
 import tempfile
 import time
@@ -283,6 +284,44 @@ def _health_check_job() -> None:
     )
 
 
+def _auto_update_job() -> None:
+    """Run update.ps1 at 23:55 daily — after the collection window and nightly jobs."""
+    update_script = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "update.ps1"
+    )
+    if not os.path.exists(update_script):
+        logger.info("update.ps1 not found; skipping auto-update")
+        return
+    try:
+        logger.info("Running scheduled auto-update via update.ps1")
+        result = subprocess.run(
+            ["powershell", "-ExecutionPolicy", "Bypass", "-File", update_script],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        if result.returncode != 0:
+            logger.error(
+                "Auto-update failed (exit %d): %s",
+                result.returncode,
+                result.stderr[:400],
+            )
+            send_alert(
+                title="Flight tracker: auto-update failed",
+                message=f"Exit code: {result.returncode}",
+                priority="high",
+            )
+        else:
+            logger.info("Auto-update succeeded")
+    except Exception as exc:
+        logger.exception("Auto-update job crashed: %s", exc)
+        send_alert(
+            title="Flight tracker: auto-update crashed",
+            message=str(exc),
+            priority="high",
+        )
+
+
 def setup_schedule() -> None:
     """Register all recurring jobs."""
     daily_time = f"{config.DAILY_WINDOW_START_HOUR:02d}:00"
@@ -291,9 +330,10 @@ def setup_schedule() -> None:
     schedule.every().day.at("23:30").do(_health_check_job)
     schedule.every().day.at("23:45").do(_csv_export_job)
     schedule.every().day.at("23:46").do(_frontend_csv_job)
+    schedule.every().day.at("23:55").do(_auto_update_job)
     logger.info(
         "Scheduler: daily collection at %s, backup at 01:00, health check at "
-        "23:30, CSV export at 23:45, frontend CSV at 23:46 "
+        "23:30, CSV export at 23:45, frontend CSV at 23:46, auto-update at 23:55 "
         "(HTML regenerates inline after the frontend CSV completes)",
         daily_time,
     )

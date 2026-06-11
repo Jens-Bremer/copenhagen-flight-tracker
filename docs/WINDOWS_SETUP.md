@@ -129,6 +129,11 @@ schtasks /run /tn 'FlightTrackerHealthCheck'
 Unregister-ScheduledTask -TaskName 'FlightTrackerHealthCheck' -Confirm:$false
 ```
 
+## Updating
+
+The scheduler automatically runs `update.ps1` at 23:55 each night — after the
+collection window (06:00–22:00) and all nightly jobs. No manual timing needed.
+
 ## Manual Operation
 
 ### Starting the Scheduler
@@ -143,7 +148,7 @@ The scheduler will:
 3. Install the browser automation patch
 4. Wait until the configured daily window start time
 5. Begin the daily collection cycle at regular intervals
-6. Run nightly jobs (backup, health check, CSV export, HTML generation)
+6. Run nightly jobs (backup, health check, CSV export, HTML generation, auto-update)
 
 ### Running a Single Collection
 
