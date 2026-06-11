@@ -310,57 +310,6 @@ def test_build_analysis_time_of_day_matrix_has_correct_shape():
         assert entry["mean_cents"] > 0, f"mean_cents must be positive: {entry}"
 
 
-def test_build_analysis_normalized_price_progression():
-    """build_analysis must include normalized_price_progression per route.
-
-    Each entry is a {days_before, mean_pct_change} dict. The aggregate baseline
-    (highest days_before per flight) anchors at 0%, so mean_pct_change at the
-    oldest observation window should be close to 0. Flights with only one
-    observation are excluded.
-    """
-    rows = load_rows(str(FIXTURE))
-    analysis = build_analysis(rows)
-    assert "normalized_price_progression" in analysis["CPH-AMS"], (
-        "build_analysis must add normalized_price_progression to each route's dict"
-    )
-    prog = analysis["CPH-AMS"]["normalized_price_progression"]
-    assert len(prog) > 0, "normalized_price_progression must be non-empty for CPH-AMS"
-    for entry in prog:
-        assert {"days_before", "mean_pct_change"} <= entry.keys(), (
-            f"normalized_price_progression entry missing required keys: {entry}"
-        )
-        assert entry["days_before"] >= 0, f"days_before must be non-negative: {entry}"
-        assert isinstance(entry["mean_pct_change"], float), (
-            f"mean_pct_change must be a float: {entry}"
-        )
-    # Sorted ascending by days_before
-    days = [e["days_before"] for e in prog]
-    assert days == sorted(days), (
-        "normalized_price_progression must be sorted by days_before"
-    )
-
-
-def test_normprog_panel_rendered_in_html():
-    """The rendered HTML must contain the normalised-progression canvas and the
-    JS must reference normalized_price_progression to build the chart."""
-    import re
-
-    index_html, _ = render_html(
-        metadata={}, calendar={}, flights={}, analysis={}, summary={}
-    )
-    all_scripts = re.findall(r"<script[^>]*>(.*?)</script>", index_html, re.S)
-    assert all_scripts
-    app_js = all_scripts[-1]
-
-    assert 'id="normprog-chart"' in index_html, (
-        'HTML template must include <canvas id="normprog-chart"> for the '
-        "normalised price progression panel"
-    )
-    assert "normalized_price_progression" in app_js, (
-        "app.js must reference normalized_price_progression to render the chart"
-    )
-
-
 def test_timeheat_panel_rendered_in_html():
     """The rendered HTML must contain a timeheat container element and the
     JS must reference time_of_day_matrix to populate it dynamically.
@@ -1276,14 +1225,6 @@ def test_heatmap_heading_updated():
     assert "Prices by departure time" in index_html
 
 
-def test_normprog_heading_updated():
-    """Normalised progression panel must use the plain-English heading."""
-    index_html, _ = render_html(
-        metadata={}, calendar={}, flights={}, analysis={}, summary={}
-    )
-    assert "How prices change as departure approaches" in index_html
-
-
 # ─── Issue #97: price verdict card ───────────────────────────────────────────
 
 
@@ -1889,9 +1830,6 @@ def test_modular_split_produces_functionally_equivalent_js():
     # Core chart field references
     assert "q1_cents" in js, "renderTrends must reference q1_cents from lead_time_curve"
     assert "q3_cents" in js, "renderTrends must reference q3_cents from lead_time_curve"
-    assert "normalized_price_progression" in js, (
-        "renderNormProgress must reference normalized_price_progression"
-    )
     assert "time_of_day_matrix" in js, (
         "renderTimeheat must reference time_of_day_matrix"
     )
@@ -1907,7 +1845,6 @@ def test_modular_split_produces_functionally_equivalent_js():
         "function renderHistograms",
         "function renderFooterCharts",
         "function renderTimeheat",
-        "function renderNormProgress",
         "function wireFilters",
         "function activeRoutes",
         "function airlinePasses",
@@ -2072,64 +2009,6 @@ def test_multi_route_generate_with_third_route(tmp_path):
 
 
 # ─── Issue #126: normalized-progression IQR fields ────────────────────────────
-
-
-def test_normalized_price_progression_has_iqr_fields():
-    """Each normalized_price_progression entry must include q1_pct_change and
-    q3_pct_change so the frontend can render an IQR band around the mean line."""
-    rows = load_rows(str(FIXTURE))
-    analysis = build_analysis(rows)
-    prog = analysis["CPH-AMS"]["normalized_price_progression"]
-    assert len(prog) > 0, "normalized_price_progression must be non-empty"
-    for entry in prog:
-        assert "q1_pct_change" in entry, (
-            f"normalized_price_progression entry missing q1_pct_change: {entry}"
-        )
-        assert "q3_pct_change" in entry, (
-            f"normalized_price_progression entry missing q3_pct_change: {entry}"
-        )
-        # Q1 ≤ mean ≤ Q3 must hold (sorted quartile invariant).
-        assert entry["q1_pct_change"] <= entry["mean_pct_change"] + 0.01, (
-            f"q1_pct_change must be ≤ mean_pct_change: {entry}"
-        )
-        assert entry["q3_pct_change"] >= entry["mean_pct_change"] - 0.01, (
-            f"q3_pct_change must be ≥ mean_pct_change: {entry}"
-        )
-
-
-def test_normalized_price_progression_iqr_equal_for_single_obs():
-    """When a bucket has only one observation, q1 == q3 == mean (degenerate case)."""
-    rows = load_rows(str(FIXTURE))
-    analysis = build_analysis(rows)
-    # Find any entry where the values can be checked for equality on single-obs buckets
-    prog = analysis["CPH-AMS"]["normalized_price_progression"]
-    for entry in prog:
-        # All single-obs buckets must have q1==q3==mean
-        # We can't control which are single-obs in the fixture, but we verify the
-        # invariant that all three fields are present as floats.
-        assert isinstance(entry["q1_pct_change"], float), (
-            f"q1_pct_change must be a float: {entry}"
-        )
-        assert isinstance(entry["q3_pct_change"], float), (
-            f"q3_pct_change must be a float: {entry}"
-        )
-
-
-def test_rendered_html_contains_normprog_iqr_field_references():
-    """The rendered HTML's app.js must reference q1_pct_change and q3_pct_change
-    so the IQR band for the normalized-progression chart is driven by the JSON data."""
-    index_html, _ = render_html(
-        metadata={}, calendar={}, flights={}, analysis={}, summary={}
-    )
-    js = _app_js(index_html)
-    assert "q1_pct_change" in js, (
-        "renderNormProgress must reference q1_pct_change from "
-        "normalized_price_progression"
-    )
-    assert "q3_pct_change" in js, (
-        "renderNormProgress must reference q3_pct_change from "
-        "normalized_price_progression"
-    )
 
 
 # ── build_flights: is_stale ───────────────────────────────────────────────────
