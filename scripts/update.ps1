@@ -73,5 +73,5 @@ catch {
 finally {
     Write-Host "Restarting scheduler..."
     Start-Process -WindowStyle Hidden python -ArgumentList 'scripts\run_scheduler.py'
-    Write-Host "Update complete — scheduler restarted."
+    Write-Host "Update complete - scheduler restarted."
 }
