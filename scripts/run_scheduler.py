@@ -162,7 +162,10 @@ def _backup_job() -> None:
     logger.info("Scheduler: starting backup")
     try:
         path = backup_database(
-            config.DATABASE_PATH, config.BACKUP_DIR, config.BACKUP_KEEP_LAST_N
+            config.DATABASE_PATH,
+            config.BACKUP_DIR,
+            config.BACKUP_KEEP_LAST_N,
+            offsite_dir=getattr(config, "BACKUP_OFFSITE_DIR", ""),
         )
         logger.info("Scheduler: backup written to %s", path)
     except Exception as exc:
