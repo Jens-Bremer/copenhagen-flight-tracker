@@ -222,11 +222,13 @@ def test_generate_html_job_calls_generate(tmp_path):
         mock_cfg.DATABASE_PATH = str(tmp_path / "flights.db")
         _generate_html_job()
     mock_gen.assert_called_once()
-    args, _kwargs = mock_gen.call_args
+    args, kwargs = mock_gen.call_args
     # Input still reads from the data dir (alongside flights.db)
     assert args[0].endswith("flights_frontend.csv")
     # Output now lives in the committed frontend/ dir, not data/
     assert args[1].endswith(os.path.join("frontend", "index.html"))
+    # Must inline the data blobs so the airline page renders
+    assert kwargs.get("inline_data") is True
 
 
 def test_generate_html_job_sends_alert_on_failure(tmp_path):
