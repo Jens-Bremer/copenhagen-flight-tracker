@@ -31,7 +31,7 @@ Edit `config.py` for your routes, ntfy alert topic, and price thresholds before 
 | [CLAUDE.md](CLAUDE.md) | Architecture, module contract, design rules, commands cheatsheet |
 | [docs/FRONTEND.md](docs/FRONTEND.md) | Dashboard pipeline, JSON data contract, extension recipes |
 | [scripts/README.md](scripts/README.md) | Every script in one table |
-| [deploy/README.md](deploy/README.md) | systemd setup on Linux |
+| [deploy/README.md](deploy/README.md) | systemd setup on Linux (historical — Windows setup is current) |
 | [frontend/README.md](frontend/README.md) | Frontend file map and dev workflow |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Common issues and fixes |
 
