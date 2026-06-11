@@ -13,6 +13,7 @@ from src.html_generator import (
     build_analysis,
     build_calendar,
     build_flights,
+    build_health,
     build_metadata,
     build_summary,
     generate,
@@ -3133,3 +3134,15 @@ class TestBuildAirlineMatrix:
         assert cell is not None
         assert cell["category"] == "expensive-high"
         assert cell["index"] > 0.15
+
+
+def test_build_health_includes_storage_metrics():
+    """Test that build_health returns storage metrics (db_size_mb, disk_free_gb)."""
+    result = build_health(datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc))
+    assert "db_size_mb" in result
+    assert "disk_free_gb" in result
+    # Values may be None in CI where the DB doesn't exist — that's OK
+    db_size = result["db_size_mb"]
+    disk_free = result["disk_free_gb"]
+    assert db_size is None or isinstance(db_size, (int, float))
+    assert disk_free is None or isinstance(disk_free, (int, float))

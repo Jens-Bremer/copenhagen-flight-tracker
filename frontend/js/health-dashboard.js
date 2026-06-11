@@ -78,6 +78,32 @@ function renderHealthDashboard(health) {
     </div>
   `;
 
+  // Add storage metrics if available
+  const dbSizeMb = health.db_size_mb;
+  const diskFreeGb = health.disk_free_gb;
+
+  if (dbSizeMb !== null && dbSizeMb !== undefined) {
+    html += `
+    <div class="health-metric">
+      <div class="health-metric__label">DB Size</div>
+      <div class="health-metric__value">
+        ${dbSizeMb} MB
+      </div>
+    </div>
+    `;
+  }
+
+  if (diskFreeGb !== null && diskFreeGb !== undefined) {
+    html += `
+    <div class="health-metric">
+      <div class="health-metric__label">Disk Free</div>
+      <div class="health-metric__value">
+        ${diskFreeGb} GB
+      </div>
+    </div>
+    `;
+  }
+
   // Add failure breakdown if there are failures
   const failuresByKind = health.failures_by_kind || {};
   const hasFailures = Object.values(failuresByKind).some(v => v > 0);
