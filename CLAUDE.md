@@ -123,13 +123,13 @@ All measures are active for **both** contexts (direct and proxy):
 
 ### Proxy setup
 
-The project runs a private **Squid proxy** on a second home ISP connection (`86.90.97.144:3128`). This gives scrapes an alternative exit IP without any paid proxy service.
+The project runs a private **Squid proxy** on a second home ISP connection (`<your-proxy-ip>:3128`). This gives scrapes an alternative exit IP without any paid proxy service.
 
 **Critical:** Playwright (Chrome on Windows) does not respond to Squid's `407 Proxy Auth Required` challenge when starting from a fresh profile — Chrome on Windows resolves proxy credentials from Windows Credential Manager, which a fresh Playwright profile doesn't have. The fix is **IP-based ACL in Squid** so Chrome never sees a 407:
 
 ```squid
 # /etc/squid/squid.conf — on the Squid machine
-acl scraper_ip src 84.31.85.131
+acl scraper_ip src <your-home-ip>
 http_access allow scraper_ip
 ```
 
