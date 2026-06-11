@@ -78,9 +78,9 @@ PROXY_LIST_PATH = "data/proxies.txt"  # One proxy per line: host:port:username:p
 PROXY_ENABLED = True  # Set False to scrape without proxies (uses your own IP)
 
 # --- Browser automation (Playwright) ---
-# headless=False runs a visible Chrome window — the right default for the
-# dedicated home-PC deployment where a display is always available.
-PLAYWRIGHT_HEADLESS = False
+# True: required for SYSTEM/session-0 boot task (no interactive desktop).
+# The full stealth stack (UA, WebGL patch, etc.) still applies in headless mode.
+PLAYWRIGHT_HEADLESS = True
 PLAYWRIGHT_BROWSER = "chromium"  # "chromium", "firefox", or "webkit"
 # page-load timeout (ms); 60 s to cover proxy 407 round-trip + TLS + page load
 PLAYWRIGHT_TIMEOUT_MS = 60000
