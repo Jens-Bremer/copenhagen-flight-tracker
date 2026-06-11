@@ -463,5 +463,12 @@ def install_browser_patch() -> None:
                 f"Failed to create proxy context with proxy {_proxy_url}: {exc}"
             ) from exc
 
+    # Assert that fast_flights.core.fetch exists before monkey-patching
+    if not hasattr(fast_flights.core, "fetch"):
+        raise RuntimeError(
+            "fast-flights API contract broken: fast_flights.core.fetch not found. "
+            "Check the installed version and update the monkey-patch."
+        )
+
     fast_flights.core.fetch = browser_fetch
     logger.info("fast_flights.core.fetch replaced with browser_fetch")

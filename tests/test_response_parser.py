@@ -1,9 +1,11 @@
 from datetime import date, datetime, timezone
 
 import fast_flights
+import pytest
 
 from src.response_parser import (
     _parse_duration_to_minutes,
+    _verify_result_contract,
     extract_price_parts,
     parse_flights,
 )
@@ -238,3 +240,43 @@ def test_parse_duration_whitespace_returns_none():
 def test_parse_duration_numeric_only_returns_none():
     # Numeric strings without 'h'/'m' suffixes are not a recognised format.
     assert _parse_duration_to_minutes("125") is None
+
+
+# --- _verify_result_contract ---
+
+
+def test_verify_result_contract_raises_on_missing_result_attr():
+    """Missing top-level attribute raises AttributeError."""
+
+    class BadResult:
+        def __init__(self):
+            self.flights = []
+            # Missing current_price intentionally
+
+    with pytest.raises(AttributeError, match="current_price"):
+        _verify_result_contract(BadResult())
+
+
+def test_verify_result_contract_raises_on_missing_flight_attr():
+    """Missing per-flight attribute raises AttributeError."""
+
+    class BadFlight:
+        def __init__(self):
+            self.name = "SAS"
+            self.departure = "10:00"
+            self.arrival = "12:00"
+            # Missing price intentionally
+
+    class Result:
+        def __init__(self):
+            self.flights = [BadFlight()]
+            self.current_price = "EUR 100"
+
+    with pytest.raises(AttributeError, match="price"):
+        _verify_result_contract(Result())
+
+
+def test_verify_result_contract_passes_on_valid_result():
+    """No exception when result has all required attributes."""
+    result = _make_result()
+    _verify_result_contract(result)
