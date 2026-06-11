@@ -280,16 +280,14 @@ def test_auto_update_job_skips_when_script_missing(tmp_path):
 def test_auto_update_job_runs_powershell_script(tmp_path):
     """The auto-update job calls powershell with update.ps1."""
     update_script = str(tmp_path / "update.ps1")
-    mock_result = type('R', (), {'returncode': 0})()
+    mock_result = type("R", (), {"returncode": 0})()
     with (
         patch("scripts.run_scheduler.os.path.exists", return_value=True),
         patch(
             "scripts.run_scheduler.subprocess.run", return_value=mock_result
         ) as mock_run,
         patch("scripts.run_scheduler.os.path.dirname", return_value=str(tmp_path)),
-        patch(
-            "scripts.run_scheduler.os.path.abspath", return_value=update_script
-        ),
+        patch("scripts.run_scheduler.os.path.abspath", return_value=update_script),
     ):
         _auto_update_job()
     mock_run.assert_called_once()
@@ -308,7 +306,7 @@ def test_auto_update_job_sends_alert_on_failure():
         patch("scripts.run_scheduler.os.path.exists", return_value=True),
         patch(
             "scripts.run_scheduler.subprocess.run",
-            return_value=type('R', (), {'returncode': 1, 'stderr': 'error'})(),
+            return_value=type("R", (), {"returncode": 1, "stderr": "error"})(),
         ),
         patch("scripts.run_scheduler.send_alert") as mock_alert,
     ):
@@ -342,7 +340,7 @@ def test_auto_update_job_silent_on_success():
         patch("scripts.run_scheduler.os.path.exists", return_value=True),
         patch(
             "scripts.run_scheduler.subprocess.run",
-            return_value=type('R', (), {'returncode': 0})(),
+            return_value=type("R", (), {"returncode": 0})(),
         ),
         patch("scripts.run_scheduler.send_alert") as mock_alert,
         patch("scripts.run_scheduler.logger") as mock_logger,
@@ -351,9 +349,7 @@ def test_auto_update_job_silent_on_success():
     mock_alert.assert_not_called()
     # Should log success
     success_calls = [
-        c
-        for c in mock_logger.info.call_args_list
-        if 'succeeded' in str(c).lower()
+        c for c in mock_logger.info.call_args_list if "succeeded" in str(c).lower()
     ]
     assert len(success_calls) > 0
 

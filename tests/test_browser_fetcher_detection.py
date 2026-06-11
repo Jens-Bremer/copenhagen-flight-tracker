@@ -2,6 +2,7 @@
 
 Tests _detect_block() directly — no Playwright, no network required.
 """
+
 import pytest
 
 import config

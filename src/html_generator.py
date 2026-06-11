@@ -887,7 +887,7 @@ def build_health(generated_at: datetime) -> dict[str, Any]:
 
     try:
         usage = shutil.disk_usage(os.path.dirname(os.path.abspath(db_path)))
-        health["disk_free_gb"] = round(usage.free / (1024 ** 3), 1)
+        health["disk_free_gb"] = round(usage.free / (1024**3), 1)
     except OSError:
         health["disk_free_gb"] = None
 
