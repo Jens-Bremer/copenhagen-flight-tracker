@@ -38,6 +38,8 @@ BACKUP_KEEP_LAST_N = 7
 # Off-site backup directory (e.g., OneDrive folder, second drive, network share).
 # Leave as empty string to disable off-site copies.
 BACKUP_OFFSITE_DIR: str = ""
+# Alert when the database file (plus WAL) exceeds this size in bytes.
+DB_SIZE_WARN_BYTES: int = 500 * 1024 * 1024  # 500 MB
 
 # --- Notifications (ntfy.sh) ---
 NTFY_TOPIC = "your-ntfy-topic-here"  # change to a random unguessable string
