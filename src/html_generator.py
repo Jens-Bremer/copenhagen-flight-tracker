@@ -791,6 +791,7 @@ def build_health(generated_at: datetime) -> dict[str, Any]:
     failures, and overall health score.
     """
     import os
+    import shutil
 
     heartbeat_path = os.path.join(
         os.path.dirname(os.path.abspath(config.DATABASE_PATH)), "last_run.json"
@@ -806,6 +807,8 @@ def build_health(generated_at: datetime) -> dict[str, Any]:
         "failures_by_kind": {},
         "health_status": "unknown",
         "hours_since_last_run": None,
+        "db_size_mb": None,
+        "disk_free_gb": None,
     }
 
     if os.path.exists(heartbeat_path):
@@ -870,6 +873,23 @@ def build_health(generated_at: datetime) -> dict[str, Any]:
                     pass
         except (json.JSONDecodeError, OSError):
             pass
+
+    # DB size + free disk
+    db_path = config.DATABASE_PATH
+    try:
+        db_bytes = os.path.getsize(db_path)
+        wal = db_path + "-wal"
+        if os.path.exists(wal):
+            db_bytes += os.path.getsize(wal)
+        health["db_size_mb"] = round(db_bytes / (1024 * 1024), 1)
+    except OSError:
+        health["db_size_mb"] = None
+
+    try:
+        usage = shutil.disk_usage(os.path.dirname(os.path.abspath(db_path)))
+        health["disk_free_gb"] = round(usage.free / (1024 ** 3), 1)
+    except OSError:
+        health["disk_free_gb"] = None
 
     return health
 
