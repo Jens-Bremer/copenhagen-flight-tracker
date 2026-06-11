@@ -354,32 +354,6 @@ def _quartiles(prices: list[int]) -> tuple[int, int, int, int, int]:
     return s[0], s[n // 4], s[n // 2], s[(3 * n) // 4], s[-1]
 
 
-def _build_norm_prog_entry(days_before: int, values: list[float]) -> dict[str, Any]:
-    """Compute mean, Q1, and Q3 pct_change for a normalized-progression bucket.
-
-    Tolerant of single-observation buckets: when len(values) == 1,
-    q1 == q3 == mean. Uses simple index-based quartile (same as _quartiles).
-    """
-    n = len(values)
-    mean_val = round(sum(values) / n, 2)
-    if n == 1:
-        return {
-            "days_before": days_before,
-            "mean_pct_change": mean_val,
-            "q1_pct_change": mean_val,
-            "q3_pct_change": mean_val,
-        }
-    s = sorted(values)
-    q1_val = round(s[n // 4], 2)
-    q3_val = round(s[(3 * n) // 4], 2)
-    return {
-        "days_before": days_before,
-        "mean_pct_change": mean_val,
-        "q1_pct_change": q1_val,
-        "q3_pct_change": q3_val,
-    }
-
-
 def _group_analysis_inputs(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Single-pass grouping of rows into the seven analysis data structures."""
     by_lead: dict[tuple[str, int], list[int]] = defaultdict(list)
@@ -562,22 +536,6 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     cheapest_per_obs = groups["cheapest_per_obs"]
     rows_by_route = groups["rows_by_route"]
 
-    # Normalised progression: per flight, express each obs as % change from the
-    # oldest observation; aggregate across all flights per (route, days_before).
-    pct_by_days: dict[tuple[str, int], list[float]] = defaultdict(list)
-    for (route, _dep, _air, _time), obs_by_days in by_flight.items():
-        if len(obs_by_days) < 2:
-            continue
-        sorted_days = sorted(
-            obs_by_days.keys(), reverse=True
-        )  # oldest = highest days_before
-        base = _mean(obs_by_days[sorted_days[0]])
-        if base == 0:
-            continue
-        for db in sorted_days:
-            pct = (_mean(obs_by_days[db]) - base) / base * 100
-            pct_by_days[(route, db)].append(pct)
-
     # Build lead-time curve per route, sorted by days_before
     routes = sorted({k[0] for k in by_lead})
     out: dict[str, dict[str, Any]] = {}
@@ -605,15 +563,6 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             key=lambda e: (e["dow"], e["hour"]),
         )
 
-        norm_prog = sorted(
-            (
-                _build_norm_prog_entry(db, v)
-                for (r, db), v in pct_by_days.items()
-                if r == route
-            ),
-            key=lambda e: e["days_before"],
-        )
-
         # market_direction: compare cheapest-per-obs price across recent vs older dates
         obs_prices_for_route = {
             od: cents for (r, od), cents in cheapest_per_obs.items() if r == route
@@ -631,7 +580,6 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             "month": month_entries,
             "market_trend": trend_entries,
             "time_of_day_matrix": time_matrix,
-            "normalized_price_progression": norm_prog,
             "market_direction": market_direction,
             "best_time_to_visit": best_time,
         }
