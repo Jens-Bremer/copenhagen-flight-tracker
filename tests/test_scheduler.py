@@ -163,8 +163,9 @@ def test_backup_job_calls_backup_database(tmp_path):
         mock_cfg.DATABASE_PATH = db_path
         mock_cfg.BACKUP_DIR = backup_dir
         mock_cfg.BACKUP_KEEP_LAST_N = 7
+        mock_cfg.BACKUP_OFFSITE_DIR = ""
         _backup_job()
-    mock_bk.assert_called_once_with(db_path, backup_dir, 7)
+    mock_bk.assert_called_once_with(db_path, backup_dir, 7, offsite_dir="")
 
 
 def test_backup_job_sends_alert_on_failure():
