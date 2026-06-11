@@ -26,6 +26,28 @@ _CURRENCY_SYMBOLS = {
 _DURATION_RE = re.compile(r"^(?:(\d+)h)?\s*(?:(\d+)m)?$")
 
 
+def _verify_result_contract(result: object) -> None:
+    """Verify result has required attributes; raise AttributeError if contract broken.
+
+    This contract check ensures that even if fast-flights renames Result
+    attributes or changes its shape, we fail loudly at parse time rather
+    than silently skipping flights or producing corrupt data.
+    """
+    for attr in ("flights", "current_price"):
+        if not hasattr(result, attr):
+            raise AttributeError(
+                f"fast-flights Result missing '{attr}'. "
+                "Check the installed version and update response_parser."
+            )
+    for flight in getattr(result, "flights", [])[:1]:
+        for attr in ("name", "departure", "arrival", "price"):
+            if not hasattr(flight, attr):
+                raise AttributeError(
+                    f"fast-flights Flight missing '{attr}'. "
+                    "Check the installed version and update response_parser."
+                )
+
+
 def _parse_duration_to_minutes(duration: Optional[str]) -> Optional[int]:
     """Parse an upstream duration string ("1h 25m", "55m", "2h") to minutes.
 
@@ -120,6 +142,7 @@ def parse_flights(
     """Convert a fast-flights Result into a list of flat observation dicts."""
     if result is None:
         return []
+    _verify_result_contract(result)
     rows = []
     seen: set = set()
     for flight in result.flights:
