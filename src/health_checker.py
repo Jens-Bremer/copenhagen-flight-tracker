@@ -307,6 +307,22 @@ def _check_db_integrity(db_path: str) -> Optional[str]:
     return None
 
 
+def _check_db_size(db_path: str) -> Optional[str]:
+    """Return a problem string if the DB (including WAL) exceeds DB_SIZE_WARN_BYTES."""
+    try:
+        size = os.path.getsize(db_path)
+        wal = db_path + "-wal"
+        if os.path.exists(wal):
+            size += os.path.getsize(wal)
+        if size > config.DB_SIZE_WARN_BYTES:
+            mb = size // (1024 * 1024)
+            limit_mb = config.DB_SIZE_WARN_BYTES // (1024 * 1024)
+            return f"[high] DB size {mb} MB exceeds limit {limit_mb} MB"
+    except OSError:
+        pass
+    return None
+
+
 def run_health_check(
     db_path: str, heartbeat_path: Optional[str] = None, run_date: Optional[str] = None
 ) -> list:
@@ -328,6 +344,7 @@ def run_health_check(
         _check_observation_count_drop(db_path),
         _check_currency_inconsistency(db_path),
         _check_db_integrity(db_path),
+        _check_db_size(db_path),
     ]
     problems = [c for c in single_checks if c is not None]
     problems.extend(check_missing_routes(db_path, run_date, config.ROUTES))

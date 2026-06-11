@@ -9,6 +9,7 @@ from src.database import initialize_database, insert_observations
 from src.health_checker import (
     _check_bot_challenge_today,
     _check_consecutive_failures_per_route,
+    _check_db_size,
     check_missing_routes,
     check_observation_count,
     check_price_variance,
@@ -454,3 +455,43 @@ def test_run_health_check_surfaces_consecutive_failures(ctx):
     insert_observations(db_path, obs)
     problems = run_health_check(db_path, heartbeat_path=heartbeat_path)
     assert any("consecutive days" in p for p in problems)
+
+
+# --- _check_db_size ---
+
+
+def test_db_size_alert_triggers_above_threshold(tmp_path, monkeypatch):
+    """DB size check fires when DB exceeds threshold."""
+    db = tmp_path / "flights.db"
+    db.write_bytes(b"x" * 100)
+    monkeypatch.setattr(config, "DB_SIZE_WARN_BYTES", 50)
+    result = _check_db_size(str(db))
+    assert result is not None
+    assert "[high]" in result
+
+
+def test_db_size_ok_below_threshold(tmp_path, monkeypatch):
+    """DB size check returns None when DB is under threshold."""
+    db = tmp_path / "flights.db"
+    db.write_bytes(b"x" * 10)
+    monkeypatch.setattr(config, "DB_SIZE_WARN_BYTES", 10 * 1024 * 1024)
+    result = _check_db_size(str(db))
+    assert result is None
+
+
+def test_db_size_includes_wal_file(tmp_path, monkeypatch):
+    """WAL file size is included in the total."""
+    db = tmp_path / "flights.db"
+    wal = tmp_path / "flights.db-wal"
+    db.write_bytes(b"x" * 60)
+    wal.write_bytes(b"x" * 60)
+    monkeypatch.setattr(config, "DB_SIZE_WARN_BYTES", 100)
+    result = _check_db_size(str(db))
+    assert result is not None  # combined 120 > 100
+
+
+def test_db_size_missing_db_is_nonfatal(tmp_path, monkeypatch):
+    """Missing DB file does not raise — returns None."""
+    monkeypatch.setattr(config, "DB_SIZE_WARN_BYTES", 1)
+    result = _check_db_size(str(tmp_path / "nonexistent.db"))
+    assert result is None
