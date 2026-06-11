@@ -309,14 +309,17 @@ def _check_db_integrity(db_path: str) -> Optional[str]:
 
 def _check_db_size(db_path: str) -> Optional[str]:
     """Return a problem string if the DB (including WAL) exceeds DB_SIZE_WARN_BYTES."""
+    # getattr fallback: config.py is gitignored, so pre-existing deployments
+    # won't have this key until the operator copies it from config.example.py.
+    limit = getattr(config, "DB_SIZE_WARN_BYTES", 500 * 1024 * 1024)
     try:
         size = os.path.getsize(db_path)
         wal = db_path + "-wal"
         if os.path.exists(wal):
             size += os.path.getsize(wal)
-        if size > config.DB_SIZE_WARN_BYTES:
+        if size > limit:
             mb = size // (1024 * 1024)
-            limit_mb = config.DB_SIZE_WARN_BYTES // (1024 * 1024)
+            limit_mb = limit // (1024 * 1024)
             return f"[high] DB size {mb} MB exceeds limit {limit_mb} MB"
     except OSError:
         pass
