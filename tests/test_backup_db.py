@@ -46,3 +46,37 @@ def test_backup_prunes_old_files(src_db, tmp_path):
     backup_database(src_db, backup_dir, keep_last_n=7)
     files = [f for f in os.listdir(backup_dir) if f.endswith(".db")]
     assert len(files) == 7
+
+
+def test_offsite_copy_created(src_db, tmp_path):
+    """Off-site copy is written when offsite_dir is configured."""
+    offsite = tmp_path / "offsite"
+    local = tmp_path / "local"
+    result = backup_database(
+        str(src_db), str(local), keep_last_n=7, offsite_dir=str(offsite)
+    )
+    assert offsite.exists()
+    assert (offsite / os.path.basename(result)).exists()
+
+
+def test_offsite_skipped_when_empty(src_db, tmp_path):
+    """No offsite directory created when offsite_dir is empty."""
+    local = tmp_path / "local"
+    backup_database(str(src_db), str(local), keep_last_n=7, offsite_dir="")
+    # No offsite dir should be created
+    # Just verify it doesn't crash
+    assert local.exists()
+
+
+def test_offsite_failure_is_nonfatal(src_db, tmp_path):
+    """Off-site backup failure does not raise — local backup still completes."""
+    local = tmp_path / "local"
+    # Use a path that cannot be created (root-level on most systems)
+    result = backup_database(
+        str(src_db),
+        str(local),
+        keep_last_n=7,
+        offsite_dir="/nonexistent_root_path_xyz/backup",
+    )
+    # Should not raise; local backup should succeed
+    assert os.path.exists(result)

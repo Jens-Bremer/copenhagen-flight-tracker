@@ -1,8 +1,9 @@
-# config.py — single source of truth for all tuneable parameters
-#
-# TEMPLATE FILE: Copy this to config.py and edit the placeholders for your setup.
-# config.py itself is gitignored so you can safely edit it in place without
-# blocking git pull updates.
+"""config.example.py — template for all tuneable parameters.
+
+TEMPLATE FILE: Copy this to config.py and edit the placeholders for your setup.
+config.py itself is gitignored so you can safely edit it in place without
+blocking git pull updates.
+"""
 
 # --- Routes (each is a one-way direction) ---
 ROUTES = [
@@ -34,6 +35,9 @@ HEALTH_COUNT_DROP_THRESHOLD = 0.50  # Alert if today's count < 50% of 7-day aver
 DATABASE_PATH = "data/flights.db"
 BACKUP_DIR = "data/backups"
 BACKUP_KEEP_LAST_N = 7
+# Off-site backup directory (e.g., OneDrive folder, second drive, network share).
+# Leave as empty string to disable off-site copies.
+BACKUP_OFFSITE_DIR: str = ""
 
 # --- Notifications (ntfy.sh) ---
 NTFY_TOPIC = "your-ntfy-topic-here"  # change to a random unguessable string
