@@ -24,12 +24,6 @@
       </div>
     </section>
 
-    <!-- 1.5. Scraper health dashboard -->
-    <section class="panel health-dashboard" aria-label="Scraper health status">
-      <h2 class="panel__heading">Scraper Health</h2>
-      <div id="health-status-card" class="health-status"></div>
-    </section>
-
     <!-- 2. Hero summary -->
     <section class="panel hero-summary" aria-label="Quick summary">
       <div id="hero-best-time" class="hero-card"></div>
@@ -116,6 +110,11 @@
       <div class="chart-wrap">
         <canvas id="normprog-chart" aria-label="Normalised price change by days before departure" role="img"></canvas>
       </div>
+    </section>
+
+    <!-- 10. Scraper health dashboard (compact bottom strip) -->
+    <section class="health-dashboard" aria-label="Scraper health status">
+      <div id="health-status-card" class="health-status"></div>
     </section>
   </main>
 
