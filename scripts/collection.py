@@ -26,6 +26,9 @@ def execute_single_job(
         result = fetch_flights_for_date(
             origin, destination, departure_date, raise_on_failure=True
         )
+        # Convention: all retrieved_at timestamps stored as UTC ISO.
+        # Health checks must use UTC date boundaries via
+        # datetime.now(tz=timezone.utc).date().
         observations = parse_flights(
             result,
             origin,
