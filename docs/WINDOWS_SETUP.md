@@ -134,6 +134,17 @@ Unregister-ScheduledTask -TaskName 'FlightTrackerHealthCheck' -Confirm:$false
 The scheduler automatically runs `update.ps1` at 23:55 each night — after the
 collection window (06:00–22:00) and all nightly jobs. No manual timing needed.
 
+`update.ps1` performs the following steps:
+1. Stops the running scheduler (if any)
+2. Pulls the latest code via git
+3. Runs `pip install -e .` to update Python dependencies
+4. Automatically runs `playwright install chromium` to keep the browser binary in sync with the installed package version
+5. Validates the configuration
+6. Updates the database schema (if needed)
+7. Restarts the scheduler
+
+This ensures that if Playwright is bumped in a dependency update, the Python package and the browser binary stay synchronized.
+
 ## Manual Operation
 
 ### Starting the Scheduler

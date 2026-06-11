@@ -30,6 +30,14 @@ try {
     if (Test-Path .venv\Scripts\Activate.ps1) { . .venv\Scripts\Activate.ps1 }
     pip install -e .
 
+    # Keep the Playwright browser binary in sync with the installed Python package.
+    Write-Host "Installing Playwright browser binaries..."
+    python -m playwright install chromium
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "playwright install chromium failed"
+        exit 1
+    }
+
     python -c "from src.config_validator import validate_config; import config; validate_config(vars(config))"
     python scripts\setup_db.py
     Write-Host "Update successful."
