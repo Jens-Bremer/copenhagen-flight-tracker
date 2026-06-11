@@ -9,7 +9,7 @@ import logging
 import os
 import sqlite3
 from contextlib import contextmanager
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 import config
@@ -61,7 +61,7 @@ def _check_heartbeat_stale(heartbeat_path: str) -> Optional[str]:
         before the atomic-rename fix landed, or disk corruption,
     (c) file from a prior date — daemon ran on an earlier day but not today.
     """
-    today = date.today().isoformat()
+    today = datetime.now(tz=timezone.utc).date().isoformat()
     if not os.path.exists(heartbeat_path):
         return (
             f"[urgent] Heartbeat missing: {heartbeat_path} does not exist "
@@ -141,7 +141,7 @@ def _check_consecutive_failures_per_route(db_path: str) -> list[str]:
     Walks back from yesterday (today is in-progress). Routes never observed
     and routes with observations today are silently skipped.
     """
-    today = date.today()
+    today = datetime.now(tz=timezone.utc).date()
     yesterday = today - timedelta(days=1)
     problems: list[str] = []
     with _db_connection(db_path) as conn:
@@ -172,7 +172,7 @@ def _check_consecutive_failures_per_route(db_path: str) -> list[str]:
 
 def _check_zero_observations_today(db_path: str) -> Optional[str]:
     """Return a problem string if no observations were retrieved today."""
-    today = date.today().isoformat()
+    today = datetime.now(tz=timezone.utc).date().isoformat()
     with _db_connection(db_path) as conn:
         count = conn.execute(
             "SELECT COUNT(*) FROM flight_observations WHERE retrieved_at LIKE ?",
@@ -185,7 +185,7 @@ def _check_zero_observations_today(db_path: str) -> Optional[str]:
 
 def _check_observation_count_drop(db_path: str) -> Optional[str]:
     """Return a problem string if today's count is below configured 7-day threshold."""
-    today = date.today().isoformat()
+    today = datetime.now(tz=timezone.utc).date().isoformat()
     with _db_connection(db_path) as conn:
         today_count = conn.execute(
             "SELECT COUNT(*) FROM flight_observations WHERE retrieved_at LIKE ?",
@@ -214,7 +214,7 @@ def _check_observation_count_drop(db_path: str) -> Optional[str]:
 
 def _check_currency_inconsistency(db_path: str) -> Optional[str]:
     """Return a problem string if more than one currency was seen today."""
-    today = date.today().isoformat()
+    today = datetime.now(tz=timezone.utc).date().isoformat()
     with _db_connection(db_path) as conn:
         currencies = conn.execute(
             """
@@ -335,7 +335,7 @@ def run_health_check(
             os.path.dirname(os.path.abspath(db_path)), "last_run.json"
         )
     if run_date is None:
-        run_date = date.today().isoformat()
+        run_date = datetime.now(tz=timezone.utc).date().isoformat()
     single_checks = [
         _check_heartbeat_stale(heartbeat_path),
         _check_high_failure_rate(heartbeat_path),
