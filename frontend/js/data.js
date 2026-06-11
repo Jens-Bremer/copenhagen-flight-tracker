@@ -36,6 +36,7 @@ async function loadData() {
       flights: readJsonBlob('DATA_FLIGHTS') || {},
       analysis: readJsonBlob('DATA_ANALYSIS') || {},
       summary: readJsonBlob('DATA_SUMMARY') || {},
+      health: readJsonBlob('DATA_HEALTH') || {},
     };
   }
 
@@ -52,6 +53,7 @@ async function loadData() {
       flights: d.flights || {},
       analysis: d.analysis || {},
       summary: d.summary || {},
+      health: d.health || {},
     };
   } catch (err) {
     console.error('Failed to load data.json:', err);
@@ -66,6 +68,7 @@ async function loadData() {
       flights: {},
       analysis: {},
       summary: {},
+      health: {},
     };
   }
 }
