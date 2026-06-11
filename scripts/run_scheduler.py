@@ -285,7 +285,15 @@ def _health_check_job() -> None:
 
 
 def _auto_update_job() -> None:
-    """Run update.ps1 at 23:55 daily — after the collection window and nightly jobs."""
+    """Spawn update.ps1 detached and exit, then let update.ps1 restart us.
+
+    update.ps1 used to kill this scheduler via the PID file and then run the
+    update — but subprocess.run waited on a powershell child whose first act
+    was to kill its own parent, so the post-run alert path here was unreachable
+    in production. We now detach the child (so it survives our exit), then
+    exit cleanly. update.ps1 sees a stale PID file, runs the update, posts its
+    own ntfy alert on failure, and starts a fresh scheduler.
+    """
     update_script = os.path.join(
         os.path.dirname(os.path.abspath(__file__)), "update.ps1"
     )
@@ -293,33 +301,35 @@ def _auto_update_job() -> None:
         logger.info("update.ps1 not found; skipping auto-update")
         return
     try:
-        logger.info("Running scheduled auto-update via update.ps1")
-        result = subprocess.run(
-            ["powershell", "-ExecutionPolicy", "Bypass", "-File", update_script],
-            capture_output=True,
-            text=True,
-            timeout=300,
+        logger.info("Spawning detached auto-update; scheduler will exit")
+        # Windows: detach so the child outlives this Python process.
+        DETACHED_PROCESS = 0x00000008
+        CREATE_NEW_PROCESS_GROUP = 0x00000200
+        creationflags = (
+            DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
         )
-        if result.returncode != 0:
-            logger.error(
-                "Auto-update failed (exit %d): %s",
-                result.returncode,
-                result.stderr[:400],
-            )
-            send_alert(
-                title="Flight tracker: auto-update failed",
-                message=f"Exit code: {result.returncode}",
-                priority="high",
-            )
-        else:
-            logger.info("Auto-update succeeded")
+        subprocess.Popen(
+            ["powershell", "-ExecutionPolicy", "Bypass", "-File", update_script],
+            creationflags=creationflags,
+            close_fds=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        # Give the OS a moment to actually detach the child before we exit.
+        time.sleep(2)
     except Exception as exc:
-        logger.exception("Auto-update job crashed: %s", exc)
+        logger.exception("Auto-update spawn failed: %s", exc)
         send_alert(
-            title="Flight tracker: auto-update crashed",
+            title="Flight tracker: auto-update spawn failed",
             message=str(exc),
             priority="high",
         )
+        return
+    # os._exit bypasses schedule.run_pending's loop and any finally blocks.
+    # update.ps1 will start a fresh scheduler when it finishes.
+    logger.info("Auto-update spawned; exiting scheduler now")
+    os._exit(0)
 
 
 def setup_schedule() -> None:

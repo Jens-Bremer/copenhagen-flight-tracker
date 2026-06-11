@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 import sys
 from unittest.mock import patch
 
@@ -277,81 +278,61 @@ def test_auto_update_job_skips_when_script_missing(tmp_path):
     assert "not found" in mock_logger.info.call_args[0][0].lower()
 
 
-def test_auto_update_job_runs_powershell_script(tmp_path):
-    """The auto-update job calls powershell with update.ps1."""
+def test_auto_update_job_spawns_powershell_detached_and_exits(tmp_path):
+    """Spawns powershell with update.ps1 via Popen and calls os._exit(0).
+
+    Critical: the old implementation used subprocess.run + wait, but update.ps1
+    kills the scheduler that's waiting on it. We now Popen-detach and exit
+    cleanly so update.ps1 can restart us from a clean slate.
+    """
     update_script = str(tmp_path / "update.ps1")
-    mock_result = type("R", (), {"returncode": 0})()
     with (
         patch("scripts.run_scheduler.os.path.exists", return_value=True),
-        patch(
-            "scripts.run_scheduler.subprocess.run", return_value=mock_result
-        ) as mock_run,
+        patch("scripts.run_scheduler.subprocess.Popen") as mock_popen,
         patch("scripts.run_scheduler.os.path.dirname", return_value=str(tmp_path)),
         patch("scripts.run_scheduler.os.path.abspath", return_value=update_script),
+        patch("scripts.run_scheduler.time.sleep"),
+        patch("scripts.run_scheduler.os._exit") as mock_exit,
     ):
         _auto_update_job()
-    mock_run.assert_called_once()
-    (args, _kwargs) = mock_run.call_args
+    mock_popen.assert_called_once()
+    (args, kwargs) = mock_popen.call_args
     cmd = args[0]
     assert cmd[0] == "powershell"
     assert "-ExecutionPolicy" in cmd
     assert "Bypass" in cmd
     assert "-File" in cmd
     assert cmd[-1] == update_script
+    # Detached IO so the child survives our exit.
+    assert kwargs["close_fds"] is True
+    assert kwargs["stdin"] == subprocess.DEVNULL
+    assert kwargs["stdout"] == subprocess.DEVNULL
+    assert kwargs["stderr"] == subprocess.DEVNULL
+    # Must exit so update.ps1's PID-file cleanup sees a stale entry.
+    mock_exit.assert_called_once_with(0)
 
 
-def test_auto_update_job_sends_alert_on_failure():
-    """When update.ps1 fails (non-zero exit), the job sends an alert."""
+def test_auto_update_job_alerts_when_spawn_itself_fails():
+    """If Popen raises (e.g. powershell missing), send an alert and don't exit.
+
+    Spawn failure is the only path where the scheduler stays alive — failures
+    after spawn are reported by update.ps1's own ntfy call.
+    """
     with (
         patch("scripts.run_scheduler.os.path.exists", return_value=True),
         patch(
-            "scripts.run_scheduler.subprocess.run",
-            return_value=type("R", (), {"returncode": 1, "stderr": "error"})(),
+            "scripts.run_scheduler.subprocess.Popen",
+            side_effect=FileNotFoundError("powershell not found"),
         ),
         patch("scripts.run_scheduler.send_alert") as mock_alert,
+        patch("scripts.run_scheduler.os._exit") as mock_exit,
     ):
         _auto_update_job()
     mock_alert.assert_called_once()
     _args, kwargs = mock_alert.call_args
     assert "auto-update" in kwargs["title"].lower()
     assert kwargs["priority"] == "high"
-
-
-def test_auto_update_job_sends_alert_on_crash():
-    """When update.ps1 subprocess raises an exception, the job sends an alert."""
-    with (
-        patch("scripts.run_scheduler.os.path.exists", return_value=True),
-        patch(
-            "scripts.run_scheduler.subprocess.run",
-            side_effect=RuntimeError("timeout"),
-        ),
-        patch("scripts.run_scheduler.send_alert") as mock_alert,
-    ):
-        _auto_update_job()
-    mock_alert.assert_called_once()
-    _args, kwargs = mock_alert.call_args
-    assert "auto-update" in kwargs["title"].lower()
-    assert kwargs["priority"] == "high"
-
-
-def test_auto_update_job_silent_on_success():
-    """When update.ps1 succeeds (exit 0), the job logs success and does not alert."""
-    with (
-        patch("scripts.run_scheduler.os.path.exists", return_value=True),
-        patch(
-            "scripts.run_scheduler.subprocess.run",
-            return_value=type("R", (), {"returncode": 0})(),
-        ),
-        patch("scripts.run_scheduler.send_alert") as mock_alert,
-        patch("scripts.run_scheduler.logger") as mock_logger,
-    ):
-        _auto_update_job()
-    mock_alert.assert_not_called()
-    # Should log success
-    success_calls = [
-        c for c in mock_logger.info.call_args_list if "succeeded" in str(c).lower()
-    ]
-    assert len(success_calls) > 0
+    mock_exit.assert_not_called()
 
 
 # --- PID file management (issue #133) ---
