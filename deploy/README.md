@@ -1,5 +1,7 @@
 # deploy/
 
+**Linux only** — Deployment files for systemd-based systems (no longer actively maintained; reference only).
+
 Deployment files for Linux systems using systemd. These assume the project lives at `/opt/copenhagen-flight-tracker` and runs as user `flighttracker`.
 
 | File | Purpose |

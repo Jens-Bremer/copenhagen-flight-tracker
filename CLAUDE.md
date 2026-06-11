@@ -41,7 +41,7 @@ python scripts/query_prices.py --date YYYY-MM-DD
 # Generate frontend manually
 python scripts/generate_html.py
 
-# Run the complete test suite (673 tests)
+# Run the complete test suite (691 tests)
 pytest tests/
 ```
 
@@ -153,7 +153,7 @@ SQLite at `data/flights.db`.
 
 ## Tests
 
-The test suite relies heavily on `pytest` and `unittest.mock` (333 tests).
+The test suite relies heavily on `pytest` and `unittest.mock` (691 tests).
 - **No real HTTP requests:** Always mock `fast-flights` API calls.
 - **No real DB state:** Use `tmp_path` fixtures in pytest for isolated `flights.db` instances.
 - **Coverage:** Includes unit tests for pure logic, integration tests for the orchestrator, and config validation checks.
