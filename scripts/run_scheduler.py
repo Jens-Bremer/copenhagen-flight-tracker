@@ -240,7 +240,7 @@ def _generate_html_job() -> None:
     input_path = os.path.join(data_dir, "flights_frontend.csv")
     output_path = FRONTEND_OUTPUT_PATH
     try:
-        n = generate_html(input_path, output_path)
+        n = generate_html(input_path, output_path, inline_data=True)
         logger.info("Scheduler: HTML generated — rows=%d output=%s", n, output_path)
     except Exception as exc:  # noqa: BLE001
         logger.error("HTML generation failed: %s", exc)
