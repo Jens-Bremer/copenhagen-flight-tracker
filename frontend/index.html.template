@@ -103,16 +103,7 @@
       <div id="timeheat-container" class="timeheat-wrap"></div>
     </section>
 
-    <!-- 9. How prices change as departure approaches -->
-    <section class="panel" aria-labelledby="normprog-heading">
-      <h2 class="panel__heading" id="normprog-heading">How prices change as departure approaches</h2>
-      <p class="panel__subtitle">0% equals first time we saw this flight. Shows whether prices tend to rise or fall over time</p>
-      <div class="chart-wrap">
-        <canvas id="normprog-chart" aria-label="Normalised price change by days before departure" role="img"></canvas>
-      </div>
-    </section>
-
-    <!-- 10. Scraper health dashboard (compact bottom strip) -->
+    <!-- 9. Scraper health dashboard (compact bottom strip) -->
     <section class="health-dashboard" aria-label="Scraper health status">
       <div id="health-status-card" class="health-status"></div>
     </section>
