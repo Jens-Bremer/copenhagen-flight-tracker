@@ -10,7 +10,7 @@ class TestLoadProxies:
     """Tests for the load_proxies function."""
 
     def test_parses_standard_format(self):
-        """host:port:user:pass → http://user:pass@host:port"""
+        """host:port:user:pass → http://host:port (credentials ignored)"""
         from src.proxy_manager import load_proxies
 
         content = (
@@ -21,8 +21,8 @@ class TestLoadProxies:
         try:
             result = load_proxies(path)
             assert result == [
-                "http://userABC:passXYZ@proxy1.example.com:8080",
-                "http://user2:pass2@proxy2.example.com:9090",
+                "http://proxy1.example.com:8080",
+                "http://proxy2.example.com:9090",
             ]
         finally:
             os.unlink(path)
@@ -57,6 +57,54 @@ class TestLoadProxies:
                 result = load_proxies(path)
             assert len(result) == 2
             assert "Skipping malformed proxy line" in caplog.text
+        finally:
+            os.unlink(path)
+
+    def test_load_proxies_two_part_format(self):
+        """host:port format (no credentials) is accepted."""
+        from src.proxy_manager import load_proxies
+
+        content = "86.90.97.144:3128\n"
+        path = self._write_temp(content)
+        try:
+            result = load_proxies(path)
+            assert result == ["http://86.90.97.144:3128"]
+        finally:
+            os.unlink(path)
+
+    def test_load_proxies_four_part_format_drops_credentials(self):
+        """host:port:user:pass format accepted; credentials are dropped."""
+        from src.proxy_manager import load_proxies
+
+        content = "86.90.97.144:3128:user:pass\n"
+        path = self._write_temp(content)
+        try:
+            result = load_proxies(path)
+            assert result == ["http://86.90.97.144:3128"]
+        finally:
+            os.unlink(path)
+
+    def test_load_proxies_malformed_line_skipped(self):
+        """3-part and 1-part lines are skipped; valid lines still load."""
+        from src.proxy_manager import load_proxies
+
+        content = "badline\n86.90.97.144:3128\n"
+        path = self._write_temp(content)
+        try:
+            result = load_proxies(path)
+            assert result == ["http://86.90.97.144:3128"]
+        finally:
+            os.unlink(path)
+
+    def test_load_proxies_comments_and_blanks_skipped(self):
+        """Comment lines and blank lines are ignored."""
+        from src.proxy_manager import load_proxies
+
+        content = "# comment\n\n86.90.97.144:3128\n"
+        path = self._write_temp(content)
+        try:
+            result = load_proxies(path)
+            assert result == ["http://86.90.97.144:3128"]
         finally:
             os.unlink(path)
 

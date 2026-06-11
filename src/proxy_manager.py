@@ -1,6 +1,6 @@
 """Proxy management for flight scraping.
 
-Loads a proxy list file (format: host:port:username:password).
+Loads a proxy list file (format: host:port or host:port:username:password).
 The scheduler uses a single reliable proxy (no rotation) to avoid
 fingerprint variation that triggers bot detection.
 
@@ -19,10 +19,11 @@ logger = logging.getLogger(__name__)
 def load_proxies(path: str) -> list[str]:
     """Load proxies from a file.
 
-    File format: one proxy per line as host:port:username:password
+    File format: one proxy per line. Accepted formats: host:port or
+    host:port:username:password (credentials ignored — Squid uses IP-based ACL).
     Lines starting with # and blank lines are skipped.
 
-    Returns a list of proxy URLs: http://username:password@host:port
+    Returns a list of proxy URLs: http://host:port
 
     Raises:
         FileNotFoundError: if the proxy file does not exist.
@@ -37,16 +38,22 @@ def load_proxies(path: str) -> list[str]:
             continue
 
         parts = line.split(":")
-        if len(parts) != 4:
+        if len(parts) == 2:
+            host, port = parts
+        elif len(parts) == 4:
+            host, port = parts[0], parts[1]
+            # Credentials intentionally ignored — Squid uses IP-based ACL;
+            # sending creds would cause a 407 before the ACL allow rule fires.
+        else:
             logger.warning(
-                "Skipping malformed proxy line %d: %s (expected host:port:user:pass)",
+                "Skipping malformed proxy line %d: %s "
+                "(expected host:port or host:port:user:pass)",
                 line_num,
                 line,
             )
             continue
-
-        host, port, username, password = parts
-        proxies.append(f"http://{username}:{password}@{host}:{port}")
+        logger.info("Loaded proxy %s:%s", host, port)
+        proxies.append(f"http://{host}:{port}")
 
     logger.info("Loaded %d proxies from %s", len(proxies), path)
     return proxies
