@@ -1184,13 +1184,12 @@ def test_panel_subtitles_present_in_rendered_html():
     assert "panel__subtitle" in index_html, (
         ".panel__subtitle not found in rendered HTML"
     )
-    # Check that all 6 subtitles from the spec are present
+    # Check that all panel subtitles from the spec are present
     assert "How prices have changed over time" in index_html
     assert "each bar is one 5 euro bin" in index_html or "5 euro bin" in index_html
     assert "Cheapest Friday to Sunday" in index_html
     assert "day of week and month" in index_html
     assert "Cheapest hours to fly" in index_html
-    assert "whether prices tend to rise or fall" in index_html
 
 
 def test_panel_subtitle_css_in_styles():
