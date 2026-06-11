@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 from scripts.run_daily import _write_heartbeat
 from scripts.run_scheduler import (
+    _auto_update_job,
     _backup_job,
     _check_stale_pid_file,
     _csv_export_job,
@@ -37,12 +38,12 @@ def clear_schedule():
 # --- Job registration ---
 
 
-def test_setup_schedule_registers_five_jobs():
-    """Five scheduled jobs: daily collection, backup, health check, CSV export,
-    frontend CSV. HTML generation has no separate entry — it chains inline
-    after the frontend CSV job completes."""
+def test_setup_schedule_registers_six_jobs():
+    """Six scheduled jobs: daily collection, backup, health check, CSV export,
+    frontend CSV, auto-update. HTML generation has no separate entry — it chains
+    inline after the frontend CSV job completes."""
     setup_schedule()
-    assert len(schedule.jobs) == 5
+    assert len(schedule.jobs) == 6
 
 
 def test_no_timed_html_generation_job():
@@ -256,6 +257,105 @@ def test_frontend_csv_job_chains_html_generation(tmp_path):
         mock_cfg.DATABASE_PATH = str(tmp_path / "flights.db")
         _frontend_csv_job()
     mock_gen.assert_called_once()
+
+
+def test_auto_update_scheduled_at_2355():
+    """Auto-update job is registered at 23:55."""
+    setup_schedule()
+    times = [str(job.next_run.strftime("%H:%M")) for job in schedule.jobs]
+    assert "23:55" in times
+
+
+def test_auto_update_job_skips_when_script_missing(tmp_path):
+    """When update.ps1 does not exist, the job logs a message and returns."""
+    with (
+        patch("scripts.run_scheduler.os.path.exists", return_value=False),
+        patch("scripts.run_scheduler.logger") as mock_logger,
+    ):
+        _auto_update_job()
+    mock_logger.info.assert_called_once()
+    assert "not found" in mock_logger.info.call_args[0][0].lower()
+
+
+def test_auto_update_job_runs_powershell_script(tmp_path):
+    """The auto-update job calls powershell with update.ps1."""
+    update_script = str(tmp_path / "update.ps1")
+    mock_result = type('R', (), {'returncode': 0})()
+    with (
+        patch("scripts.run_scheduler.os.path.exists", return_value=True),
+        patch(
+            "scripts.run_scheduler.subprocess.run", return_value=mock_result
+        ) as mock_run,
+        patch("scripts.run_scheduler.os.path.dirname", return_value=str(tmp_path)),
+        patch(
+            "scripts.run_scheduler.os.path.abspath", return_value=update_script
+        ),
+    ):
+        _auto_update_job()
+    mock_run.assert_called_once()
+    (args, _kwargs) = mock_run.call_args
+    cmd = args[0]
+    assert cmd[0] == "powershell"
+    assert "-ExecutionPolicy" in cmd
+    assert "Bypass" in cmd
+    assert "-File" in cmd
+    assert cmd[-1] == update_script
+
+
+def test_auto_update_job_sends_alert_on_failure():
+    """When update.ps1 fails (non-zero exit), the job sends an alert."""
+    with (
+        patch("scripts.run_scheduler.os.path.exists", return_value=True),
+        patch(
+            "scripts.run_scheduler.subprocess.run",
+            return_value=type('R', (), {'returncode': 1, 'stderr': 'error'})(),
+        ),
+        patch("scripts.run_scheduler.send_alert") as mock_alert,
+    ):
+        _auto_update_job()
+    mock_alert.assert_called_once()
+    _args, kwargs = mock_alert.call_args
+    assert "auto-update" in kwargs["title"].lower()
+    assert kwargs["priority"] == "high"
+
+
+def test_auto_update_job_sends_alert_on_crash():
+    """When update.ps1 subprocess raises an exception, the job sends an alert."""
+    with (
+        patch("scripts.run_scheduler.os.path.exists", return_value=True),
+        patch(
+            "scripts.run_scheduler.subprocess.run",
+            side_effect=RuntimeError("timeout"),
+        ),
+        patch("scripts.run_scheduler.send_alert") as mock_alert,
+    ):
+        _auto_update_job()
+    mock_alert.assert_called_once()
+    _args, kwargs = mock_alert.call_args
+    assert "auto-update" in kwargs["title"].lower()
+    assert kwargs["priority"] == "high"
+
+
+def test_auto_update_job_silent_on_success():
+    """When update.ps1 succeeds (exit 0), the job logs success and does not alert."""
+    with (
+        patch("scripts.run_scheduler.os.path.exists", return_value=True),
+        patch(
+            "scripts.run_scheduler.subprocess.run",
+            return_value=type('R', (), {'returncode': 0})(),
+        ),
+        patch("scripts.run_scheduler.send_alert") as mock_alert,
+        patch("scripts.run_scheduler.logger") as mock_logger,
+    ):
+        _auto_update_job()
+    mock_alert.assert_not_called()
+    # Should log success
+    success_calls = [
+        c
+        for c in mock_logger.info.call_args_list
+        if 'succeeded' in str(c).lower()
+    ]
+    assert len(success_calls) > 0
 
 
 # --- PID file management (issue #133) ---
