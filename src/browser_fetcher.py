@@ -298,6 +298,36 @@ def reset_last_route_label() -> None:
     _last_route_label = None
 
 
+def _detect_block(status: int, body: str) -> None:
+    """Raise the appropriate error if the response indicates a block or challenge.
+
+    Raises:
+        RateLimitedError: for HTTP 429 or 403
+        RuntimeError: for non-200 status (other than 429/403)
+        BotChallengeError: for short body or suspicious title
+    """
+    if status in (429, 403):
+        raise RateLimitedError(f"HTTP {status}")
+    if status != 200:
+        raise RuntimeError(f"HTTP {status}")
+
+    if len(body.encode("utf-8")) < config.BOT_CHALLENGE_MIN_BYTES:
+        raise BotChallengeError("response below minimum length")
+
+    # Match patterns against the page <title> only — not the full body.
+    # Google Flights legitimately includes reCAPTCHA JS on every page, so
+    # "captcha" appears in script URLs even on clean responses. A real block
+    # page has a suspicious title ("Unusual Traffic Detected", "Before you
+    # continue"); a real Flights page title never contains these words.
+    title_match = re.search(
+        r"<title[^>]*>(.*?)</title>", body, re.IGNORECASE | re.DOTALL
+    )
+    title = title_match.group(1).lower() if title_match else ""
+    for pattern in config.BOT_CHALLENGE_TITLE_PATTERNS:
+        if pattern.lower() in title:
+            raise BotChallengeError(f"detected pattern in title: {pattern}")
+
+
 def _fetch_via(url: str, use_proxy: bool) -> BrowserResponse:
     """Fetch ``url`` through the requested context and validate the response.
 
@@ -353,27 +383,7 @@ def _fetch_via(url: str, use_proxy: bool) -> BrowserResponse:
     finally:
         page.close()
 
-    if status in (429, 403):
-        raise RateLimitedError(f"HTTP {status}")
-    if status != 200:
-        raise RuntimeError(f"HTTP {status}")
-
-    if len(body.encode("utf-8")) < config.BOT_CHALLENGE_MIN_BYTES:
-        raise BotChallengeError("response below minimum length")
-
-    # Match patterns against the page <title> only — not the full body.
-    # Google Flights legitimately includes reCAPTCHA JS on every page, so
-    # "captcha" appears in script URLs even on clean responses. A real block
-    # page has a suspicious title ("Unusual Traffic Detected", "Before you
-    # continue"); a real Flights page title never contains these words.
-    title_match = re.search(
-        r"<title[^>]*>(.*?)</title>", body, re.IGNORECASE | re.DOTALL
-    )
-    title = title_match.group(1).lower() if title_match else ""
-    for pattern in config.BOT_CHALLENGE_TITLE_PATTERNS:
-        if pattern.lower() in title:
-            raise BotChallengeError(f"detected pattern in title: {pattern}")
-
+    _detect_block(status, body)
     return BrowserResponse(status, body)
 
 
