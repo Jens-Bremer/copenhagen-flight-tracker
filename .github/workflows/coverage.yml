@@ -27,6 +27,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
+      - name: Create config.py from template
+        run: cp config.example.py config.py
+
       - name: Run tests with coverage
         run: |
           python -m pytest tests/ --ignore=tests/browser \

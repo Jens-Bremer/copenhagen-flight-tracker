@@ -69,6 +69,9 @@ ignore = [
 "scripts/**/*.py" = ["RUF046", "RUF100"]
 "tests/**/*.py" = ["SIM117"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["config", "scripts", "src"]
+
 [tool.ruff.lint.mccabe]
 max-complexity = 18
 
