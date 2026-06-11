@@ -34,17 +34,34 @@ Observations older than 2 years should be:
 
 ### Manual Archival
 
-```bash
-# Export observations from 2022 and earlier
-python scripts/archive_old_data.py --before 2023-01-01
+Archival is not yet automated. To reclaim space manually:
 
-# Verify deletion
-python scripts/query_prices.py --stats
-```
+1. Export old rows to CSV:
+   ```bash
+   sqlite3 data/flights.db ".headers on" ".mode csv" \
+     ".output data/archive/flights_old.csv" \
+     "SELECT * FROM flight_observations WHERE departure_date < '2024-01-01';" \
+     ".quit"
+   ```
+
+2. Delete the exported rows:
+   ```bash
+   sqlite3 data/flights.db "DELETE FROM flight_observations WHERE departure_date < '2024-01-01';"
+   ```
+
+3. Reclaim disk space:
+   ```bash
+   sqlite3 data/flights.db "VACUUM;"
+   ```
+
+4. Verify deletion:
+   ```bash
+   python scripts/query_prices.py --stats
+   ```
 
 ## Database Size Thresholds
 
-- **Warning**: When `flights.db` exceeds 500 MB, the health check will alert you
+- **Warning**: When `flights.db` exceeds `DB_SIZE_WARN_BYTES` (default 500 MB), the health check will alert you
 - **Action**: Archive old data and trigger a cleanup
 - **Expected timeline**: At 156 jobs/day (CPH↔AMS), you'll reach 500 MB in ~3 years
 
