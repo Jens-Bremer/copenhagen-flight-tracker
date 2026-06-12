@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import config
 from scripts.backup_db import backup_database
+from scripts.cleanup_profiles import cleanup_profiles
 from scripts.export_csv import export_to_csv
 from scripts.run_daily import run_collection
 from src.browser_fetcher import install_browser_patch, shutdown_browser
@@ -255,6 +256,21 @@ def _generate_html_job() -> None:
         )
 
 
+def _cleanup_profiles_job() -> None:
+    """Prune Playwright profile dir if oversized. Runs weekly."""
+    logger.info("Scheduler: running browser-profile cleanup")
+    try:
+        from pathlib import Path
+
+        profiles_dir = Path(
+            os.path.dirname(os.path.abspath(config.DATABASE_PATH))
+        ) / "browser_profiles"
+        max_bytes = getattr(config, "BROWSER_PROFILE_MAX_BYTES", 300_000_000)
+        cleanup_profiles(profiles_dir, max_bytes)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Browser-profile cleanup failed: %s", exc)
+
+
 def _health_check_job() -> None:
     """Run the health check and alert if problems found.
 
@@ -346,9 +362,11 @@ def setup_schedule() -> None:
     schedule.every().day.at("23:45").do(_csv_export_job)
     schedule.every().day.at("23:46").do(_frontend_csv_job)
     schedule.every().day.at("23:55").do(_auto_update_job)
+    schedule.every().monday.at("02:30").do(_cleanup_profiles_job)
     logger.info(
         "Scheduler: daily collection at %s, backup at 01:00, health check at "
-        "23:30, CSV export at 23:45, frontend CSV at 23:46, auto-update at 23:55 "
+        "23:30, CSV export at 23:45, frontend CSV at 23:46, auto-update at 23:55, "
+        "weekly browser-profile cleanup Mon 02:30 "
         "(HTML regenerates inline after the frontend CSV completes)",
         daily_time,
     )

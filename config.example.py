@@ -125,3 +125,10 @@ PLAYWRIGHT_DWELL_MAX_MS = 3500
 # networkidle timeout (ms). Playwright waits for no network requests for 500 ms
 # within this budget after domcontentloaded. Increase if Flights loads slowly.
 PLAYWRIGHT_NETWORKIDLE_TIMEOUT_MS = 15000
+
+# ─── Insights / housekeeping (added by airlines.html price-insight plan) ─────
+
+# Max bytes of data/browser_profiles/ before scripts/cleanup_profiles.py prunes.
+# Profiles are recreated on next scrape (see docs/troubleshooting.md). 300 MB
+# default works fine on the old Windows home-server.
+BROWSER_PROFILE_MAX_BYTES = 300_000_000
