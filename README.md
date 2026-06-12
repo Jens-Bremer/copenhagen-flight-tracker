@@ -12,6 +12,8 @@ Live data: [stats.jensbremer.nl](https://stats.jensbremer.nl/copenhagen-flight-t
 
 ## Quick start
 
+### Linux / macOS
+
 ```bash
 git clone https://github.com/Jens-Bremer/copenhagen-flight-tracker.git
 cd copenhagen-flight-tracker
@@ -21,6 +23,21 @@ playwright install chromium          # one-time browser download
 python scripts/setup_db.py
 python scripts/run_scheduler.py      # leave this running
 ```
+
+### Windows (PowerShell)
+
+```powershell
+git clone https://github.com/Jens-Bremer/copenhagen-flight-tracker.git
+cd copenhagen-flight-tracker
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e .
+playwright install chromium          # one-time browser download — do this BEFORE Task Scheduler setup
+python scripts\setup_db.py
+python scripts\run_scheduler.py      # leave this running, or register a Scheduled Task (see WINDOWS_SETUP.md)
+```
+
+For unattended runs as a Windows scheduled task, see [docs/WINDOWS_SETUP.md](docs/WINDOWS_SETUP.md).
 
 Edit `config.py` for your routes, ntfy alert topic, and price thresholds before starting.
 
