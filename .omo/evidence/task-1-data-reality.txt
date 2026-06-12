@@ -1,0 +1,63 @@
+Total rows: 11379
+
+=== Rows per airline ===
+  Scandinavian Airlines: 2373
+  KLM: 1086
+  Lufthansa: 1070
+  Norwegian: 752
+  Air France: 746
+  Air Baltic: 674
+  Finnair: 638
+  LOT: 550
+  SWISS: 502
+  British Airways: 500
+  Austrian: 472
+  KLM, Scandinavian Airlines: 388
+  Scandinavian Airlines, KLM: 266
+  KLM, Air France: 256
+  Air France, KLM: 244
+  AJet: 174
+  Scandinavian Airlines, Air France: 158
+  Lufthansa, Lufthansa City Airlines: 132
+  Vueling: 88
+  easyJet: 56
+  Air Serbia: 48
+  Lufthansa City Airlines, Lufthansa: 46
+  Tap Air Portugal: 30
+  Turkish Airlines: 24
+  Iberia: 20
+  Air France, Scandinavian Airlines: 20
+  Aegean: 16
+  Croatia, KLM: 12
+  Icelandair: 10
+  Brussels Airlines, Lufthansa: 8
+  Lufthansa, Air Dolomiti: 8
+  Air Baltic, Scandinavian Airlines: 4
+  KLM, Air Serbia: 2
+  Air Serbia, KLM: 2
+  Air Dolomiti, Lufthansa: 2
+  Croatia: 2
+
+=== DISTINCT price_currency ===
+{'EUR': 11379}
+
+=== days_before distribution ===
+  0-6: 356
+  7-13: 477
+  14-20: 81
+  21-29: 1138
+  30-59: 2073
+  60-89: 1310
+  90+: 5944
+
+=== Date span: 2026-05-15 → 2026-05-15 (1 days) ===
+
+=== Routes ===
+  CPH->AMS: 5893
+  AMS->CPH: 5486
+
+=== Single-observation flights: 97 / 4304 unique flights ===
+=== (route,airline,bucket) cells: 241 total ===
+  ≥30 obs (dense): 92
+  3-29 obs (usable): 119
+  <3 obs (sparse): 30

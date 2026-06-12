@@ -37,6 +37,10 @@ async function loadData() {
       analysis: readJsonBlob('DATA_ANALYSIS') || {},
       summary: readJsonBlob('DATA_SUMMARY') || {},
       health: readJsonBlob('DATA_HEALTH') || {},
+      price_percentile: readJsonBlob('DATA_PRICE_PERCENTILE') || {},
+      momentum: readJsonBlob('DATA_MOMENTUM') || {},
+      volatility: readJsonBlob('DATA_VOLATILITY') || {},
+      price_drops: readJsonBlob('DATA_PRICE_DROPS') || {},
     };
   }
 
@@ -54,6 +58,10 @@ async function loadData() {
       analysis: d.analysis || {},
       summary: d.summary || {},
       health: d.health || {},
+      price_percentile: d.price_percentile || {},
+      momentum: d.momentum || {},
+      volatility: d.volatility || {},
+      price_drops: d.price_drops || {},
     };
   } catch (err) {
     console.error('Failed to load data.json:', err);
