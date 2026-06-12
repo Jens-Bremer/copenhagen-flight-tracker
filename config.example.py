@@ -132,3 +132,15 @@ PLAYWRIGHT_NETWORKIDLE_TIMEOUT_MS = 15000
 # Profiles are recreated on next scrape (see docs/troubleshooting.md). 300 MB
 # default works fine on the old Windows home-server.
 BROWSER_PROFILE_MAX_BYTES = 300_000_000
+
+# Price-drop detector thresholds (display-only, no ntfy alerts).
+# A flight is flagged as a drop when its current price is at least
+# DROP_PCT_THRESHOLD% below its trailing median AND below the bucket P25
+# AND has persisted for ≥ DROP_MIN_PERSIST consecutive scrapes.
+DROP_PCT_THRESHOLD = 10.0          # min % below trailing median
+DROP_REFERENCE_WINDOW_DAYS = 30    # how far back to build the per-bucket reference
+DROP_TRAILING_WINDOW_DAYS = 7      # window for per-flight trailing median
+DROP_MIN_PERSIST = 2               # min consecutive low-price scrapes
+
+# Insights panels degrade to placeholders below this much history.
+INSIGHTS_MIN_HISTORY_DAYS = 14
