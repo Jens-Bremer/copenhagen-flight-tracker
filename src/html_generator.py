@@ -531,7 +531,6 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     by_lead = groups["by_lead"]
     by_lead_airline = groups["by_lead_airline"]
     by_time = groups["by_time"]
-    by_flight = groups["by_flight"]
     cheapest_per_dep = groups["cheapest_per_dep"]
     cheapest_per_obs = groups["cheapest_per_obs"]
     rows_by_route = groups["rows_by_route"]

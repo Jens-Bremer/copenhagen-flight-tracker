@@ -25,7 +25,6 @@ const REQUIRED_DOM_IDS = [
   'dow-chart', 'month-chart',
   'airline-boxplots-container',
   'timeheat-container',
-  'normprog-chart',
 ];
 
 // ───── Route palette — index by position in DATA.metadata.routes ────────────
