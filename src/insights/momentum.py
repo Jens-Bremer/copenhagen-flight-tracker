@@ -52,10 +52,7 @@ def _trend_for_window(
     window = [d for d in days if (cutoff - d).days < window_days]
     if len(window) < 2:
         return {"direction": None, "pct_change": None, "sample_days": len(window)}
-    points = [
-        ((d - window[0]).days, float(daily_mins[d]))
-        for d in window
-    ]
+    points = [((d - window[0]).days, float(daily_mins[d])) for d in window]
     slope = linear_trend_slope(points)
     median_y = trailing_median([y for _, y in points])
     pct_per_day = (
@@ -102,8 +99,9 @@ def build_price_momentum(
     distinct_days = {r["retrieved_at"].date() for r in rows}
     history_days = len(distinct_days)
     base = {
-        "generated_at": (now or datetime.now(timezone.utc))
-        .strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_at": (now or datetime.now(timezone.utc)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        ),
         "history_days": history_days,
         "min_history_days": min_history_days,
     }

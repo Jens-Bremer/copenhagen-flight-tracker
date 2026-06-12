@@ -67,9 +67,7 @@ def test_persisted_drop_flagged():
     # different flight identity (different dep_time).
     peer_rows = []
     for j in range(8):  # 8 other flights at ~500
-        peer_rows += _build_history(
-            start, [500 + j * 5] * 14, dep_time=f"08:{j:02d}"
-        )
+        peer_rows += _build_history(start, [500 + j * 5] * 14, dep_time=f"08:{j:02d}")
 
     rows = target_rows + peer_rows
     out = build_price_drops(

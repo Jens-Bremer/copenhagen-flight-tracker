@@ -262,9 +262,10 @@ def _cleanup_profiles_job() -> None:
     try:
         from pathlib import Path
 
-        profiles_dir = Path(
-            os.path.dirname(os.path.abspath(config.DATABASE_PATH))
-        ) / "browser_profiles"
+        profiles_dir = (
+            Path(os.path.dirname(os.path.abspath(config.DATABASE_PATH)))
+            / "browser_profiles"
+        )
         max_bytes = getattr(config, "BROWSER_PROFILE_MAX_BYTES", 300_000_000)
         cleanup_profiles(profiles_dir, max_bytes)
     except Exception as exc:  # noqa: BLE001

@@ -39,7 +39,7 @@ def bucketed_percentile(
     """
     if not reference_values:
         return None
-    ref_sorted = sorted(reference_values)
+    ref_sorted: list[int] = sorted(round(v) for v in reference_values)
     return percentile_rank(round(value), ref_sorted, min_samples=min_samples)
 
 

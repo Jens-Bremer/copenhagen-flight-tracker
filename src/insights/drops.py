@@ -109,9 +109,9 @@ def build_price_drops(
     # Index 1: (route, airline, days_before) -> historical prices in ref window.
     bucket_hist: dict[tuple[str, str, int], list[int]] = defaultdict(list)
     # Index 2: flight_id -> sorted (retrieved_at, price, days_before, raw_row).
-    per_flight: dict[
-        tuple, list[tuple[datetime, int, int, dict[str, Any]]]
-    ] = defaultdict(list)
+    per_flight: dict[tuple, list[tuple[datetime, int, int, dict[str, Any]]]] = (
+        defaultdict(list)
+    )
 
     for r in rows:
         db = _days_before(r)
