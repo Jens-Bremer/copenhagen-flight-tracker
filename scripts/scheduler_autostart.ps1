@@ -18,9 +18,14 @@ $WarningPreference = 'SilentlyContinue'
 # Get the repo root (parent of scripts directory)
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $ScriptPath = Join-Path $RepoRoot 'scripts' 'run_scheduler.py'
+$WrapperPath = Join-Path $RepoRoot 'scripts' 'run_scheduler_logged.ps1'
 
 if (-not (Test-Path $ScriptPath)) {
     Write-Host "ERROR: run_scheduler.py not found at $ScriptPath"
+    exit 1
+}
+if (-not (Test-Path $WrapperPath)) {
+    Write-Host "ERROR: run_scheduler_logged.ps1 not found at $WrapperPath"
     exit 1
 }
 
@@ -35,15 +40,12 @@ if ($ExistingTask) {
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
 }
 
-# Find Python in the virtual environment
-$PythonPath = Join-Path $RepoRoot '.venv' 'Scripts' 'python.exe'
-if (-not (Test-Path $PythonPath)) {
-    # Fallback to system Python
-    $PythonPath = 'python'
-}
+# Run PowerShell to invoke the logging wrapper, so stdout+stderr are captured to logs\scheduler.out.log.
+$PwshExe = (Get-Command powershell.exe -ErrorAction SilentlyContinue)?.Source
+if (-not $PwshExe) { $PwshExe = 'powershell.exe' }
 
-Write-Host "Using Python: $PythonPath"
-Write-Host "Script path: $ScriptPath"
+Write-Host "Using PowerShell: $PwshExe"
+Write-Host "Wrapper script: $WrapperPath"
 Write-Host "Repo root: $RepoRoot"
 
 # Create a scheduled task to run at system startup
@@ -52,10 +54,10 @@ $Principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType 'ServiceAcco
 # Run at system startup (task trigger)
 $Trigger = New-ScheduledTaskTrigger -AtStartup
 
-# Action: run Python with the scheduler script
+# Action: run PowerShell wrapper so stdout+stderr land in logs\scheduler.out.log
 $Action = New-ScheduledTaskAction `
-    -Execute $PythonPath `
-    -Argument "`"$ScriptPath`"" `
+    -Execute $PwshExe `
+    -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$WrapperPath`"" `
     -WorkingDirectory $RepoRoot
 
 # Task settings: restart on failure, allow on-demand execution, etc.
