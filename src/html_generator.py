@@ -367,7 +367,9 @@ def _group_analysis_inputs(rows: list[dict[str, Any]]) -> dict[str, Any]:
     by_lead_airline: dict[tuple[str, int, str], list[int]] = defaultdict(list)
     cheapest_per_dep: dict[tuple[str, str], int] = {}
     cheapest_per_obs: dict[tuple[str, str], int] = {}
-    by_time: dict[tuple[str, int, int], list[int]] = defaultdict(list)
+    by_time: dict[tuple[str, int, int], dict[str, list[int]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
     by_flight: dict[tuple[str, str, str, str], dict[int, list[int]]] = defaultdict(
         lambda: defaultdict(list)
     )
@@ -385,7 +387,7 @@ def _group_analysis_inputs(rows: list[dict[str, Any]]) -> dict[str, Any]:
         by_lead_airline[(route, days_before, row["airline"])].append(row["price_cents"])
         by_time[
             (route, row["departure_at"].weekday(), row["departure_at"].hour)
-        ].append(row["price_cents"])
+        ][row["airline"]].append(row["price_cents"])
         dep_time = _hhmm(row["departure_at"])
         by_flight[(route, row["departure_date"], row["airline"], dep_time)][
             days_before
@@ -562,8 +564,18 @@ def build_analysis(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
 
         time_matrix = sorted(
             (
-                {"dow": dow, "hour": hour, "mean_cents": _mean(prices)}
-                for (r, dow, hour), prices in by_time.items()
+                {
+                    "dow": dow,
+                    "hour": hour,
+                    "mean_cents": _mean(
+                        [p for ps in airline_prices.values() for p in ps]
+                    ),
+                    "by_airline": {
+                        airline: {"count": len(ps)}
+                        for airline, ps in airline_prices.items()
+                    },
+                }
+                for (r, dow, hour), airline_prices in by_time.items()
                 if r == route
             ),
             key=lambda e: (e["dow"], e["hour"]),
