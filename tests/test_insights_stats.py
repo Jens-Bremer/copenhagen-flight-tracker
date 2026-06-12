@@ -7,7 +7,6 @@ from src.insights.stats import (
     trailing_median,
 )
 
-
 # ─── coefficient_of_variation ────────────────────────────────────────────────
 
 

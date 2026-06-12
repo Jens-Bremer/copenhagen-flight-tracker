@@ -1,7 +1,5 @@
 from datetime import datetime, timedelta, timezone
 
-import pytest
-
 from src.insights.volatility import build_volatility
 
 

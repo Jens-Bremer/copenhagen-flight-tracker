@@ -8,8 +8,10 @@ for the JSON-blob schema.
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date as date_type, datetime, timezone
-from typing import Any, Iterable
+from collections.abc import Iterable
+from datetime import date as date_type
+from datetime import datetime, timezone
+from typing import Any
 
 from src.insights.stats import bucketed_percentile
 
@@ -77,7 +79,7 @@ def build_price_percentiles(
     for (route, airline, db), obs in grouped.items():
         if len(obs) < MIN_SAMPLES:
             continue
-        latest_t, latest_price = max(obs, key=lambda o: o[0])
+        _latest_t, latest_price = max(obs, key=lambda o: o[0])
         prices = [p for _, p in obs]
         pct = bucketed_percentile(latest_price, prices, min_samples=MIN_SAMPLES)
         if pct is None:

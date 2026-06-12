@@ -1,7 +1,5 @@
 from datetime import date, datetime, timedelta, timezone
 
-import pytest
-
 from src.insights.momentum import build_price_momentum
 
 
@@ -20,7 +18,11 @@ def _row(price_cents: int, retrieved: datetime, dep_offset_days: int = 30):
 def _series(prices_per_day, start=date(2026, 5, 1), dep_offset_days=30):
     rows = []
     for i, price in enumerate(prices_per_day):
-        ts = datetime.combine(start + timedelta(days=i), datetime.min.time(), tzinfo=timezone.utc)
+        ts = datetime.combine(
+            start + timedelta(days=i),
+            datetime.min.time(),
+            tzinfo=timezone.utc,
+        )
         rows.append(_row(price, ts, dep_offset_days=dep_offset_days))
     return rows
 
@@ -68,7 +70,11 @@ def test_sweet_spot_picked_from_min_median():
     rows = []
     start = date(2026, 5, 1)
     for i in range(14):
-        ts = datetime.combine(start + timedelta(days=i), datetime.min.time(), tzinfo=timezone.utc)
+        ts = datetime.combine(
+            start + timedelta(days=i),
+            datetime.min.time(),
+            tzinfo=timezone.utc,
+        )
         # 3 obs at db=10 cheap (~200), 3 obs at db=30 expensive (~500)
         rows.append(_row(200 + i, ts, dep_offset_days=10))
         rows.append(_row(500 + i, ts, dep_offset_days=30))
@@ -76,5 +82,5 @@ def test_sweet_spot_picked_from_min_median():
     out = build_price_momentum(rows, now=datetime(2026, 6, 1, tzinfo=timezone.utc))
     ss = out["routes"][0]["sweet_spot"]
     assert ss is not None
-    # The cheap bucket median is ~205, expensive ~505 — sweet spot picks the 10-day bucket
+    # cheap bucket median ~205, expensive ~505 — sweet spot is 10-day
     assert ss["days_before_low"] <= 10 <= ss["days_before_high"]

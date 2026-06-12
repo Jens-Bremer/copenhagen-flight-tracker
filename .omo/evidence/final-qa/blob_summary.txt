@@ -1,0 +1,12 @@
+=== RICH (.omo/fixtures/airlines_rich.html) ===
+  DATA_PRICE_PERCENTILE: insufficient_data=None list_counts={'buckets': 54}
+  DATA_MOMENTUM: insufficient_data=None list_counts={'routes': 3}
+  DATA_VOLATILITY: insufficient_data=None list_counts={'buckets': 54}
+  DATA_PRICE_DROPS: insufficient_data=None list_counts={'drops': 0}
+
+=== MINIMAL (.omo/fixtures/airlines_minimal.html) ===
+  DATA_PRICE_PERCENTILE: insufficient_data='need_min_14_days_history' list_counts={'buckets': 0}
+  DATA_MOMENTUM: insufficient_data='need_min_14_days_history' list_counts={'routes': 0}
+  DATA_VOLATILITY: insufficient_data=None list_counts={'buckets': 0}
+  DATA_PRICE_DROPS: insufficient_data='need_min_14_days_history' list_counts={'drops': 0}
+

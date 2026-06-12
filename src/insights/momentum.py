@@ -6,9 +6,11 @@ Pure builder. See docs/INSIGHTS_CONTRACT.md for the JSON-blob schema.
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date as date_type, datetime, timezone
+from collections.abc import Iterable
+from datetime import date as date_type
+from datetime import datetime, timezone
 from statistics import median
-from typing import Any, Iterable
+from typing import Any
 
 from src.insights.stats import linear_trend_slope, trailing_median
 
@@ -56,7 +58,9 @@ def _trend_for_window(
     ]
     slope = linear_trend_slope(points)
     median_y = trailing_median([y for _, y in points])
-    pct_per_day = (slope / median_y * 100.0) if (slope is not None and median_y) else None
+    pct_per_day = (
+        (slope / median_y * 100.0) if (slope is not None and median_y) else None
+    )
     # Total % change over the window (slope * span / median)
     if slope is not None and median_y:
         span = points[-1][0] - points[0][0]
@@ -72,7 +76,9 @@ def _trend_for_window(
 
 def _sweet_spot(buckets: dict[int, list[int]]) -> dict[str, Any] | None:
     """Return the lead-time bucket with the lowest median price (n>=3)."""
-    eligible = [(db, prices) for db, prices in buckets.items() if len(prices) >= MIN_SAMPLES]
+    eligible = [
+        (db, prices) for db, prices in buckets.items() if len(prices) >= MIN_SAMPLES
+    ]
     if not eligible:
         return None
     eligible.sort(key=lambda kv: median(kv[1]))
@@ -106,7 +112,9 @@ def build_price_momentum(
 
     # Group by route → daily min price (across all airlines) + lead-time buckets.
     per_route_daily: dict[str, dict[date_type, int]] = defaultdict(dict)
-    per_route_buckets: dict[str, dict[int, list[int]]] = defaultdict(lambda: defaultdict(list))
+    per_route_buckets: dict[str, dict[int, list[int]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
     for row in rows:
         route = _route(row)
         d = row["retrieved_at"].date()

@@ -1,14 +1,17 @@
 from datetime import date, datetime, timedelta, timezone
 
-import pytest
-
 from src.insights.drops import DropConfig, build_price_drops
-
 
 FIXED_DEP_DATE = date(2026, 6, 1)  # all rows aim at the same flight day
 
 
-def _row(price_cents, retrieved_day, dep_date=FIXED_DEP_DATE, airline="KLM", dep_time="07:25"):
+def _row(
+    price_cents,
+    retrieved_day,
+    dep_date=FIXED_DEP_DATE,
+    airline="KLM",
+    dep_time="07:25",
+):
     retrieved = datetime.combine(
         retrieved_day, datetime.min.time(), tzinfo=timezone.utc
     )
@@ -25,10 +28,23 @@ def _row(price_cents, retrieved_day, dep_date=FIXED_DEP_DATE, airline="KLM", dep
     }
 
 
-def _build_history(start_day, prices_per_day, *, dep_date=FIXED_DEP_DATE, airline="KLM", dep_time="07:25"):
+def _build_history(
+    start_day,
+    prices_per_day,
+    *,
+    dep_date=FIXED_DEP_DATE,
+    airline="KLM",
+    dep_time="07:25",
+):
     """One row per day for a single flight identity (fixed dep_date)."""
     return [
-        _row(p, start_day + timedelta(days=i), dep_date=dep_date, airline=airline, dep_time=dep_time)
+        _row(
+            p,
+            start_day + timedelta(days=i),
+            dep_date=dep_date,
+            airline=airline,
+            dep_time=dep_time,
+        )
         for i, p in enumerate(prices_per_day)
     ]
 
@@ -47,8 +63,8 @@ def test_persisted_drop_flagged():
     target_prices = [500] * 11 + [400, 400, 400]  # 14 days, last 3 persisted at 400
     target_rows = _build_history(start, target_prices)
 
-    # Peer rows for the same (route, airline, days_before=14) bucket to fill the reference.
-    # Each "peer" is a different flight identity (different dep_time).
+    # Peer rows for the same bucket fill the reference. Each peer is a
+    # different flight identity (different dep_time).
     peer_rows = []
     for j in range(8):  # 8 other flights at ~500
         peer_rows += _build_history(
@@ -61,7 +77,11 @@ def test_persisted_drop_flagged():
         config=DropConfig(pct_threshold=10.0, min_persist=2, trailing_window_days=7),
         now=datetime(2026, 5, 15, tzinfo=timezone.utc),
     )
-    target = [d for d in out["drops"] if d["airline"] == "KLM" and d["departure_at"].endswith("T07:25:00")]
+    target = [
+        d
+        for d in out["drops"]
+        if d["airline"] == "KLM" and d["departure_at"].endswith("T07:25:00")
+    ]
     assert len(target) == 1
     d = target[0]
     assert d["current_price_cents"] == 400
@@ -109,8 +129,6 @@ def test_sparse_reference_bucket_skipped():
         config=DropConfig(pct_threshold=10.0, min_persist=2),
         now=datetime(2026, 5, 15, tzinfo=timezone.utc),
     )
-    # The reference bucket only has this single flight identity → still only its own rows.
-    # n=14 actually >= 3, so it will be evaluated. To force sparse, restrict via a single peer.
-    # This test instead asserts: even without peers, the drop COULD be flagged using the
-    # flight's own history; we accept that and assert the structure is sane.
+    # Even without peers, the drop COULD be flagged using the flight's own
+    # history; just assert the structure is sane.
     assert "drops" in out

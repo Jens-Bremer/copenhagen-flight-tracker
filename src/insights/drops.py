@@ -16,10 +16,12 @@ config keys.
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import date as date_type, datetime, timedelta, timezone
+from datetime import date as date_type
+from datetime import datetime, timedelta, timezone
 from statistics import median
-from typing import Any, Iterable
+from typing import Any
 
 from src.insights.stats import bucketed_percentile
 
@@ -28,6 +30,8 @@ MIN_SAMPLES = 3
 
 @dataclass(frozen=True)
 class DropConfig:
+    """Thresholds controlling what counts as a price drop."""
+
     pct_threshold: float = 10.0
     reference_window_days: int = 30
     trailing_window_days: int = 7
@@ -75,6 +79,7 @@ def build_price_drops(
     now: datetime | None = None,
     min_history_days: int = 14,
 ) -> dict[str, Any]:
+    """Return per-flight drop alerts that pass persistence + percentile gates."""
     cfg = config or DropConfig()
     rows = list(rows)
     now_dt = now or datetime.now(timezone.utc)
@@ -97,17 +102,16 @@ def build_price_drops(
         return {**base, "insufficient_data": "need_min_14_days_history", "drops": []}
 
     # Reference window: latest retrieved_at - reference_window_days
-    if distinct_days:
-        ref_end = max(distinct_days)
-    else:
-        ref_end = now_dt.date()
+    ref_end = max(distinct_days) if distinct_days else now_dt.date()
     ref_start = ref_end - timedelta(days=cfg.reference_window_days)
     trail_start = ref_end - timedelta(days=cfg.trailing_window_days)
 
-    # Index 1: (route, airline, days_before) -> list of historical prices (within ref window).
+    # Index 1: (route, airline, days_before) -> historical prices in ref window.
     bucket_hist: dict[tuple[str, str, int], list[int]] = defaultdict(list)
-    # Index 2: flight_id -> sorted list of (retrieved_at, price, days_before, raw_row).
-    per_flight: dict[tuple, list[tuple[datetime, int, int, dict[str, Any]]]] = defaultdict(list)
+    # Index 2: flight_id -> sorted (retrieved_at, price, days_before, raw_row).
+    per_flight: dict[
+        tuple, list[tuple[datetime, int, int, dict[str, Any]]]
+    ] = defaultdict(list)
 
     for r in rows:
         db = _days_before(r)
@@ -125,7 +129,7 @@ def build_price_drops(
         obs.sort(key=lambda o: o[0])
         if len(obs) < cfg.min_persist:
             continue
-        latest_ts, latest_price, latest_db, latest_row = obs[-1]
+        _latest_ts, latest_price, latest_db, latest_row = obs[-1]
 
         # Persistence: the last `min_persist` observations must all be at the
         # "low" level — defined as within 1% of the latest price.
@@ -162,7 +166,7 @@ def build_price_drops(
                 "departure_date": fid[2],
                 "departure_at": latest_row["departure_at"].isoformat(),
                 "current_price_cents": latest_price,
-                "typical_price_cents": int(round(trailing_med)),
+                "typical_price_cents": round(trailing_med),
                 "pct_below": round(pct_below, 1),
                 "percentile": None if pct is None else round(pct, 1),
                 "persisted_scrapes": len(tail),

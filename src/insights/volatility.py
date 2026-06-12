@@ -7,8 +7,10 @@ from __future__ import annotations
 
 import statistics
 from collections import defaultdict
-from datetime import date as date_type, datetime, timezone
-from typing import Any, Iterable
+from collections.abc import Iterable
+from datetime import date as date_type
+from datetime import datetime, timezone
+from typing import Any
 
 from src.insights.stats import coefficient_of_variation
 
@@ -61,7 +63,7 @@ def build_volatility(
     for (route, airline, db), prices in grouped.items():
         if len(prices) < MIN_SAMPLES:
             continue
-        std_cents = int(round(statistics.stdev(prices)))
+        std_cents = round(statistics.stdev(prices))
         cv = coefficient_of_variation(prices)
         buckets.append(
             {

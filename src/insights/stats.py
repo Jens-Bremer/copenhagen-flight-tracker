@@ -6,12 +6,12 @@ All functions are pure and stdlib-only.
 from __future__ import annotations
 
 import statistics
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
 from src.analytics import percentile_rank
 
 
-def coefficient_of_variation(values: Sequence[float]) -> Optional[float]:
+def coefficient_of_variation(values: Sequence[float]) -> float | None:
     """Return stdev / mean, or None when undefined.
 
     - n < 2  -> 0.0 (no spread observed)
@@ -30,7 +30,7 @@ def coefficient_of_variation(values: Sequence[float]) -> Optional[float]:
 
 def bucketed_percentile(
     value: float, reference_values: Sequence[float], min_samples: int = 3
-) -> Optional[float]:
+) -> float | None:
     """Percentile rank of `value` within `reference_values` (0..100).
 
     Thin wrapper over `src.analytics.percentile_rank` with `min_samples`
@@ -40,17 +40,17 @@ def bucketed_percentile(
     if not reference_values:
         return None
     ref_sorted = sorted(reference_values)
-    return percentile_rank(int(round(value)), ref_sorted, min_samples=min_samples)
+    return percentile_rank(round(value), ref_sorted, min_samples=min_samples)
 
 
-def trailing_median(values: Sequence[float]) -> Optional[float]:
+def trailing_median(values: Sequence[float]) -> float | None:
     """Median of values, or None when empty."""
     if not values:
         return None
     return float(statistics.median(values))
 
 
-def linear_trend_slope(points: Sequence[tuple[float, float]]) -> Optional[float]:
+def linear_trend_slope(points: Sequence[tuple[float, float]]) -> float | None:
     """Least-squares slope of (x, y) points.
 
     Returns None at n < 2 or when all xs are equal (vertical fit).
