@@ -308,14 +308,19 @@ def _auto_update_job() -> None:
         creationflags = (
             DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
         )
+        log_path = os.path.join(
+            os.path.dirname(os.path.abspath(config.DATABASE_PATH)), "update.log"
+        )
+        log_file = open(log_path, "a")  # noqa: WPS515
         subprocess.Popen(
             ["powershell", "-ExecutionPolicy", "Bypass", "-File", update_script],
             creationflags=creationflags,
             close_fds=True,
             stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
         )
+        log_file.close()
         # Give the OS a moment to actually detach the child before we exit.
         time.sleep(2)
     except Exception as exc:

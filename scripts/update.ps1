@@ -54,10 +54,19 @@ try {
     pip install -e .
     if ($LASTEXITCODE -ne 0) { throw "pip install -e . failed" }
 
-    # Keep the Playwright browser binary in sync with the installed Python package.
-    Write-Host "Installing Playwright browser binaries..."
-    python -m playwright install chromium
-    if ($LASTEXITCODE -ne 0) { throw "playwright install chromium failed" }
+    # Only reinstall the Playwright browser when the package version changed.
+    # Running the installer on every nightly update is slow and can silently
+    # crash in a fully detached, consoleless Windows process.
+    $playwrightVersion = (python -m playwright --version 2>&1).Trim()
+    $versionMarker = "data\.playwright_version"
+    if (-not (Test-Path $versionMarker) -or (Get-Content $versionMarker -Raw).Trim() -ne $playwrightVersion) {
+        Write-Host "Playwright version changed to $playwrightVersion — installing chromium..."
+        python -m playwright install chromium
+        if ($LASTEXITCODE -ne 0) { throw "playwright install chromium failed" }
+        Set-Content $versionMarker $playwrightVersion
+    } else {
+        Write-Host "Playwright chromium up to date ($playwrightVersion) — skipping install."
+    }
 
     python -c "from src.config_validator import validate_config; import config; validate_config(vars(config))"
     if ($LASTEXITCODE -ne 0) { throw "config validation failed" }
