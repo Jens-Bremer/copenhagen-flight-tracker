@@ -302,12 +302,34 @@ def test_build_analysis_time_of_day_matrix_has_correct_shape():
     matrix = analysis["CPH-AMS"]["time_of_day_matrix"]
     assert len(matrix) > 0, "time_of_day_matrix must be non-empty for CPH-AMS"
     for entry in matrix:
-        assert {"dow", "hour", "mean_cents"} <= entry.keys(), (
+        assert {"dow", "hour", "mean_cents", "by_airline"} <= entry.keys(), (
             f"time_of_day_matrix entry missing required keys: {entry}"
         )
         assert 0 <= entry["dow"] <= 6, f"dow out of range: {entry}"
         assert 0 <= entry["hour"] <= 23, f"hour out of range: {entry}"
         assert entry["mean_cents"] > 0, f"mean_cents must be positive: {entry}"
+
+
+def test_time_of_day_matrix_by_airline_breakdown():
+    """Each time_of_day_matrix cell must include by_airline with observation counts."""
+    rows = load_rows(str(FIXTURE))
+    analysis = build_analysis(rows)
+    matrix = analysis["CPH-AMS"]["time_of_day_matrix"]
+    assert len(matrix) > 0
+    for cell in matrix:
+        assert "by_airline" in cell, f"cell missing by_airline: {cell}"
+        assert isinstance(cell["by_airline"], dict), (
+            f"by_airline must be a dict, got {type(cell['by_airline'])}"
+        )
+        for airline, data in cell["by_airline"].items():
+            assert isinstance(airline, str), f"airline key must be str: {airline}"
+            assert "count" in data, f"by_airline[{airline}] missing 'count'"
+            assert data["count"] > 0, f"by_airline[{airline}] count must be positive"
+    # The fixture has multiple airlines — at least one cell must have >1 airline.
+    multi_airline_cells = [c for c in matrix if len(c["by_airline"]) > 1]
+    assert multi_airline_cells, (
+        "Expected at least one time_of_day_matrix cell with >1 airline in fixture"
+    )
 
 
 def test_timeheat_panel_rendered_in_html():
