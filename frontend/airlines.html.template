@@ -16,18 +16,6 @@
   ${INLINE_HEADER}
 
   <main class="page-main">
-    <section class="panel" aria-label="Recent price drops">
-      <h2 class="panel__heading">Recent Price Drops</h2>
-      <p class="panel__subtitle">Flights that have persisted at a notably low price across multiple scrapes</p>
-      <div id="price-drops-container"></div>
-    </section>
-
-    <section class="panel" aria-label="Price-vs-history verdict">
-      <h2 class="panel__heading">Is this price good?</h2>
-      <p class="panel__subtitle">Latest observed price per airline + lead-time bucket, ranked vs that bucket's history</p>
-      <div id="price-percentile-container"></div>
-    </section>
-
     <section class="panel" aria-label="When should I buy?">
       <h2 class="panel__heading">When should I buy?</h2>
       <p class="panel__subtitle">Recent direction of daily-min prices and the historically cheapest booking window</p>
@@ -62,6 +50,12 @@
       </div>
 
       <div id="airline-matrix-container"></div>
+    </section>
+
+    <section class="panel" aria-label="Recent price drops">
+      <h2 class="panel__heading">Recent Price Drops</h2>
+      <p class="panel__subtitle">Flights that have persisted at a notably low price across multiple scrapes</p>
+      <div id="price-drops-container"></div>
     </section>
   </main>
 
