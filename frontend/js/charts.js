@@ -554,7 +554,7 @@ function renderTimeheat() {
         if (entry) {
           ctx.fillStyle = priceTint(entry.mean_cents, priceRange);
           ctx.fillRect(x, y, CELL_W - 1, CELL_H - 1);
-          cells.push({ x, y, w: CELL_W - 1, h: CELL_H - 1, dow, hour, mean_cents: entry.mean_cents });
+          cells.push({ x, y, w: CELL_W - 1, h: CELL_H - 1, dow, hour, mean_cents: entry.mean_cents, by_airline: entry.by_airline || {} });
         } else {
           ctx.fillStyle = 'rgba(200,200,200,0.12)';
           ctx.fillRect(x, y, CELL_W - 1, CELL_H - 1);
@@ -613,7 +613,13 @@ function renderTimeheat() {
       const my = (e.clientY - rect.top) * (canvas.height / rect.height);
       const hit = cells.find((c) => mx >= c.x && mx < c.x + c.w && my >= c.y && my < c.y + c.h);
       if (hit) {
-        tooltip.textContent = `${_DOW_LABELS_SHORT[hit.dow]} ${String(hit.hour).padStart(2,'0')}:00–${String(hit.hour+1).padStart(2,'0')}:00 · €${Math.round(hit.mean_cents / 100)}`;
+        const header = `${_DOW_LABELS_SHORT[hit.dow]} ${String(hit.hour).padStart(2,'0')}:00–${String(hit.hour+1).padStart(2,'0')}:00 · €${Math.round(hit.mean_cents / 100)}`;
+        const airlines = Object.entries(hit.by_airline)
+          .sort((a, b) => b[1].count - a[1].count)
+          .map(([name, d]) => `${name} (${d.count})`)
+          .join(' | ');
+        tooltip.textContent = airlines ? `${header}\n${airlines}` : header;
+        tooltip.style.whiteSpace = 'pre';
         tooltip.style.display = 'block';
         tooltip.style.left = `${e.clientX + 12}px`;
         tooltip.style.top  = `${e.clientY - 8}px`;
