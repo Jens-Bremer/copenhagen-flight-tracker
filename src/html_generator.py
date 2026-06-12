@@ -385,9 +385,9 @@ def _group_analysis_inputs(rows: list[dict[str, Any]]) -> dict[str, Any]:
             continue
         by_lead[(route, days_before)].append(row["price_cents"])
         by_lead_airline[(route, days_before, row["airline"])].append(row["price_cents"])
-        by_time[
-            (route, row["departure_at"].weekday(), row["departure_at"].hour)
-        ][row["airline"]].append(row["price_cents"])
+        by_time[(route, row["departure_at"].weekday(), row["departure_at"].hour)][
+            row["airline"]
+        ].append(row["price_cents"])
         dep_time = _hhmm(row["departure_at"])
         by_flight[(route, row["departure_date"], row["airline"], dep_time)][
             days_before
