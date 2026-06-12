@@ -57,6 +57,12 @@
       <p class="panel__subtitle">Flights that have persisted at a notably low price across multiple scrapes</p>
       <div id="price-drops-container"></div>
     </section>
+
+    <section class="panel" aria-label="Price Volatility Index">
+      <h2 class="panel__heading">Price Volatility Index</h2>
+      <p class="panel__subtitle">How predictable is each airline's pricing? Lower CV = more stable fares. Rolling line shows 14-day std dev of daily-minimum prices.</p>
+      <div id="volatility-index-container"></div>
+    </section>
   </main>
 
   ${INLINE_FOOTER}
@@ -67,6 +73,7 @@
   <script type="application/json" id="DATA_MOMENTUM">${DATA_MOMENTUM}</script>
   <script type="application/json" id="DATA_VOLATILITY">${DATA_VOLATILITY}</script>
   <script type="application/json" id="DATA_PRICE_DROPS">${DATA_PRICE_DROPS}</script>
+  <script type="application/json" id="DATA_PRICE_VOLATILITY_INDEX">${DATA_PRICE_VOLATILITY_INDEX}</script>
   <div id="data-load-error" style="display:none;position:fixed;inset:0;z-index:9999;background:#fff3cd;color:#856404;padding:2rem;font-family:sans-serif;font-size:1.1rem;"></div>
 
   <script>${INLINE_CHART_JS}</script>
@@ -89,6 +96,7 @@
       try { renderPriceDrops(); } catch (e) { console.error('Failed to render price drops:', e); }
       try { renderPricePercentile(); } catch (e) { console.error('Failed to render price percentile:', e); }
       try { renderMomentum(); } catch (e) { console.error('Failed to render momentum:', e); }
+      try { renderVolatilityIndex(); } catch (e) { console.error('Failed to render volatility index:', e); }
     });
   </script>
 </body>

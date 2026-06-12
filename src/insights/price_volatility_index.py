@@ -33,7 +33,8 @@ def build_price_volatility_index(
     """Return CV bars and rolling std dev of daily minima, grouped by route."""
     gen_at = (now or datetime.now(timezone.utc)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    # Accumulate all prices per (route, airline) and daily minima per (route, airline, obs_date).
+    # Accumulate all prices per (route, airline) and daily minima per
+    # (route, airline, obs_date).
     all_prices: dict[tuple[str, str], list[int]] = defaultdict(list)
     daily_min: dict[tuple[str, str, str], int] = {}
 
@@ -77,7 +78,7 @@ def build_price_volatility_index(
         # --- Rolling std dev of daily minima ---
         # Group obs_dates per airline, sorted.
         airline_dates: dict[str, list[str]] = defaultdict(list)
-        for (r, airline, obs_date) in daily_min:
+        for r, airline, obs_date in daily_min:
             if r == route:
                 airline_dates[airline].append(obs_date)
         for dates in airline_dates.values():

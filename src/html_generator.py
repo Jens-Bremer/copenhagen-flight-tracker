@@ -27,6 +27,7 @@ from src.analytics import percentile_rank
 from src.insights.drops import DropConfig, build_price_drops
 from src.insights.momentum import build_price_momentum
 from src.insights.price_percentile import build_price_percentiles
+from src.insights.price_volatility_index import build_price_volatility_index
 from src.insights.volatility import build_volatility
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
@@ -63,6 +64,7 @@ JS_FILE_ORDER_AIRLINES = [
     "render-price-percentile.js",
     "render-momentum.js",
     "render-price-drops.js",
+    "render-volatility-index.js",
 ]
 
 # ─── CSV loader ──────────────────────────────────────────────────────────────
@@ -1118,6 +1120,7 @@ def render_html(
     momentum: dict[str, Any] | None = None,
     volatility: dict[str, Any] | None = None,
     price_drops: dict[str, Any] | None = None,
+    price_volatility_index: dict[str, Any] | None = None,
     inline_data: bool = False,
 ) -> tuple[str, str]:
     """Inline assets + JSON blobs into templates. Returns (index_html, airlines_html).
@@ -1145,6 +1148,8 @@ def render_html(
         volatility = {}
     if price_drops is None:
         price_drops = {}
+    if price_volatility_index is None:
+        price_volatility_index = {}
 
     template = _read_text(TEMPLATE_PATH)
     styles = _read_text(STYLES_PATH)
@@ -1160,6 +1165,7 @@ def render_html(
             "renderPricePercentile",
             "renderMomentum",
             "renderPriceDrops",
+            "renderVolatilityIndex",
         ],
     )
 
@@ -1181,6 +1187,7 @@ def render_html(
         data_momentum = _safe_json(momentum)
         data_volatility = _safe_json(volatility)
         data_price_drops = _safe_json(price_drops)
+        data_price_volatility_index = _safe_json(price_volatility_index)
     else:
         data_metadata = ""
         data_calendar = ""
@@ -1194,6 +1201,7 @@ def render_html(
         data_momentum = ""
         data_volatility = ""
         data_price_drops = ""
+        data_price_volatility_index = ""
 
     # Render index.html
     index_html = string.Template(template).safe_substitute(
@@ -1226,6 +1234,7 @@ def render_html(
         DATA_MOMENTUM=data_momentum,
         DATA_VOLATILITY=data_volatility,
         DATA_PRICE_DROPS=data_price_drops,
+        DATA_PRICE_VOLATILITY_INDEX=data_price_volatility_index,
     )
 
     return index_html, airlines_html
@@ -1269,6 +1278,7 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
     # even on a single scrape day, and the dashed overlay degrades to a thin
     # line at zero std rather than a placeholder.
     volatility = build_volatility(rows, now=now)
+    price_volatility_index = build_price_volatility_index(rows, now=now)
     price_drops = build_price_drops(
         rows, config=drop_cfg, now=now, min_history_days=insights_min_history
     )
@@ -1288,6 +1298,7 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
             "momentum": momentum,
             "volatility": volatility,
             "price_drops": price_drops,
+            "price_volatility_index": price_volatility_index,
         }
         data_json_path = Path(output_path).parent / "data.json"
         data_json_path.write_text(
@@ -1307,6 +1318,7 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
         momentum=momentum,
         volatility=volatility,
         price_drops=price_drops,
+        price_volatility_index=price_volatility_index,
         inline_data=inline_data,
     )
     Path(output_path).write_text(index_html, encoding="utf-8")
