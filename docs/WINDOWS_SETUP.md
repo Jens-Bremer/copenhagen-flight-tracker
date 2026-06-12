@@ -181,11 +181,17 @@ python scripts/query_prices.py --date 2025-09-05
 
 ### Log Files
 
-Logs are written to stdout/stderr and can be captured by redirecting output when running:
+When the scheduler is registered via `scripts\scheduler_autostart.ps1`, the
+scheduled task invokes `scripts\run_scheduler_logged.ps1`, which appends both
+stdout and stderr to `logs\scheduler.out.log` automatically. No manual
+redirection is needed — silent task failures will leave a trace in that file.
+
+If you run the scheduler interactively instead, output goes to the terminal:
 
 ```powershell
-# Capture logs to a file
-python scripts/run_scheduler.py > data\scheduler.log 2>&1
+python scripts\run_scheduler.py
+# or explicitly capture:
+python scripts\run_scheduler.py *>> logs\scheduler.out.log
 ```
 
 ### Task Scheduler Logs

@@ -1,0 +1,7 @@
+DATA_MOMENTUM
+DATA_PRICE_DROPS
+DATA_PRICE_PERCENTILE
+DATA_VOLATILITY
+renderMomentum
+renderPriceDrops
+renderPricePercentile

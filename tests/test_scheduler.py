@@ -40,11 +40,12 @@ def clear_schedule():
 
 
 def test_setup_schedule_registers_six_jobs():
-    """Six scheduled jobs: daily collection, backup, health check, CSV export,
-    frontend CSV, auto-update. HTML generation has no separate entry — it chains
-    inline after the frontend CSV job completes."""
+    """Seven scheduled jobs: daily collection, backup, health check, CSV export,
+    frontend CSV, auto-update, and weekly browser-profile cleanup. HTML
+    generation has no separate entry — it chains inline after the frontend
+    CSV job completes."""
     setup_schedule()
-    assert len(schedule.jobs) == 6
+    assert len(schedule.jobs) == 7
 
 
 def test_no_timed_html_generation_job():
@@ -71,9 +72,14 @@ def test_health_check_scheduled_at_2330():
 
 def test_jobs_run_daily():
     setup_schedule()
+    daily_jobs = [j for j in schedule.jobs if str(j.unit) == "days"]
+    weekly_jobs = [j for j in schedule.jobs if str(j.unit) == "weeks"]
+    # Six daily jobs (collection, backup, health, CSV, frontend, auto-update)
+    # plus one weekly job (browser-profile cleanup).
+    assert len(daily_jobs) == 6
+    assert len(weekly_jobs) == 1
     for job in schedule.jobs:
         assert job.interval == 1
-        assert str(job.unit) == "days"
 
 
 # --- Job functions ---

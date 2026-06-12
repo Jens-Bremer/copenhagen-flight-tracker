@@ -287,7 +287,61 @@ to the assertion list.
 
 JSON blob node IDs (read by `readJsonBlob`):
 `DATA_METADATA`, `DATA_CALENDAR`, `DATA_FLIGHTS`, `DATA_ANALYSIS`,
-`DATA_SUMMARY`.
+`DATA_SUMMARY`. The `airlines.html` page adds four more (see below).
+
+### Airlines-page insight blobs
+
+`frontend/airlines.html` embeds four additional blobs powering the price-decision
+panels added in the price-insight plan. Full schemas in
+[`docs/INSIGHTS_CONTRACT.md`](INSIGHTS_CONTRACT.md).
+
+| Blob ID | Builder (`src/html_generator.py` → `src/insights/*`) | Panel / renderer |
+| --- | --- | --- |
+| `DATA_PRICE_PERCENTILE` | `build_price_percentiles` | "Is this price good?" badges (`render-price-percentile.js`) |
+| `DATA_MOMENTUM` | `build_price_momentum` | "When should I buy?" card (`render-momentum.js`) |
+| `DATA_VOLATILITY` | `build_volatility` | dashed ±σ overlay on the trends chart (`render-airline-trends.js`) |
+| `DATA_PRICE_DROPS` | `build_price_drops` | Recent price drops table (`render-price-drops.js`) |
+
+Below `INSIGHTS_MIN_HISTORY_DAYS` (default 14 distinct `retrieved_at` days), the
+percentile / momentum / drops builders emit `{"insufficient_data": "need_min_14_days_history", ...}`
+and the renderers show a "not enough data yet" placeholder instead of a blank panel.
+Volatility is cross-flight and stays meaningful at one day of history, so it
+does not gate.
+
+### New `config.py` keys
+
+| Key | Default | Used by |
+| --- | --- | --- |
+| `INSIGHTS_MIN_HISTORY_DAYS` | `14` | percentile / momentum / drops gates |
+| `DROP_PCT_THRESHOLD` | `10.0` | `build_price_drops` (min % below trailing median) |
+| `DROP_REFERENCE_WINDOW_DAYS` | `30` | bucket-reference window for drops |
+| `DROP_TRAILING_WINDOW_DAYS` | `7` | per-flight trailing-median window |
+| `DROP_MIN_PERSIST` | `2` | required consecutive low scrapes |
+| `BROWSER_PROFILE_MAX_BYTES` | `300_000_000` | weekly `scripts/cleanup_profiles.py` job |
+
+### How to add another insight plot
+
+The price-insight panels follow a tight recipe — copy it and you should land
+a new panel in 2–4 hours:
+
+1. **Data**: add `src/insights/<name>.py` with a single pure `build_<name>(rows, *, now=...)`
+   that returns a JSON-serializable dict. Use the guarded primitives in
+   `src/insights/stats.py` (`coefficient_of_variation`, `bucketed_percentile`,
+   `trailing_median`, `linear_trend_slope`) — never reimplement.
+2. **Tests**: add `tests/test_<name>.py` with happy-path + sparse/empty/edge
+   cases (n<3, mean=0, single-point series). Coverage gate is 75%.
+3. **Contract**: document the JSON-blob schema in `docs/INSIGHTS_CONTRACT.md`.
+4. **Render**: add `frontend/js/render-<name>.js` exposing one top-level
+   `render<Name>()` function. Read the blob via `document.getElementById('DATA_<NAME>')`,
+   short-circuit on `insufficient_data`, render into a container element.
+5. **Wire**: import `build_<name>` in `src/html_generator.py`, call it inside
+   `generate()`, add the blob to `data_payload`, surface it through `render_html`,
+   and add a `DATA_<NAME>` `<script type="application/json">` tag in
+   `frontend/airlines.html.template` plus a try/catch invocation of `render<Name>()`
+   in the DOMContentLoaded handler. Add `render-<name>.js` to
+   `JS_FILE_ORDER_AIRLINES` and expose its function via `expose_functions=[...]`.
+6. **Empty state**: default to gating below `INSIGHTS_MIN_HISTORY_DAYS` when
+   the metric depends on multi-day history; emit `{"insufficient_data": "...", "<key>": []}`.
 
 ---
 

@@ -24,6 +24,10 @@ from typing import Any
 
 import config
 from src.analytics import percentile_rank
+from src.insights.drops import DropConfig, build_price_drops
+from src.insights.momentum import build_price_momentum
+from src.insights.price_percentile import build_price_percentiles
+from src.insights.volatility import build_volatility
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 TEMPLATE_PATH = FRONTEND_DIR / "index.html.template"
@@ -56,6 +60,9 @@ JS_FILE_ORDER_AIRLINES = [
     "charts.js",
     "render-airline-matrix.js",
     "render-airline-trends.js",
+    "render-price-percentile.js",
+    "render-momentum.js",
+    "render-price-drops.js",
 ]
 
 # ─── CSV loader ──────────────────────────────────────────────────────────────
@@ -1095,6 +1102,10 @@ def render_html(
     health: dict[str, Any] | None = None,
     airline_trends: dict[str, Any] | None = None,
     airline_matrix: dict[str, Any] | None = None,
+    price_percentile: dict[str, Any] | None = None,
+    momentum: dict[str, Any] | None = None,
+    volatility: dict[str, Any] | None = None,
+    price_drops: dict[str, Any] | None = None,
     inline_data: bool = False,
 ) -> tuple[str, str]:
     """Inline assets + JSON blobs into templates. Returns (index_html, airlines_html).
@@ -1114,6 +1125,14 @@ def render_html(
         airline_trends = {}
     if airline_matrix is None:
         airline_matrix = {}
+    if price_percentile is None:
+        price_percentile = {}
+    if momentum is None:
+        momentum = {}
+    if volatility is None:
+        volatility = {}
+    if price_drops is None:
+        price_drops = {}
 
     template = _read_text(TEMPLATE_PATH)
     styles = _read_text(STYLES_PATH)
@@ -1123,7 +1142,13 @@ def render_html(
     app_js = _build_app_js()
     app_js_airlines = _build_app_js(
         JS_FILE_ORDER_AIRLINES,
-        expose_functions=["renderAirlineMatrix", "renderAirlineTrends"],
+        expose_functions=[
+            "renderAirlineMatrix",
+            "renderAirlineTrends",
+            "renderPricePercentile",
+            "renderMomentum",
+            "renderPriceDrops",
+        ],
     )
 
     # Load header, footer
@@ -1140,6 +1165,10 @@ def render_html(
         data_health = _safe_json(health)
         data_airline_trends = _safe_json(airline_trends)
         data_airline_matrix = _safe_json(airline_matrix)
+        data_price_percentile = _safe_json(price_percentile)
+        data_momentum = _safe_json(momentum)
+        data_volatility = _safe_json(volatility)
+        data_price_drops = _safe_json(price_drops)
     else:
         data_metadata = ""
         data_calendar = ""
@@ -1149,6 +1178,10 @@ def render_html(
         data_health = ""
         data_airline_trends = ""
         data_airline_matrix = ""
+        data_price_percentile = ""
+        data_momentum = ""
+        data_volatility = ""
+        data_price_drops = ""
 
     # Render index.html
     index_html = string.Template(template).safe_substitute(
@@ -1177,6 +1210,10 @@ def render_html(
         RENDER_AIRLINE_TRENDS="",
         DATA_AIRLINE_TRENDS=data_airline_trends,
         DATA_AIRLINE_MATRIX=data_airline_matrix,
+        DATA_PRICE_PERCENTILE=data_price_percentile,
+        DATA_MOMENTUM=data_momentum,
+        DATA_VOLATILITY=data_volatility,
+        DATA_PRICE_DROPS=data_price_drops,
     )
 
     return index_html, airlines_html
@@ -1202,6 +1239,28 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
     airline_trends = build_airline_trends(rows)
     airline_matrix = build_airline_matrix(rows)
 
+    # Insights panels (price percentile, momentum, volatility, drops).
+    insights_min_history = getattr(config, "INSIGHTS_MIN_HISTORY_DAYS", 14)
+    drop_cfg = DropConfig(
+        pct_threshold=getattr(config, "DROP_PCT_THRESHOLD", 10.0),
+        reference_window_days=getattr(config, "DROP_REFERENCE_WINDOW_DAYS", 30),
+        trailing_window_days=getattr(config, "DROP_TRAILING_WINDOW_DAYS", 7),
+        min_persist=getattr(config, "DROP_MIN_PERSIST", 2),
+    )
+    price_percentile = build_price_percentiles(
+        rows, now=now, min_history_days=insights_min_history
+    )
+    momentum = build_price_momentum(
+        rows, now=now, min_history_days=insights_min_history
+    )
+    # Volatility uses min_history_days=0 — cross-flight stats stay meaningful
+    # even on a single scrape day, and the dashed overlay degrades to a thin
+    # line at zero std rather than a placeholder.
+    volatility = build_volatility(rows, now=now)
+    price_drops = build_price_drops(
+        rows, config=drop_cfg, now=now, min_history_days=insights_min_history
+    )
+
     if not inline_data:
         # Write the data blobs to data.json in the same directory as output_path
         data_payload = {
@@ -1213,6 +1272,10 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
             "health": health,
             "airline_trends": airline_trends,
             "airline_matrix": airline_matrix,
+            "price_percentile": price_percentile,
+            "momentum": momentum,
+            "volatility": volatility,
+            "price_drops": price_drops,
         }
         data_json_path = Path(output_path).parent / "data.json"
         data_json_path.write_text(
@@ -1228,6 +1291,10 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
         health=health,
         airline_trends=airline_trends,
         airline_matrix=airline_matrix,
+        price_percentile=price_percentile,
+        momentum=momentum,
+        volatility=volatility,
+        price_drops=price_drops,
         inline_data=inline_data,
     )
     Path(output_path).write_text(index_html, encoding="utf-8")
