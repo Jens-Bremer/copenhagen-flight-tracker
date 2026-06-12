@@ -311,7 +311,7 @@ def _auto_update_job() -> None:
         log_path = os.path.join(
             os.path.dirname(os.path.abspath(config.DATABASE_PATH)), "update.log"
         )
-        log_file = open(log_path, "a")  # noqa: WPS515
+        log_file = open(log_path, "a")  # noqa: SIM115
         subprocess.Popen(
             ["powershell", "-ExecutionPolicy", "Bypass", "-File", update_script],
             creationflags=creationflags,

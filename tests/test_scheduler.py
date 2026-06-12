@@ -306,8 +306,10 @@ def test_auto_update_job_spawns_powershell_detached_and_exits(tmp_path):
     # Detached IO so the child survives our exit.
     assert kwargs["close_fds"] is True
     assert kwargs["stdin"] == subprocess.DEVNULL
-    assert kwargs["stdout"] == subprocess.DEVNULL
-    assert kwargs["stderr"] == subprocess.DEVNULL
+    # stdout is a log file (not DEVNULL) so failures are diagnosable post-mortem.
+    assert hasattr(kwargs["stdout"], "write")
+    assert "update.log" in kwargs["stdout"].name
+    assert kwargs["stderr"] == subprocess.STDOUT
     # Must exit so update.ps1's PID-file cleanup sees a stale entry.
     mock_exit.assert_called_once_with(0)
 
