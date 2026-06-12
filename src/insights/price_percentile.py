@@ -41,13 +41,29 @@ def build_price_percentiles(
     rows: Iterable[dict[str, Any]],
     *,
     now: datetime | None = None,
+    min_history_days: int = 14,
 ) -> dict[str, Any]:
     """Compute per-bucket percentile + cheap/typical/expensive verdict.
 
     The "latest" price per bucket is the highest-`retrieved_at` observation
     in that bucket; its rank is taken against the entire bucket history
-    (including itself). Buckets with `n < 3` are dropped.
+    (including itself). Buckets with `n < 3` are dropped. When the dataset
+    has fewer than ``min_history_days`` distinct ``retrieved_at`` days the
+    output carries an ``insufficient_data`` marker so the renderer can show
+    a placeholder.
     """
+    rows = list(rows)
+    gen_at = (now or datetime.now(timezone.utc)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    distinct_days = {r["retrieved_at"].date() for r in rows}
+    if len(distinct_days) < min_history_days:
+        return {
+            "generated_at": gen_at,
+            "currency": "EUR",
+            "min_samples": MIN_SAMPLES,
+            "insufficient_data": "need_min_14_days_history",
+            "buckets": [],
+        }
+
     grouped: dict[tuple[str, str, int], list[tuple[datetime, int]]] = defaultdict(list)
     for row in rows:
         db = _days_before(row)
@@ -80,8 +96,7 @@ def build_price_percentiles(
 
     buckets.sort(key=lambda b: (b["route"], b["airline"], -b["days_before"]))
     return {
-        "generated_at": (now or datetime.now(timezone.utc))
-        .strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_at": gen_at,
         "currency": "EUR",
         "min_samples": MIN_SAMPLES,
         "buckets": buckets,

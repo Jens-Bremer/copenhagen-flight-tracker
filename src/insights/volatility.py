@@ -32,8 +32,24 @@ def build_volatility(
     rows: Iterable[dict[str, Any]],
     *,
     now: datetime | None = None,
+    min_history_days: int = 0,
 ) -> dict[str, Any]:
-    """Per-bucket stdev (cents) + coefficient of variation."""
+    """Per-bucket stdev (cents) + coefficient of variation.
+
+    ``min_history_days`` defaults to 0 because volatility is a cross-flight
+    statistic at a single retrieved_at: it stays meaningful even with one day
+    of scrape history. Callers (the generator) may pass a higher gate to keep
+    UX consistent with the other insight panels.
+    """
+    rows = list(rows)
+    gen_at = (now or datetime.now(timezone.utc)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    distinct_days = {r["retrieved_at"].date() for r in rows}
+    if len(distinct_days) < min_history_days:
+        return {
+            "generated_at": gen_at,
+            "insufficient_data": "need_min_14_days_history",
+            "buckets": [],
+        }
     grouped: dict[tuple[str, str, int], list[int]] = defaultdict(list)
     for row in rows:
         db = _days_before(row)
@@ -60,7 +76,6 @@ def build_volatility(
 
     buckets.sort(key=lambda b: (b["route"], b["airline"], -b["days_before"]))
     return {
-        "generated_at": (now or datetime.now(timezone.utc))
-        .strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_at": gen_at,
         "buckets": buckets,
     }

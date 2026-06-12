@@ -1247,10 +1247,15 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
         trailing_window_days=getattr(config, "DROP_TRAILING_WINDOW_DAYS", 7),
         min_persist=getattr(config, "DROP_MIN_PERSIST", 2),
     )
-    price_percentile = build_price_percentiles(rows, now=now)
+    price_percentile = build_price_percentiles(
+        rows, now=now, min_history_days=insights_min_history
+    )
     momentum = build_price_momentum(
         rows, now=now, min_history_days=insights_min_history
     )
+    # Volatility uses min_history_days=0 — cross-flight stats stay meaningful
+    # even on a single scrape day, and the dashed overlay degrades to a thin
+    # line at zero std rather than a placeholder.
     volatility = build_volatility(rows, now=now)
     price_drops = build_price_drops(
         rows, config=drop_cfg, now=now, min_history_days=insights_min_history

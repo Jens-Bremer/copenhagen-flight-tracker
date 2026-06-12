@@ -1,0 +1,7 @@
+OK rows=1
+DATA_PRICE_DROPS present: True
+insufficient_data marker appears at least once: True
+DATA_PRICE_DROPS → {"generated_at":"2026-06-12T12:39:33Z","config":{"pct_threshold":10.0,"reference_window_days":30,"tr
+DATA_MOMENTUM → {"generated_at":"2026-06-12T12:39:33Z","history_days":1,"min_history_days":14,"insufficient_data":"n
+DATA_PRICE_PERCENTILE → {"generated_at":"2026-06-12T12:39:33Z","currency":"EUR","min_samples":3,"insufficient_data":"need_mi
+DATA_VOLATILITY → {"generated_at":"2026-06-12T12:39:33Z","buckets":[]}

@@ -1,0 +1,2 @@
+retrieved_at,departure_date,origin,destination,airline,departure_at,arrival_at,duration_minutes,price_cents,price_currency
+2026-05-15T13:21Z,2026-05-15,AMS,CPH,Norwegian,2026-05-15T18:40:00,2026-05-15T20:00:00,80,18100,EUR

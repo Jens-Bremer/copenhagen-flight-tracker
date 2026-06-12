@@ -27,7 +27,7 @@ def test_percentile_known_label_cheap():
         _row(100, 14, datetime(2026, 5, 26, tzinfo=timezone.utc)),
         _row(200, 14, datetime(2026, 5, 28, tzinfo=timezone.utc)),  # latest
     ]
-    out = build_price_percentiles(rows, now=base)
+    out = build_price_percentiles(rows, now=base, min_history_days=0)
     assert len(out["buckets"]) == 1
     b = out["buckets"][0]
     assert b["latest_price_cents"] == 200
@@ -46,7 +46,7 @@ def test_percentile_label_expensive_at_75th():
         _row(500, 21, datetime(2026, 5, 26, tzinfo=timezone.utc)),
         _row(400, 21, datetime(2026, 5, 28, tzinfo=timezone.utc)),  # latest, 75th
     ]
-    out = build_price_percentiles(rows, now=base)
+    out = build_price_percentiles(rows, now=base, min_history_days=0)
     assert out["buckets"][0]["label"] == "expensive"
 
 
@@ -60,7 +60,7 @@ def test_percentile_label_typical_middle():
         _row(500, 7, datetime(2026, 5, 23, tzinfo=timezone.utc)),
         _row(300, 7, datetime(2026, 5, 24, tzinfo=timezone.utc)),  # latest
     ]
-    out = build_price_percentiles(rows, now=base)
+    out = build_price_percentiles(rows, now=base, min_history_days=0)
     assert out["buckets"][0]["label"] == "typical"
     assert out["buckets"][0]["percentile"] == pytest.approx(50.0)
 
@@ -72,7 +72,7 @@ def test_percentile_sparse_bucket_omitted():
         _row(100, 7, datetime(2026, 5, 20, tzinfo=timezone.utc)),
         _row(200, 7, datetime(2026, 5, 21, tzinfo=timezone.utc)),
     ]
-    out = build_price_percentiles(rows, now=base)
+    out = build_price_percentiles(rows, now=base, min_history_days=0)
     assert out["buckets"] == []
 
 
@@ -80,6 +80,19 @@ def test_empty_input():
     out = build_price_percentiles([], now=datetime(2026, 6, 1, tzinfo=timezone.utc))
     assert out["buckets"] == []
     assert out["min_samples"] == 3
+    assert out["insufficient_data"] == "need_min_14_days_history"
+
+
+def test_insufficient_history_marker():
+    base = datetime(2026, 6, 1, tzinfo=timezone.utc)
+    rows = [
+        _row(100, 7, datetime(2026, 5, 20, tzinfo=timezone.utc)),
+        _row(200, 7, datetime(2026, 5, 21, tzinfo=timezone.utc)),
+        _row(300, 7, datetime(2026, 5, 22, tzinfo=timezone.utc)),
+    ]
+    out = build_price_percentiles(rows, now=base)  # default min_history_days=14
+    assert out["insufficient_data"] == "need_min_14_days_history"
+    assert out["buckets"] == []
 
 
 def test_negative_days_before_dropped():
