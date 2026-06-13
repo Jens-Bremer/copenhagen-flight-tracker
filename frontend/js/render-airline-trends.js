@@ -1,24 +1,8 @@
 // ───── Airline trends chart renderer ────────────────────────────────────────
 // Renders per-airline median price progressions with Q1→Q3 confidence bands
 // using the stacked-dataset pattern (Q1 invisible → IQR fill → Median line).
-// Two charts: one per route (CPH-AMS, AMS-CPH).
+// Volatility (σ) is shown in the dedicated CV panel below, not here.
 
-// Build a lookup: (route, airline, days_before) → std_cents from DATA_VOLATILITY.
-// Returns an empty Map if the blob is missing/empty/insufficient.
-function _readVolatilityIndex() {
-  const blob = document.getElementById('DATA_VOLATILITY');
-  const index = new Map();
-  if (!blob) return index;
-  const text = blob.textContent.trim();
-  if (!text) return index;
-  let v;
-  try { v = JSON.parse(text); } catch { return index; }
-  const buckets = (v && v.buckets) || [];
-  buckets.forEach((b) => {
-    index.set(`${b.route}|${b.airline}|${b.days_before}`, b.std_cents);
-  });
-  return index;
-}
 
 function renderAirlineTrends() {
   destroyChart('airline-trend-out');
@@ -36,8 +20,6 @@ function renderAirlineTrends() {
   }
 
   if (!data || typeof data !== 'object') return;
-
-  const volIndex = _readVolatilityIndex();
 
   const routes = Object.keys(data).sort();
   if (routes.length === 0) return;
@@ -100,37 +82,6 @@ function renderAirlineTrends() {
           pointBackgroundColor: color,
           pointBorderColor: color,
         },
-        // Volatility upper band (median + std). Dashed, subordinate to median.
-        // Points without volatility data resolve to median (no widening).
-        {
-          label: `${airline.airline} σ+`,
-          data: series.map((s) => {
-            const std = volIndex.get(`${route}|${airline.airline}|${s.days_before}`) || 0;
-            return { x: s.days_before, y: (s.median_cents + std) / 100 };
-          }),
-          borderColor: hexToRgba(color, 0.45),
-          backgroundColor: 'transparent',
-          borderDash: [4, 4],
-          fill: false,
-          spanGaps: false,
-          borderWidth: 1,
-          pointRadius: 0,
-        },
-        // Volatility lower band (median − std).
-        {
-          label: `${airline.airline} σ-`,
-          data: series.map((s) => {
-            const std = volIndex.get(`${route}|${airline.airline}|${s.days_before}`) || 0;
-            return { x: s.days_before, y: Math.max(0, (s.median_cents - std) / 100) };
-          }),
-          borderColor: hexToRgba(color, 0.45),
-          backgroundColor: 'transparent',
-          borderDash: [4, 4],
-          fill: false,
-          spanGaps: false,
-          borderWidth: 1,
-          pointRadius: 0,
-        },
       ];
     });
 
@@ -149,24 +100,18 @@ function renderAirlineTrends() {
           },
           legend: {
             labels: {
-              // Filter out Q1, IQR, and volatility-band labels from legend.
               filter: (item) =>
                 !item.text.endsWith(' Q1') &&
-                !item.text.endsWith(' IQR') &&
-                !item.text.endsWith(' σ+') &&
-                !item.text.endsWith(' σ-'),
+                !item.text.endsWith(' IQR'),
               font: { size: isMobile ? 10 : 12 },
             },
           },
           tooltip: {
             callbacks: {
               label: (ctx) => {
-                // Skip band labels in tooltips.
                 if (
                   ctx.dataset.label.endsWith(' Q1') ||
-                  ctx.dataset.label.endsWith(' IQR') ||
-                  ctx.dataset.label.endsWith(' σ+') ||
-                  ctx.dataset.label.endsWith(' σ-')
+                  ctx.dataset.label.endsWith(' IQR')
                 ) return null;
 
                 const airline = ctx.dataset.label;
