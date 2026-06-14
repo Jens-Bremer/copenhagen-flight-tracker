@@ -112,7 +112,9 @@ function renderTrends() {
           const yPx = scales.y.getPixelForValue(chosen.latest_cents / 100);
           ctx.beginPath();
           ctx.arc(xPx, yPx, 6, 0, 2 * Math.PI);
-          ctx.fillStyle = 'rgba(192,57,43,0.9)';
+          // Color based on selected route: red for AMS->CPH, blue otherwise
+          const pointColor = state.route === 'AMS->CPH' ? 'rgba(192,57,43,0.9)' : 'rgba(41,128,185,0.9)';
+          ctx.fillStyle = pointColor;
           ctx.fill();
           ctx.strokeStyle = '#fff';
           ctx.lineWidth = 2;
