@@ -24,6 +24,7 @@ dev = [
 [tool.ruff]
 line-length = 88
 target-version = "py39"
+exclude = ["frontend"]
 
 [tool.ruff.lint]
 select = [
