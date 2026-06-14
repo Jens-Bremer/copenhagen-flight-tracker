@@ -203,10 +203,10 @@ def test_backup_job_silent_on_success(tmp_path):
     mock_alert.assert_not_called()
 
 
-def test_frontend_csv_export_scheduled_at_2346():
+def test_frontend_csv_export_scheduled_at_2350():
     setup_schedule()
     times = [str(job.next_run.strftime("%H:%M")) for job in schedule.jobs]
-    assert "23:46" in times
+    assert "23:50" in times
 
 
 def test_frontend_csv_job_calls_build(tmp_path):
