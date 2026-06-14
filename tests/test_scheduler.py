@@ -14,7 +14,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 from scripts.run_daily import _write_heartbeat
 from scripts.run_scheduler import (
-    _auto_update_job,
     _backup_job,
     _check_stale_pid_file,
     _csv_export_job,
@@ -40,12 +39,12 @@ def clear_schedule():
 
 
 def test_setup_schedule_registers_six_jobs():
-    """Seven scheduled jobs: daily collection, backup, health check, CSV export,
-    frontend CSV, auto-update, and weekly browser-profile cleanup. HTML
+    """Six scheduled jobs: daily collection, backup, health check, CSV export,
+    frontend CSV, and weekly browser-profile cleanup. HTML
     generation has no separate entry — it chains inline after the frontend
     CSV job completes."""
     setup_schedule()
-    assert len(schedule.jobs) == 7
+    assert len(schedule.jobs) == 6
 
 
 def test_no_timed_html_generation_job():
@@ -74,9 +73,9 @@ def test_jobs_run_daily():
     setup_schedule()
     daily_jobs = [j for j in schedule.jobs if str(j.unit) == "days"]
     weekly_jobs = [j for j in schedule.jobs if str(j.unit) == "weeks"]
-    # Six daily jobs (collection, backup, health, CSV, frontend, auto-update)
+    # Five daily jobs (collection, backup, health, CSV, frontend)
     # plus one weekly job (browser-profile cleanup).
-    assert len(daily_jobs) == 6
+    assert len(daily_jobs) == 5
     assert len(weekly_jobs) == 1
     for job in schedule.jobs:
         assert job.interval == 1
@@ -265,82 +264,6 @@ def test_frontend_csv_job_chains_html_generation(tmp_path):
         _frontend_csv_job()
     mock_gen.assert_called_once()
 
-
-def test_auto_update_scheduled_at_2355():
-    """Auto-update job is registered at 23:55."""
-    setup_schedule()
-    times = [str(job.next_run.strftime("%H:%M")) for job in schedule.jobs]
-    assert "23:55" in times
-
-
-def test_auto_update_job_skips_when_script_missing(tmp_path):
-    """When update.ps1 does not exist, the job logs a message and returns."""
-    with (
-        patch("scripts.run_scheduler.os.path.exists", return_value=False),
-        patch("scripts.run_scheduler.logger") as mock_logger,
-    ):
-        _auto_update_job()
-    mock_logger.info.assert_called_once()
-    assert "not found" in mock_logger.info.call_args[0][0].lower()
-
-
-def test_auto_update_job_spawns_powershell_detached_and_exits(tmp_path):
-    """Spawns powershell with update.ps1 via Popen and calls os._exit(0).
-
-    Critical: the old implementation used subprocess.run + wait, but update.ps1
-    kills the scheduler that's waiting on it. We now Popen-detach and exit
-    cleanly so update.ps1 can restart us from a clean slate.
-    """
-    update_script = str(tmp_path / "update.ps1")
-    with (
-        patch("scripts.run_scheduler.os.path.exists", return_value=True),
-        patch("scripts.run_scheduler.subprocess.Popen") as mock_popen,
-        patch("scripts.run_scheduler.os.path.dirname", return_value=str(tmp_path)),
-        patch("scripts.run_scheduler.os.path.abspath", return_value=update_script),
-        patch("scripts.run_scheduler.time.sleep"),
-        patch("scripts.run_scheduler.os._exit") as mock_exit,
-    ):
-        _auto_update_job()
-    mock_popen.assert_called_once()
-    (args, kwargs) = mock_popen.call_args
-    cmd = args[0]
-    assert cmd[0] == "powershell"
-    assert "-ExecutionPolicy" in cmd
-    assert "Bypass" in cmd
-    assert "-File" in cmd
-    assert cmd[-1] == update_script
-    # Detached IO so the child survives our exit.
-    assert kwargs["close_fds"] is True
-    assert kwargs["stdin"] == subprocess.DEVNULL
-    # stdout is a log file (not DEVNULL) so failures are diagnosable post-mortem.
-    assert hasattr(kwargs["stdout"], "write")
-    assert "update.log" in kwargs["stdout"].name
-    assert kwargs["stderr"] == subprocess.STDOUT
-    # Must exit so update.ps1's PID-file cleanup sees a stale entry.
-    mock_exit.assert_called_once_with(0)
-
-
-def test_auto_update_job_alerts_when_spawn_itself_fails():
-    """If Popen raises (e.g. powershell missing), send an alert and don't exit.
-
-    Spawn failure is the only path where the scheduler stays alive — failures
-    after spawn are reported by update.ps1's own ntfy call.
-    """
-    with (
-        patch("scripts.run_scheduler.os.path.exists", return_value=True),
-        patch(
-            "scripts.run_scheduler.subprocess.Popen",
-            side_effect=FileNotFoundError("powershell not found"),
-        ),
-        patch("scripts.run_scheduler.send_alert") as mock_alert,
-        patch("scripts.run_scheduler.os._exit") as mock_exit,
-    ):
-        _auto_update_job()
-    mock_alert.assert_called_once()
-    _args, kwargs = mock_alert.call_args
-    assert "auto-update" in kwargs["title"].lower()
-    assert kwargs["priority"] == "high"
-    mock_exit.assert_not_called()
 
 
 # --- PID file management (issue #133) ---
