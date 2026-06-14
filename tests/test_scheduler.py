@@ -264,7 +264,6 @@ def test_frontend_csv_job_chains_html_generation(tmp_path):
     mock_gen.assert_called_once()
 
 
-
 # --- PID file management (issue #133) ---
 
 

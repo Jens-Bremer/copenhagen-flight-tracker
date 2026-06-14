@@ -362,7 +362,7 @@ def setup_schedule() -> None:
     schedule.every().day.at("23:30").do(_health_check_job)
     schedule.every().day.at("23:45").do(_csv_export_job)
     schedule.every().day.at("23:50").do(_frontend_csv_job)
-    #schedule.every().day.at("23:55").do(_auto_update_job)
+    # schedule.every().day.at("23:55").do(_auto_update_job)
     schedule.every().monday.at("02:30").do(_cleanup_profiles_job)
     logger.info(
         "Scheduler: daily collection at %s, backup at 01:00, health check at "
