@@ -25,6 +25,7 @@ from typing import Any
 import config
 from src.analytics import percentile_rank
 from src.insights.drops import DropConfig, build_price_drops
+from src.insights.flight_scatter import build_flight_scatter
 from src.insights.momentum import build_price_momentum
 from src.insights.price_percentile import build_price_percentiles
 from src.insights.price_volatility_index import build_price_volatility_index
@@ -65,6 +66,7 @@ JS_FILE_ORDER_AIRLINES = [
     "render-momentum.js",
     "render-price-drops.js",
     "render-volatility-index.js",
+    "render-flight-scatter.js",
 ]
 
 # ─── CSV loader ──────────────────────────────────────────────────────────────
@@ -1121,6 +1123,7 @@ def render_html(
     volatility: dict[str, Any] | None = None,
     price_drops: dict[str, Any] | None = None,
     price_volatility_index: dict[str, Any] | None = None,
+    flight_scatter: dict[str, Any] | None = None,
     inline_data: bool = False,
 ) -> tuple[str, str]:
     """Inline assets + JSON blobs into templates. Returns (index_html, airlines_html).
@@ -1150,6 +1153,8 @@ def render_html(
         price_drops = {}
     if price_volatility_index is None:
         price_volatility_index = {}
+    if flight_scatter is None:
+        flight_scatter = {}
 
     template = _read_text(TEMPLATE_PATH)
     styles = _read_text(STYLES_PATH)
@@ -1166,6 +1171,7 @@ def render_html(
             "renderMomentum",
             "renderPriceDrops",
             "renderVolatilityIndex",
+            "renderFlightScatter",
         ],
     )
 
@@ -1188,6 +1194,7 @@ def render_html(
         data_volatility = _safe_json(volatility)
         data_price_drops = _safe_json(price_drops)
         data_price_volatility_index = _safe_json(price_volatility_index)
+        data_flight_scatter = _safe_json(flight_scatter)
     else:
         data_metadata = ""
         data_calendar = ""
@@ -1202,6 +1209,7 @@ def render_html(
         data_volatility = ""
         data_price_drops = ""
         data_price_volatility_index = ""
+        data_flight_scatter = ""
 
     # Render index.html
     index_html = string.Template(template).safe_substitute(
@@ -1235,6 +1243,8 @@ def render_html(
         DATA_VOLATILITY=data_volatility,
         DATA_PRICE_DROPS=data_price_drops,
         DATA_PRICE_VOLATILITY_INDEX=data_price_volatility_index,
+        DATA_FLIGHT_SCATTER=data_flight_scatter,
+        STALE_FLIGHT_DAYS=config.STALE_FLIGHT_DAYS,
     )
 
     return index_html, airlines_html
@@ -1282,6 +1292,7 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
     price_drops = build_price_drops(
         rows, config=drop_cfg, now=now, min_history_days=insights_min_history
     )
+    flight_scatter = build_flight_scatter(rows, now=now)
 
     if not inline_data:
         # Write the data blobs to data.json in the same directory as output_path
@@ -1299,6 +1310,7 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
             "volatility": volatility,
             "price_drops": price_drops,
             "price_volatility_index": price_volatility_index,
+            "flight_scatter": flight_scatter,
         }
         data_json_path = Path(output_path).parent / "data.json"
         data_json_path.write_text(
@@ -1319,6 +1331,7 @@ def generate(input_path: str, output_path: str, inline_data: bool = False) -> in
         volatility=volatility,
         price_drops=price_drops,
         price_volatility_index=price_volatility_index,
+        flight_scatter=flight_scatter,
         inline_data=inline_data,
     )
     Path(output_path).write_text(index_html, encoding="utf-8")
