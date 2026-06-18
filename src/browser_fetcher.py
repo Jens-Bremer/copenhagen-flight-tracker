@@ -13,7 +13,7 @@ from urllib.parse import urlencode, urlparse
 from playwright.sync_api import BrowserContext, sync_playwright
 
 import config
-from src.flight_fetcher import BotChallengeError, NetworkError, RateLimitedError
+from src.flight_fetcher import BotChallengeError, NetworkError, ParseError, RateLimitedError
 from src.proxy_manager import load_proxies
 
 logger = logging.getLogger(__name__)
@@ -383,7 +383,21 @@ def _fetch_via(url: str, use_proxy: bool) -> BrowserResponse:
     finally:
         page.close()
 
+    # Status, byte-floor, and suspicious-title checks first — short / blocked
+    # responses raise BotChallengeError or RateLimitedError here.
     _detect_block(status, body)
+
+    # Google occasionally closes the connection before delivering the <body>,
+    # leaving us with only the <head> JS bundle (~200 KB). The DOM has no
+    # flight result elements; fast_flights would raise RuntimeError("No flights
+    # found: <200 KB of HTML>"). Detect this early and raise ParseError so the
+    # caller gets a one-line diagnostic instead of a 200 KB HTML dump.
+    if "</html>" not in body:
+        raise ParseError(
+            f"incomplete HTML response ({len(body.encode('utf-8'))} bytes,"
+            " no </html> — connection likely closed before <body> was delivered)"
+        )
+
     return BrowserResponse(status, body)
 
 
@@ -413,7 +427,7 @@ def browser_fetch(params: dict) -> BrowserResponse:
 
     try:
         return _fetch_via(url, use_proxy=True)
-    except (NetworkError, BotChallengeError, RateLimitedError) as exc:
+    except (NetworkError, BotChallengeError, RateLimitedError, ParseError) as exc:
         logger.warning(
             "Proxy route failed (%s: %s), retrying on direct context",
             type(exc).__name__,

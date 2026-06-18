@@ -81,6 +81,17 @@ def fetch_flights_for_date(
             fetch_mode="common",
             max_stops=config.MAX_STOPS,
         )
+    except RuntimeError as exc:
+        # fast_flights raises RuntimeError("No flights found: <html>…") when its
+        # CSS selectors find nothing. Reclassify as ParseError so _classify_failure
+        # reports "parse_error" instead of "other", and the log line stays concise.
+        wrapped = ParseError(str(exc)) if "No flights found" in str(exc) else exc
+        if raise_on_failure:
+            raise wrapped from exc
+        logger.error(
+            "Failed to fetch %s→%s on %s: %s", origin, destination, departure_date, wrapped
+        )
+        return None
     except Exception as exc:
         if raise_on_failure:
             raise

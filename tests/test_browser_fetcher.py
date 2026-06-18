@@ -169,7 +169,8 @@ def _make_page(status: int = 200, content: str = "") -> MagicMock:
 def _good_body() -> str:
     import config
 
-    return "x" * (config.BOT_CHALLENGE_MIN_BYTES + 1000)
+    padding = "x" * (config.BOT_CHALLENGE_MIN_BYTES + 1000)
+    return f"<html><head></head><body>{padding}</body></html>"
 
 
 def test_browser_fetch_returns_browser_response_on_200():
