@@ -13,7 +13,12 @@ from urllib.parse import urlencode, urlparse
 from playwright.sync_api import BrowserContext, sync_playwright
 
 import config
-from src.flight_fetcher import BotChallengeError, NetworkError, ParseError, RateLimitedError
+from src.flight_fetcher import (
+    BotChallengeError,
+    NetworkError,
+    ParseError,
+    RateLimitedError,
+)
 from src.proxy_manager import load_proxies
 
 logger = logging.getLogger(__name__)
