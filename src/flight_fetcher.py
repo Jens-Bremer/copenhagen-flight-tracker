@@ -90,7 +90,10 @@ def fetch_flights_for_date(
             raise wrapped from exc
         logger.error(
             "Failed to fetch %s→%s on %s: %s",
-            origin, destination, departure_date, wrapped,
+            origin,
+            destination,
+            departure_date,
+            wrapped,
         )
         return None
     except Exception as exc:
