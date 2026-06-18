@@ -174,6 +174,56 @@ form also works but the wrapper is preferred.
 - Drops are sorted by `pct_below` ascending (biggest drops first).
 - Empty `drops` array is a valid output (renderer shows "no notable drops").
 
+### `DATA_FLIGHT_SCATTER`
+
+Per-route scatter of every currently-bookable flight at its latest observed
+price, with each flight's full price history for the hover line. Powers the
+"Live Flight Prices" panel (`render-flight-scatter.js`).
+
+```jsonc
+{
+  "generated_at": "2026-06-18T22:00:00Z",
+  "routes": {
+    "CPH-AMS": [
+      {
+        "airline": "KLM",            // string, verbatim (codeshares not split)
+        "dep_time": "08:35",         // HH:MM 24-hr, departure-airport local time
+        "dep_date": "2026-08-04",    // ISO date of departure
+        "dep_dow": "Mon",            // 3-letter day-of-week of dep_date
+        "days_before": 47,           // int, at the latest observation
+        "price_cents": 14200,        // int, latest observed price (EUR cents)
+        "color": null,               // always null; JS resolves via airlineColor()
+        "history": [                 // chronological, oldest → newest
+          { "days_before": 61, "price_cents": 15800 },
+          { "days_before": 54, "price_cents": 15200 },
+          { "days_before": 47, "price_cents": 14200 }
+        ]
+      }
+    ],
+    "AMS-CPH": [ ... ]
+  }
+}
+```
+
+- Flight identity = `(route, departure_date, airline, dep_time)`. Only the
+  latest observation (highest `retrieved_at`) supplies the scatter point;
+  every observation supplies one `history` entry.
+- `days_before` uses the canonical formula `(departure_at.date() -
+  retrieved_at.date()).days`. Observations with `days_before < 0` are dropped
+  before the latest-price and history computation.
+- **Staleness exclusion:** a flight is excluded entirely when its latest
+  observation is older than `config.STALE_FLIGHT_DAYS` days before `now`
+  (`(now.date() - latest_retrieved_at.date()).days > STALE_FLIGHT_DAYS`). A
+  flight last seen exactly `STALE_FLIGHT_DAYS` days ago is still included.
+- `color` is always `null`; the renderer resolves the airline colour via
+  `airlineColor()` at render time.
+- Within each route, flights are sorted by `days_before` descending (furthest
+  from departure first), then `price_cents` ascending as tiebreaker.
+- Single-observation flights are valid (history has one entry; the renderer
+  draws no line for them). No minimum-observation gate and no
+  `insufficient_data` marker — the chart is renderable whenever any non-stale
+  rows exist, and emits `{"routes": {}}` otherwise.
+
 ## `config.py` keys (added)
 
 | Key | Default | Used by |
