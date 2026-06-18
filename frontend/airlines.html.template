@@ -22,6 +22,13 @@
       <div id="momentum-container"></div>
     </section>
 
+    <section class="panel" aria-label="Live flight prices">
+      <h2 class="panel__heading">Live Flight Prices</h2>
+      <p class="panel__subtitle">Current price of each bookable flight, coloured by airline. Hover a flight to reveal its price history. Stale flights (not seen in the last ${STALE_FLIGHT_DAYS} days) are excluded.</p>
+      <div class="chart-wrap"><canvas id="flight-scatter-out" role="img" aria-label="CPH to AMS live flight prices"></canvas></div>
+      <div class="chart-wrap" style="margin-top:1.5rem;"><canvas id="flight-scatter-back" role="img" aria-label="AMS to CPH live flight prices"></canvas></div>
+    </section>
+
     <section class="panel" aria-label="Airline price trends">
       <h2 class="panel__heading">Airline Price Trends by Booking Window</h2>
       <p class="panel__subtitle">Median price progression & interquartile range per airline, with dashed ±σ volatility band overlay</p>
@@ -74,6 +81,7 @@
   <script type="application/json" id="DATA_VOLATILITY">${DATA_VOLATILITY}</script>
   <script type="application/json" id="DATA_PRICE_DROPS">${DATA_PRICE_DROPS}</script>
   <script type="application/json" id="DATA_PRICE_VOLATILITY_INDEX">${DATA_PRICE_VOLATILITY_INDEX}</script>
+  <script type="application/json" id="DATA_FLIGHT_SCATTER">${DATA_FLIGHT_SCATTER}</script>
   <div id="data-load-error" style="display:none;position:fixed;inset:0;z-index:9999;background:#fff3cd;color:#856404;padding:2rem;font-family:sans-serif;font-size:1.1rem;"></div>
 
   <script>${INLINE_CHART_JS}</script>
@@ -97,6 +105,7 @@
       try { renderPricePercentile(); } catch (e) { console.error('Failed to render price percentile:', e); }
       try { renderMomentum(); } catch (e) { console.error('Failed to render momentum:', e); }
       try { renderVolatilityIndex(); } catch (e) { console.error('Failed to render volatility index:', e); }
+      try { renderFlightScatter(); } catch (e) { console.error('Failed to render flight scatter:', e); }
     });
   </script>
 </body>
