@@ -5,7 +5,7 @@ description = "Self-hosted flight price tracker for CPH-AMS routes"
 requires-python = ">=3.9"
 dependencies = [
     "fast-flights==2.2",
-    "playwright==1.59.0",
+    "playwright==1.60.0",
     "python-dateutil>=2.9.0.post0,<3.0",
     "schedule>=1.2.2,<2.0",
 ]
